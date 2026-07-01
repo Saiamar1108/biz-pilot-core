@@ -7,10 +7,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Package, Plus, Search, AlertTriangle, Boxes, TrendingUp } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Package, Pencil, Plus, Trash2, Search, AlertTriangle, Boxes, TrendingUp } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createProduct, getProducts, type Product, updateProduct } from "@/lib/api";
+import { createProduct, deleteProduct, getProducts, type Product, updateProduct } from "@/lib/api";
+import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
@@ -25,22 +27,30 @@ function InventoryPage() {
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", sku: "", category: "", stock: "", price: "" });
   const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await getProducts();
+      setItems(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to load inventory");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     let active = true;
     const load = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await getProducts();
-        if (!active) return;
-        setItems(data);
-      } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Unable to load inventory");
-      } finally {
-        if (active) setLoading(false);
-      }
+      if (!active) return;
+      await loadProducts();
     };
 
     load();
@@ -63,7 +73,57 @@ function InventoryPage() {
 
   const low = items.filter((i) => i.stock < 10).length;
 
-  const handleAddProduct = async () => {
+  const resetForm = () => {
+    setForm({ name: "", sku: "", category: "", stock: "", price: "" });
+    setEditingProductId(null);
+  };
+
+  const openCreateDialog = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEditDialog = (product: Product) => {
+    setEditingProductId(product.id);
+    setForm({
+      name: product.name,
+      sku: product.sku,
+      category: product.category,
+      stock: String(product.stock),
+      price: String(product.price),
+    });
+    setDialogOpen(true);
+  };
+
+  const openDeleteDialog = (product: Product) => {
+    setProductToDelete(product);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteProduct = async () => {
+    if (!productToDelete) return;
+
+    try {
+      setDeleting(true);
+      setError(null);
+      const loadingToast = toast.loading("Deleting product...");
+      await deleteProduct(productToDelete.id);
+      await loadProducts();
+      toast.success("Product deleted successfully.", { id: loadingToast });
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to delete product";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleSaveProduct = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     if (!form.name || !form.sku || !form.category || form.stock === "" || form.price === "") {
       setError("Please complete all product fields.");
       return;
@@ -72,18 +132,35 @@ function InventoryPage() {
     try {
       setSubmitting(true);
       setError(null);
-      const created = await createProduct({
-        name: form.name,
-        sku: form.sku,
-        category: form.category,
-        stock: Number(form.stock),
-        price: Number(form.price),
-        sold: 0,
-      });
-      setItems((current) => [created, ...current]);
-      setForm({ name: "", sku: "", category: "", stock: "", price: "" });
+      const loadingToast = toast.loading(editingProductId ? "Updating product..." : "Creating product...");
+      if (editingProductId) {
+        await updateProduct(editingProductId, {
+          name: form.name,
+          sku: form.sku,
+          category: form.category,
+          stock: Number(form.stock),
+          price: Number(form.price),
+        });
+        await loadProducts();
+        toast.success("Product updated successfully.", { id: loadingToast });
+      } else {
+        await createProduct({
+          name: form.name,
+          sku: form.sku,
+          category: form.category,
+          stock: Number(form.stock),
+          price: Number(form.price),
+          sold: 0,
+        });
+        await loadProducts();
+        toast.success("Product created successfully.", { id: loadingToast });
+      }
+      resetForm();
+      setDialogOpen(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create product");
+      const message = err instanceof Error ? err.message : editingProductId ? "Unable to update product" : "Unable to create product";
+      setError(message);
+      toast.error(message);
     } finally {
       setSubmitting(false);
     }
@@ -126,15 +203,18 @@ function InventoryPage() {
                 </SelectContent>
               </Select>
             </div>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button className="gradient-primary text-primary-foreground shrink-0">
-                  <Plus className="h-4 w-4 mr-1" /> Add Product
-                </Button>
-              </DialogTrigger>
+            <Dialog open={dialogOpen} onOpenChange={(open) => {
+              if (!open) {
+                resetForm();
+              }
+              setDialogOpen(open);
+            }}>
+              <Button className="gradient-primary text-primary-foreground shrink-0" onClick={openCreateDialog}>
+                <Plus className="h-4 w-4 mr-1" /> Add Product
+              </Button>
               <DialogContent>
-                <DialogHeader><DialogTitle>Add New Product</DialogTitle></DialogHeader>
-                <div className="space-y-4">
+                <DialogHeader><DialogTitle>{editingProductId ? "Edit Product" : "Add New Product"}</DialogTitle></DialogHeader>
+                <form className="space-y-4" onSubmit={handleSaveProduct}>
                   <div><Label className="mb-2 block">Name</Label><Input placeholder="Product name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></div>
                   <div className="grid grid-cols-2 gap-3">
                     <div><Label className="mb-2 block">SKU</Label><Input placeholder="AUTO-001" value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} /></div>
@@ -144,10 +224,10 @@ function InventoryPage() {
                     <div><Label className="mb-2 block">Stock</Label><Input type="number" placeholder="0" value={form.stock} onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))} /></div>
                     <div><Label className="mb-2 block">Price</Label><Input type="number" placeholder="0.00" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></div>
                   </div>
-                </div>
-                <DialogFooter>
-                  <Button className="gradient-primary text-primary-foreground" onClick={handleAddProduct} disabled={submitting}>{submitting ? "Adding..." : "Add Product"}</Button>
-                </DialogFooter>
+                  <DialogFooter>
+                    <Button type="submit" className="gradient-primary text-primary-foreground" disabled={submitting}>{submitting ? (editingProductId ? "Saving..." : "Adding...") : editingProductId ? "Save Changes" : "Add Product"}</Button>
+                  </DialogFooter>
+                </form>
               </DialogContent>
             </Dialog>
           </div>
@@ -163,6 +243,7 @@ function InventoryPage() {
                   <th className="text-right px-5 py-3 font-semibold">Stock</th>
                   <th className="text-right px-5 py-3 font-semibold">Price</th>
                   <th className="text-right px-5 py-3 font-semibold hidden lg:table-cell">Sold</th>
+                  <th className="text-right px-5 py-3 font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -188,11 +269,21 @@ function InventoryPage() {
                     </td>
                     <td className="px-5 py-4 text-right">${i.price.toFixed(2)}</td>
                     <td className="px-5 py-4 text-right text-muted-foreground hidden lg:table-cell">{i.sold}</td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex justify-end items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => openDeleteDialog(i)} className="h-8 w-8">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => openEditDialog(i)} className="h-8 px-3">
+                          <Pencil className="mr-1.5 h-3.5 w-3.5" /> Edit
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center py-16 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-16 text-muted-foreground">
                       <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
                       No products match your search
                     </td>
@@ -204,6 +295,27 @@ function InventoryPage() {
           )}
         </div>
       </div>
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Product</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Are you sure you want to delete {productToDelete?.name ?? "this product"}? This action cannot be undone.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteProduct} disabled={deleting}>
+              {deleting ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Toaster position="top-right" />
     </DashboardLayout>
   );
 }

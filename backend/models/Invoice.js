@@ -22,7 +22,7 @@ const invoiceSchema = new mongoose.Schema(
     taxRate: { type: Number, required: true, min: 0 },
     tax: { type: Number, required: true, min: 0 },
     total: { type: Number, required: true, min: 0 },
-    status: { type: String, enum: ["paid", "pending", "overdue"], default: "pending" },
+    status: { type: String, enum: ["paid", "pending", "overdue", "sent"], default: "pending" },
   },
   { timestamps: true }
 );

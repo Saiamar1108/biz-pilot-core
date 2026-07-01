@@ -34,6 +34,8 @@ export type Customer = {
   orders: number;
   spent: number;
   due: number;
+  pendingPayments: number;
+  orderHistory: string[];
   status: "vip" | "regular" | "new";
   lastOrder: string;
 };
@@ -42,7 +44,7 @@ export type Invoice = {
   id: string;
   customer: string;
   amount: number;
-  status: "paid" | "pending" | "overdue";
+  status: "paid" | "pending" | "overdue" | "sent";
   date: string;
   items: number;
 };
@@ -85,6 +87,8 @@ const normalizeCustomer = (item: any): Customer => ({
   orders: Number(item.orders ?? 0),
   spent: Number(item.spent ?? 0),
   due: Number(item.due ?? 0),
+  pendingPayments: Number(item.pendingPayments ?? item.due ?? 0),
+  orderHistory: Array.isArray(item.orderHistory) ? item.orderHistory.map(String) : [],
   status: item.status ?? "regular",
   lastOrder: normalizeDate(item.lastOrder),
 });
@@ -111,6 +115,11 @@ export async function createProduct(payload: Omit<Product, "id">) {
 export async function updateProduct(id: string, payload: Partial<Omit<Product, "id">>) {
   const response = await api.put<ApiResponse<any>>(`/products/${id}`, payload);
   return normalizeProduct(response.data.data);
+}
+
+export async function deleteProduct(id: string) {
+  const response = await api.delete<ApiResponse<any>>(`/products/${id}`);
+  return response.data.data;
 }
 
 export async function getCustomers() {

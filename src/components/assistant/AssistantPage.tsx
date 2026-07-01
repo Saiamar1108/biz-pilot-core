@@ -2,7 +2,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Bot, Mic, Paperclip, Send, Sparkles, TrendingUp, Package, Users } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { postAiChat } from "@/lib/api";
 
@@ -29,6 +29,14 @@ const prompts = [
   { icon: Sparkles, text: "Predict tomorrow's demand" },
 ];
 
+const voiceCommands = [
+  "show low stock products",
+  "what are my top selling products",
+  "show pending invoices",
+  "who are my top customers",
+  "predict tomorrow demand",
+];
+
 const aiResponses: Record<string, string> = {
   "Show me this week's revenue": "This week's revenue is $35,700 — up 12.4% from last week. Friday and Saturday were your strongest days.",
   "Which products are running low?": "5 products are below threshold: Basmati Rice (3), Organic Eggs (2), Trail Mix (0), Dark Chocolate (8), and Sparkling Water (5).",
@@ -40,33 +48,121 @@ export function AssistantPage() {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
+  const [processingVoice, setProcessingVoice] = useState(false);
+  const [recognitionSupported, setRecognitionSupported] = useState(false);
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
 
   const send = async (text?: string) => {
     const t = (text ?? input).trim();
     if (!t || sending) return;
-    setMsgs((m) => [...m, { role: "user", text: t }]);
+
+    setMsgs((m) => [...m, { role: "user", text: t }, { role: "ai", text: "Thinking..." }]);
     setInput("");
     setSending(true);
+
     try {
       const response = await postAiChat(t);
-      setMsgs((m) => [...m, { role: "ai", text: response.message }]);
+      const reply = response.reply ?? response.message ?? "I couldn't generate a response right now.";
+      setMsgs((m) => {
+        const next = m.slice(0, -1);
+        return [...next, { role: "ai", text: reply }];
+      });
     } catch (error) {
-      setMsgs((m) => [...m, { role: "ai", text: error instanceof Error ? error.message : "Unable to reach AI assistant right now." }]);
+      const message = error instanceof Error ? error.message : "Unable to reach AI assistant right now.";
+      setMsgs((m) => {
+        const next = m.slice(0, -1);
+        return [...next, { role: "ai", text: message }];
+      });
     } finally {
       setSending(false);
     }
   };
 
-  const toggleVoice = () => {
-    setListening((v) => !v);
-    if (!listening) {
-      setTimeout(() => {
-        setListening(false);
-        send("What are my top selling products this week?");
-      }, 1500);
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [msgs, sending]);
+
+  useEffect(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setRecognitionSupported(false);
+      return;
     }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setListening(true);
+      setVoiceStatus("Listening...");
+      setSendError(null);
+    };
+
+    recognition.onresult = (event: any) => {
+      const transcript = String(event.results[0][0].transcript || "").trim();
+      setInput(transcript);
+      setVoiceStatus("Processing...");
+      setListening(false);
+
+      const normalized = transcript.toLowerCase().trim();
+      if (voiceCommands.includes(normalized)) {
+        setProcessingVoice(true);
+        send(transcript).finally(() => {
+          setProcessingVoice(false);
+          setVoiceStatus(null);
+        });
+      } else {
+        setVoiceStatus("Speech captured. Press send to submit.");
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      setListening(false);
+      setVoiceStatus(null);
+      if (event.error === "not-allowed" || event.error === "permission-denied") {
+        setSendError("Microphone permission denied.");
+      } else {
+        setSendError(`Voice recognition error: ${event.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      setListening(false);
+      if (!processingVoice) {
+        setVoiceStatus((prev) => (prev === "Listening..." ? null : prev));
+      }
+    };
+
+    recognitionRef.current = recognition;
+    setRecognitionSupported(true);
+
+    return () => {
+      recognition.stop?.();
+      recognitionRef.current = null;
+    };
+  }, [processingVoice]);
+
+  const toggleVoice = () => {
+    if (!recognitionSupported) {
+      setSendError("Voice not supported");
+      return;
+    }
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    setSendError(null);
+    setVoiceStatus("Listening...");
+    recognitionRef.current?.start();
   };
 
   return (
@@ -111,6 +207,7 @@ export function AssistantPage() {
                 </div>
               </div>
             ))}
+            <div ref={chatEndRef} />
           </div>
 
           <div className="p-4 border-t border-border">
@@ -119,7 +216,8 @@ export function AssistantPage() {
                 <button
                   key={p.text}
                   onClick={() => send(p.text)}
-                  className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-secondary/60 hover:bg-accent hover:border-primary/40 transition"
+                  disabled={sending}
+                  className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-secondary/60 hover:bg-accent hover:border-primary/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <p.icon className="h-3 w-3 text-primary" /> {p.text}
                 </button>
@@ -127,25 +225,44 @@ export function AssistantPage() {
             </div>
             <div className="flex items-center gap-2 p-2 rounded-xl border border-border bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition">
               <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileRef.current?.click()}>
+              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileRef.current?.click()} disabled={sending}>
                 <Paperclip className="h-4 w-4" />
               </Button>
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && send()}
-                placeholder="Ask anything about your business..."
-                className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`h-9 w-9 shrink-0 ${listening ? "text-destructive animate-pulse" : "text-primary"}`}
-                onClick={toggleVoice}
-              >
-                <Mic className="h-4 w-4" />
-              </Button>
-              <Button size="icon" onClick={() => send()} className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground">
+              <div className="relative flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 shrink-0 ${listening ? "text-destructive shadow-glow" : "text-primary"}`}
+                  onClick={toggleVoice}
+                  disabled={sending || !recognitionSupported}
+                  title={recognitionSupported ? "Start voice input" : "Voice not supported"}
+                >
+                  <Mic className="h-4 w-4" />
+                </Button>
+                {listening && (
+                  <span className="absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-ping" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
+                  </span>
+                )}
+              </div>
+              <div className="flex-1">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && send()}
+                  placeholder="Ask anything about your business..."
+                  disabled={sending}
+                  className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
+                />
+                {(voiceStatus || sendError || processingVoice) && (
+                  <div className="text-[11px] mt-1 text-muted-foreground">
+                    {processingVoice ? "Processing..." : sendError || voiceStatus}
+                  </div>
+                )}
+              </div>
+              <Button size="icon" onClick={() => send()} className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground" disabled={sending}>
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -160,7 +277,8 @@ export function AssistantPage() {
                 <button
                   key={p.text}
                   onClick={() => send(p.text)}
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-secondary transition flex items-center gap-2"
+                  disabled={sending}
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-secondary transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <p.icon className="h-3.5 w-3.5 text-primary shrink-0" />
                   {p.text}

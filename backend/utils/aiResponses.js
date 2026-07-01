@@ -98,11 +98,34 @@ function buildHeuristicResponse(message, ctx) {
   };
 }
 
+function formatBusinessContext(ctx) {
+  const topProducts = ctx.topProducts.slice(0, 5).map((p) => `${p.name} (${p.sold} sold, stock ${p.stock})`).join("; ") || "None";
+  const lowStock = ctx.lowStockItems.slice(0, 5).map((p) => `${p.name} (${p.stock} left)`).join("; ") || "None";
+  const pendingPayments = ctx.customers.filter((c) => c.due > 0).slice(0, 5).map((c) => `${c.name} ($${c.due.toFixed(2)})`).join("; ") || "None";
+  const customerInsights = [...ctx.customers]
+    .sort((a, b) => b.spent - a.spent)
+    .slice(0, 5)
+    .map((c) => `${c.name} spent $${c.spent.toFixed(2)} (${c.status})`)
+    .join("; ") || "None";
+  const revenueTrend = ctx.monthlyRevenue
+    .slice(-3)
+    .map((m) => `${m.month}: $${m.revenue.toFixed(2)}`)
+    .join("; ") || "None";
+
+  return `Top products: ${topProducts}
+Low stock items: ${lowStock}
+Pending payments: ${pendingPayments}
+Customer insights: ${customerInsights}
+Recent revenue trend: ${revenueTrend}`;
+}
+
 async function askOpenAI(message, ctx) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     throw new Error("OPENAI_API_KEY is not configured");
   }
+
+  const businessContext = formatBusinessContext(ctx);
 
   const response = await fetch(OPENAI_API_URL, {
     method: "POST",
@@ -119,15 +142,12 @@ async function askOpenAI(message, ctx) {
           content: "You are ShopPilot AI, a helpful assistant for a retail business. Answer questions about sales, inventory, customers, invoices, and restocking clearly and concisely.",
         },
         {
+          role: "system",
+          content: `Use the following business data when answering: ${businessContext}`,
+        },
+        {
           role: "user",
-          content: `User question: ${message}\n\nBusiness context: ${JSON.stringify({
-            totalSales: ctx.totalSales,
-            monthlyRevenue: ctx.monthlyRevenue,
-            lowStockItems: ctx.lowStockItems.slice(0, 5),
-            topProducts: ctx.topProducts.slice(0, 5),
-            customers: ctx.customers.slice(0, 5),
-            invoices: ctx.invoices.slice(0, 5),
-          })}`,
+          content: `User question: ${message}`,
         },
       ],
     }),
