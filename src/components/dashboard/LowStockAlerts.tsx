@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Product } from "@/lib/mock-data";
+import type { Product } from "@/lib/api";
 
 export function LowStockAlerts({ products }: { products: Product[] }) {
   if (products.length === 0) {

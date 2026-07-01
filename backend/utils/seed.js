@@ -25,6 +25,7 @@ const customers = [
   { name: "Aisha Okoye", email: "aisha@lagos.co", phone: "+1 555 0103", orders: 32, spent: 2890, due: 0, status: "vip", lastOrder: new Date("2026-06-29") },
   { name: "James Patel", email: "jamesp@mail.com", phone: "+1 555 0104", orders: 6, spent: 420, due: 65, status: "new", lastOrder: new Date("2026-06-25") },
   { name: "Sofia Rossi", email: "sofia@rossi.it", phone: "+1 555 0105", orders: 14, spent: 940, due: 0, status: "regular", lastOrder: new Date("2026-06-26") },
+  { name: "Bhuvana Sri", email: "bhuvana@example.com", phone: "7569681350", orders: 0, spent: 0, due: 0, status: "new", lastOrder: new Date() },
 ];
 
 function lineItem(product, quantity) {

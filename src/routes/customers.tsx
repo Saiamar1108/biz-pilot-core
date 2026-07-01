@@ -6,8 +6,8 @@ import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Users, TrendingUp, AlertCircle, Star, Search, Mail, Phone } from "lucide-react";
-import { useMemo, useState } from "react";
-import { customers, recentOrders, getPendingPayments } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { getCustomers, type Customer } from "@/lib/api";
 
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Customers — ShopPilot AI" }] }),
@@ -16,11 +16,38 @@ export const Route = createFileRoute("/customers")({
 
 function CustomersPage() {
   const [q, setQ] = useState("");
-  const pending = getPendingPayments();
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const customerData = await getCustomers();
+        if (!active) return;
+        setCustomers(customerData);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to load customers");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const pending = useMemo(() => customers.filter((customer) => customer.due > 0), [customers]);
 
   const filtered = useMemo(
     () => customers.filter((c) => c.name.toLowerCase().includes(q.toLowerCase()) || c.email.toLowerCase().includes(q.toLowerCase())),
-    [q]
+    [customers, q]
   );
 
   return (
@@ -33,12 +60,15 @@ function CustomersPage() {
           <StatCard label="Avg Order Value" value="$68" change={4.2} icon={TrendingUp} accent="primary" />
         </div>
 
+        {error && <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
+
         <PageSection title="Customer Directory" description={`${filtered.length} customers`}>
           <div className="relative max-w-sm mb-5">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input placeholder="Search customers" value={q} onChange={(e) => setQ(e.target.value)} className="pl-9" />
           </div>
 
+          {loading ? <div className="py-8 text-sm text-muted-foreground">Loading customers…</div> : (
           <div className="overflow-x-auto -mx-6 px-6">
             <table className="w-full text-sm">
               <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
@@ -90,25 +120,28 @@ function CustomersPage() {
               </tbody>
             </table>
           </div>
+          )}
         </PageSection>
 
         <div className="grid lg:grid-cols-2 gap-6">
           <PageSection title="Order History" description="Recent transactions across all customers">
             <div className="space-y-2">
-              {recentOrders.map((o) => (
-                <div key={o.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/60 transition">
+              {customers.length === 0 ? (
+                <div className="text-center py-8 text-sm text-muted-foreground">No recent orders available.</div>
+              ) : customers.slice(0, 4).map((customer) => (
+                <div key={customer.id} className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/60 transition">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium font-mono">{o.id}</span>
-                      <StatusBadge status={o.status} />
+                      <span className="text-sm font-medium font-mono">{customer.name}</span>
+                      <StatusBadge status={customer.status} />
                     </div>
                     <div className="text-xs text-muted-foreground truncate">
-                      {o.customer} · {o.items.join(", ")}
+                      {customer.orders} orders · {customer.email}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-semibold text-sm">${o.total.toFixed(2)}</div>
-                    <div className="text-xs text-muted-foreground">{o.date}</div>
+                    <div className="font-semibold text-sm">${customer.spent.toFixed(2)}</div>
+                    <div className="text-xs text-muted-foreground">{customer.lastOrder || "No orders yet"}</div>
                   </div>
                 </div>
               ))}

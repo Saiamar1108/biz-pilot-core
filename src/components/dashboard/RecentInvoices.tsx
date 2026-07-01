@@ -2,7 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import type { Invoice } from "@/lib/mock-data";
+import type { Invoice } from "@/lib/api";
 
 const statusStyles = {
   paid: "bg-accent-brand/10 text-accent-brand",

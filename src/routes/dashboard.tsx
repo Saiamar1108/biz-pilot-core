@@ -9,27 +9,71 @@ import { LowStockAlerts } from "@/components/dashboard/LowStockAlerts";
 import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 import { Button } from "@/components/ui/button";
-import { invoices, salesData, getLowStockProducts } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { getAnalytics, getInvoices, getProducts, type Invoice, type Product } from "@/lib/api";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({ meta: [{ title: "Dashboard — ShopPilot AI" }] }),
   component: DashboardPage,
 });
 
-const lowStock = getLowStockProducts();
+const salesData = [
+  { m: "Mon", v: 3200 },
+  { m: "Tue", v: 4100 },
+  { m: "Wed", v: 3800 },
+  { m: "Thu", v: 5200 },
+  { m: "Fri", v: 6100 },
+  { m: "Sat", v: 7400 },
+  { m: "Sun", v: 5900 },
+];
 
 function DashboardPage() {
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [analytics, setAnalytics] = useState<{ totalSales: number; lowStockItems: Array<{ id: string; name: string; sku: string; stock: number; category: string }> } | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const [invoiceData, productData, analyticsData] = await Promise.all([getInvoices(), getProducts(), getAnalytics()]);
+        if (!active) return;
+        setInvoices(invoiceData);
+        setProducts(productData);
+        setAnalytics(analyticsData);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to load dashboard data");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const lowStock = useMemo(() => products.filter((product) => product.stock < 10), [products]);
+
   return (
     <DashboardLayout title="Overview">
       <div className="space-y-6">
         <QuickActions />
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Revenue" value="$48,290" change={12.4} icon={DollarSign} accent="primary" />
+          <StatCard label="Revenue" value={`$${(analytics?.totalSales ?? 48290).toLocaleString()}`} change={12.4} icon={DollarSign} accent="primary" />
           <StatCard label="Total Orders" value="1,284" change={8.2} icon={ShoppingCart} accent="emerald" />
-          <StatCard label="Low Stock Items" value={String(lowStock.length)} change={-3} icon={AlertTriangle} accent="destructive" />
+          <StatCard label="Low Stock Items" value={String(analytics?.lowStockItems?.length ?? lowStock.length)} change={-3} icon={AlertTriangle} accent="destructive" />
           <StatCard label="Active Customers" value="842" change={5.1} icon={Users} accent="emerald" />
         </div>
+
+        {error && <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
 
         <div className="grid lg:grid-cols-3 gap-6">
           <PageSection
@@ -62,11 +106,23 @@ function DashboardPage() {
 
         <div className="grid lg:grid-cols-3 gap-6">
           <PageSection title="Recent Invoices" description="Latest billing activity" className="lg:col-span-2">
-            <RecentInvoices invoices={invoices.slice(0, 5)} />
+            {loading ? (
+              <div className="py-8 text-sm text-muted-foreground">Loading invoices…</div>
+            ) : invoices.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">No invoices received yet.</div>
+            ) : (
+              <RecentInvoices invoices={invoices.slice(0, 5)} />
+            )}
           </PageSection>
 
           <PageSection title="Low Stock Alerts" description={`${lowStock.length} items need attention`}>
-            <LowStockAlerts products={lowStock.slice(0, 5)} />
+            {loading ? (
+              <div className="py-8 text-sm text-muted-foreground">Loading inventory…</div>
+            ) : lowStock.length === 0 ? (
+              <div className="py-8 text-center text-sm text-muted-foreground">All products are well stocked.</div>
+            ) : (
+              <LowStockAlerts products={lowStock.slice(0, 5)} />
+            )}
           </PageSection>
         </div>
 

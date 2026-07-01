@@ -8,6 +8,8 @@ const customerSchema = new mongoose.Schema(
     orders: { type: Number, default: 0, min: 0 },
     spent: { type: Number, default: 0, min: 0 },
     due: { type: Number, default: 0, min: 0 },
+    pendingPayments: { type: Number, default: 0, min: 0 },
+    orderHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "Invoice" }],
     status: { type: String, enum: ["vip", "regular", "new"], default: "new" },
     lastOrder: { type: Date },
   },

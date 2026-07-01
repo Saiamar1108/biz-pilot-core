@@ -3,6 +3,8 @@ const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const env = require("../config/env");
 
+const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
+
 async function getAnalyticsContext() {
   const [products, customers, invoices] = await Promise.all([
     Product.find().lean(),
@@ -28,9 +30,8 @@ async function getAnalyticsContext() {
   return { totalSales, monthlyRevenue: monthlyRevenueArray, topProducts, lowStockItems, customers, products, invoices };
 }
 
-async function generateAiResponse(message) {
+function buildHeuristicResponse(message, ctx) {
   const text = message.toLowerCase().trim();
-  const ctx = await getAnalyticsContext();
 
   if (text.includes("revenue") || text.includes("sales")) {
     const latest = ctx.monthlyRevenue.at(-1);
@@ -95,6 +96,109 @@ async function generateAiResponse(message) {
     reply: "I can help with revenue, inventory, top products, customers, and demand forecasts. Try asking about this week's revenue or which products are running low.",
     data: null,
   };
+}
+
+function formatBusinessContext(ctx) {
+  const topProducts = ctx.topProducts.slice(0, 5).map((p) => `${p.name} (${p.sold} sold, stock ${p.stock})`).join("; ") || "None";
+  const lowStock = ctx.lowStockItems.slice(0, 5).map((p) => `${p.name} (${p.stock} left)`).join("; ") || "None";
+  const pendingPayments = ctx.customers.filter((c) => c.due > 0).slice(0, 5).map((c) => `${c.name} ($${c.due.toFixed(2)})`).join("; ") || "None";
+  const customerInsights = [...ctx.customers]
+    .sort((a, b) => b.spent - a.spent)
+    .slice(0, 5)
+    .map((c) => `${c.name} spent $${c.spent.toFixed(2)} (${c.status})`)
+    .join("; ") || "None";
+  const revenueTrend = ctx.monthlyRevenue
+    .slice(-3)
+    .map((m) => `${m.month}: $${m.revenue.toFixed(2)}`)
+    .join("; ") || "None";
+
+  return `Top products: ${topProducts}
+Low stock items: ${lowStock}
+Pending payments: ${pendingPayments}
+Customer insights: ${customerInsights}
+Recent revenue trend: ${revenueTrend}`;
+}
+
+async function askOpenAI(message, ctx) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+
+  const businessContext = formatBusinessContext(ctx);
+
+  const response = await fetch(OPENAI_API_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.3,
+      messages: [
+        {
+          role: "system",
+          content: "You are ShopPilot AI, a helpful assistant for a retail business. Answer questions about sales, inventory, customers, invoices, and restocking clearly and concisely.",
+        },
+        {
+          role: "system",
+          content: `Use the following business data when answering: ${businessContext}`,
+        },
+        {
+          role: "user",
+          content: `User question: ${message}`,
+        },
+      ],
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`OpenAI request failed (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  const reply = data.choices?.[0]?.message?.content?.trim();
+
+  if (!reply) {
+    throw new Error("OpenAI returned an empty response");
+  }
+
+  return reply;
+}
+
+async function generateAiResponse(message) {
+  const ctx = await getAnalyticsContext();
+
+  try {
+    const reply = await askOpenAI(message, ctx);
+    return {
+      reply,
+      data: {
+        source: "openai",
+        context: {
+          totalSales: ctx.totalSales,
+          monthlyRevenue: ctx.monthlyRevenue,
+          lowStockItems: ctx.lowStockItems.slice(0, 5),
+          topProducts: ctx.topProducts.slice(0, 5),
+          customers: ctx.customers.slice(0, 5),
+          invoices: ctx.invoices.slice(0, 5),
+        },
+      },
+    };
+  } catch (error) {
+    console.error("AI generation failed, falling back to heuristic response:", error.message);
+    const fallback = buildHeuristicResponse(message, ctx);
+    return {
+      ...fallback,
+      data: {
+        ...(fallback.data || {}),
+        source: "fallback",
+        warning: error.message,
+      },
+    };
+  }
 }
 
 module.exports = { getAnalyticsContext, generateAiResponse };

@@ -64,7 +64,12 @@ exports.createInvoice = asyncHandler(async (req, res) => {
   customer.spent = parseFloat((customer.spent + total).toFixed(2));
   if (status !== "paid") {
     customer.due = parseFloat((customer.due + total).toFixed(2));
+    customer.pendingPayments = customer.due;
+  } else {
+    customer.pendingPayments = parseFloat((customer.pendingPayments ?? 0).toFixed(2));
   }
+  customer.orderHistory = Array.isArray(customer.orderHistory) ? customer.orderHistory : [];
+  customer.orderHistory.push(invoice._id);
   customer.lastOrder = new Date();
   await customer.save();
 

@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QuantityControl } from "@/components/dashboard/QuantityControl";
 import { Plus, Trash2, FileText, Download, Send, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
-import { customerNames, productOptions, products } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
+import { toast } from "sonner";
+import { createInvoice, getCustomers, getProducts, type Customer, type Product } from "@/lib/api";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({ meta: [{ title: "Billing — ShopPilot AI" }] }),
@@ -18,25 +20,272 @@ type Line = { id: number; product: string; qty: number; price: number };
 
 function BillingPage() {
   const [customer, setCustomer] = useState<string>("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [lines, setLines] = useState<Line[]>([
-    { id: 1, product: "Basmati Rice 5kg", qty: 2, price: 12.5 },
+    { id: 1, product: "", qty: 1, price: 0 },
   ]);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [invoiceCreated, setInvoiceCreated] = useState(false);
+  const [backendInvoiceNumber, setBackendInvoiceNumber] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const [customerData, productData] = await Promise.all([getCustomers(), getProducts()]);
+        if (!active) return;
+        setCustomers(customerData);
+        setProducts(productData);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to load billing data");
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const invoiceNumber = useMemo(() => `INV-00${Math.floor(Math.random() * 900 + 100)}`, []);
+  const displayInvoiceNumber = backendInvoiceNumber ?? invoiceNumber;
 
-  const addLine = () => setLines([...lines, { id: Date.now(), product: "", qty: 1, price: 0 }]);
-  const update = (id: number, patch: Partial<Line>) =>
+  const addLine = () => {
+    setLines([...lines, { id: Date.now(), product: "", qty: 1, price: 0 }]);
+    setInvoiceCreated(false);
+  };
+
+  const update = (id: number, patch: Partial<Line>) => {
     setLines(lines.map((l) => (l.id === id ? { ...l, ...patch } : l)));
-  const remove = (id: number) => setLines(lines.filter((l) => l.id !== id));
+    setInvoiceCreated(false);
+  };
+
+  const remove = (id: number) => {
+    setLines(lines.filter((l) => l.id !== id));
+    setInvoiceCreated(false);
+  };
 
   const selectProduct = (id: number, productName: string) => {
     const product = products.find((p) => p.name === productName);
     update(id, { product: productName, price: product?.price ?? 0 });
   };
 
+  const handleGenerateInvoice = async () => {
+    if (!customer || lines.every((line) => !line.product)) {
+      setError("Select a customer and at least one product before creating an invoice.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      setMessage(null);
+      const created = await createInvoice({
+        customer,
+        lineItems: lines
+          .filter((line) => line.product)
+          .map((line) => ({
+            product: products.find((product) => product.name === line.product)?.id ?? "",
+            quantity: line.qty,
+            unitPrice: line.price,
+          })),
+      });
+      setBackendInvoiceNumber(created.id);
+      setInvoiceCreated(true);
+      setMessage("Invoice created successfully.");
+    } catch (err) {
+      setInvoiceCreated(false);
+      setError(err instanceof Error ? err.message : "Unable to create invoice");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const tax = subtotal * 0.08;
   const total = subtotal + tax;
+
+  const selectedCustomer = customers.find((customerItem) => customerItem.id === customer);
+  const normalizedPhone = selectedCustomer?.phone?.replace(/\D/g, "") ?? "";
+  const hasPhone = normalizedPhone.length >= 10;
+  const waPhone = hasPhone ? `91${normalizedPhone.slice(-10)}` : "";
+
+  const formatCurrency = (value: number) => `₹${value.toFixed(2)}`;
+
+  const generateInvoicePdf = (invoiceNumberOverride?: string) => {
+    const invoiceNumberForPdf = invoiceNumberOverride ?? displayInvoiceNumber;
+    const customerName = selectedCustomer?.name ?? "—";
+    const dateString = new Date().toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 40;
+    let cursorY = 60;
+
+    pdf.setFontSize(22);
+    pdf.setFont(undefined, "bold");
+    pdf.text("ShopPilot", margin, cursorY);
+
+    pdf.setFontSize(11);
+    pdf.setFont(undefined, "normal");
+    pdf.text(`Invoice Number: ${invoiceNumberForPdf}`, margin, cursorY + 28);
+    pdf.text(`Date: ${dateString}`, pageWidth - margin, cursorY + 28, { align: "right" });
+    cursorY += 48;
+
+    pdf.setFontSize(12);
+    pdf.setFont(undefined, "bold");
+    pdf.text("Bill To:", margin, cursorY);
+    pdf.setFont(undefined, "normal");
+    pdf.text(customerName, margin, cursorY + 18);
+    cursorY += 40;
+
+    pdf.setDrawColor(200);
+    pdf.setLineWidth(0.5);
+    pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 18;
+
+    pdf.setFont(undefined, "bold");
+    pdf.text("Product", margin, cursorY);
+    pdf.text("Qty", pageWidth - margin - 170, cursorY);
+    pdf.text("Unit Price", pageWidth - margin - 86, cursorY, { align: "right" });
+    pdf.text("Line Total", pageWidth - margin, cursorY, { align: "right" });
+    cursorY += 12;
+    pdf.setLineWidth(0.2);
+    pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 18;
+
+    pdf.setFont(undefined, "normal");
+    lines.filter((line) => line.product).forEach((line) => {
+      const lineTotal = line.qty * line.price;
+      if (cursorY > pageHeight - 100) {
+        pdf.addPage();
+        cursorY = margin;
+      }
+
+      pdf.text(line.product, margin, cursorY);
+      pdf.text(String(line.qty), pageWidth - margin - 170, cursorY);
+      pdf.text(formatCurrency(line.price), pageWidth - margin - 86, cursorY, { align: "right" });
+      pdf.text(formatCurrency(lineTotal), pageWidth - margin, cursorY, { align: "right" });
+      cursorY += 20;
+    });
+
+    if (lines.filter((line) => line.product).length === 0) {
+      pdf.text("No line items added.", margin, cursorY);
+      cursorY += 20;
+    }
+
+    if (cursorY > pageHeight - 120) {
+      pdf.addPage();
+      cursorY = margin;
+    }
+
+    pdf.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += 26;
+
+    pdf.setFont(undefined, "bold");
+    pdf.text("Subtotal", pageWidth - margin - 86, cursorY, { align: "right" });
+    pdf.text(formatCurrency(subtotal), pageWidth - margin, cursorY, { align: "right" });
+    cursorY += 18;
+    pdf.text("Tax (8%)", pageWidth - margin - 86, cursorY, { align: "right" });
+    pdf.text(formatCurrency(tax), pageWidth - margin, cursorY, { align: "right" });
+    cursorY += 18;
+
+    pdf.setFont(undefined, "bold");
+    pdf.text("Total", pageWidth - margin - 86, cursorY, { align: "right" });
+    pdf.text(formatCurrency(total), pageWidth - margin, cursorY, { align: "right" });
+
+    return pdf;
+  };
+
+  const handleDownloadPDF = () => {
+    if (!invoiceCreated) return;
+    const pdf = generateInvoicePdf();
+    pdf.save(`invoice-${displayInvoiceNumber}.pdf`);
+  };
+
+  const handleSendInvoice = async () => {
+    if (!selectedCustomer) {
+      toast.error("Select a customer before sending the invoice.");
+      return;
+    }
+
+    if (!hasPhone) {
+      toast.error("Customer phone number is required to send via WhatsApp.");
+      return;
+    }
+
+    if (lines.every((line) => !line.product)) {
+      toast.error("Add at least one product before sending the invoice.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      setMessage(null);
+
+      const created = await createInvoice({
+        customer,
+        lineItems: lines
+          .filter((line) => line.product)
+          .map((line) => ({
+            product: products.find((product) => product.name === line.product)?.id ?? "",
+            quantity: line.qty,
+            unitPrice: line.price,
+          })),
+        status: "sent",
+      });
+
+      setBackendInvoiceNumber(created.id);
+      const pdf = generateInvoicePdf(created.id);
+      pdf.save(`invoice-${created.id}.pdf`);
+
+      setInvoiceCreated(true);
+      setMessage("Invoice sent to WhatsApp successfully.");
+      toast.success("Invoice sent to WhatsApp successfully");
+
+      const messageLines = [
+        `Hello ${selectedCustomer.name} 👋`,
+        "", 
+        "Your invoice from ShopPilot is ready.",
+        "", 
+        `Invoice No: ${created.id}`,
+        `Date: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
+        "",
+        "Items:",
+        ...lines
+          .filter((line) => line.product)
+          .map((line) => {
+            const lineTotal = line.qty * line.price;
+            return `${line.product} x ${line.qty} = ₹${lineTotal.toFixed(2)}`;
+          }),
+        "",
+        `Subtotal: ₹${subtotal.toFixed(2)}`,
+        `Tax (8%): ₹${tax.toFixed(2)}`,
+        `Total: ₹${total.toFixed(2)}`,
+        "",
+        "Thank you for shopping with us.",
+      ];
+
+      const encodedMessage = encodeURIComponent(messageLines.join("\n"));
+      window.open(`https://wa.me/${waPhone}?text=${encodedMessage}`, "_blank");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to send invoice.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <DashboardLayout title="Billing & Invoices">
@@ -58,7 +307,9 @@ function BillingPage() {
               <Select value={customer} onValueChange={setCustomer}>
                 <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                 <SelectContent>
-                  {customerNames.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {customers.map((customerItem) => (
+                    <SelectItem key={customerItem.id} value={customerItem.id}>{customerItem.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -79,7 +330,7 @@ function BillingPage() {
                         <Select value={l.product} onValueChange={(v) => selectProduct(l.id, v)}>
                           <SelectTrigger className="bg-background"><SelectValue placeholder="Select product" /></SelectTrigger>
                           <SelectContent>
-                            {productOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            {products.map((productItem) => <SelectItem key={productItem.id} value={productItem.name}>{productItem.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -119,8 +370,10 @@ function BillingPage() {
               <div className="flex justify-between pt-2 border-t border-border text-base"><span className="font-semibold">Total</span><span className="font-bold font-display">${total.toFixed(2)}</span></div>
             </div>
 
-            <Button className="w-full gradient-primary text-primary-foreground shadow-glow h-11">
-              <Zap className="h-4 w-4 mr-2" /> Generate Invoice
+            {error && <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+            {message && <div className="rounded-xl border border-accent-brand/20 bg-accent-brand/5 p-3 text-sm text-accent-brand">{message}</div>}
+            <Button className="w-full gradient-primary text-primary-foreground shadow-glow h-11" onClick={handleGenerateInvoice} disabled={submitting}>
+              <Zap className="h-4 w-4 mr-2" /> {submitting ? "Creating..." : "Generate Invoice"}
             </Button>
           </div>
         </div>
@@ -129,7 +382,7 @@ function BillingPage() {
           <div className="glass-card rounded-2xl p-6 sticky top-24">
             <div className="flex items-center justify-between mb-4">
               <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Invoice Preview</div>
-              <div className="text-xs font-mono text-primary">{invoiceNumber}</div>
+              <div className="text-xs font-mono text-primary">{displayInvoiceNumber}</div>
             </div>
             <div className="flex items-center gap-2 mb-6">
               <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary">
@@ -138,7 +391,7 @@ function BillingPage() {
               <span className="font-display font-bold">ShopPilot</span>
             </div>
             <div className="text-sm text-muted-foreground mb-1">Billed to</div>
-            <div className="font-semibold mb-6">{customer || "—"}</div>
+            <div className="font-semibold mb-6">{customers.find((customerItem) => customerItem.id === customer)?.name || customer || "—"}</div>
 
             <div className="space-y-2 mb-6 max-h-56 overflow-y-auto">
               {lines.filter((l) => l.product).map((l) => (
@@ -161,8 +414,17 @@ function BillingPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 mt-4">
-              <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-1" /> PDF</Button>
-              <Button size="sm" className="bg-accent-brand text-accent-brand-foreground"><Send className="h-4 w-4 mr-1" /> Send</Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={!invoiceCreated}>
+                <Download className="h-4 w-4 mr-1" /> PDF
+              </Button>
+              <Button
+                size="sm"
+                className="bg-accent-brand text-accent-brand-foreground"
+                onClick={handleSendInvoice}
+                disabled={!selectedCustomer || !hasPhone || lines.every((line) => !line.product) || submitting}
+              >
+                <Send className="h-4 w-4 mr-1" /> Send
+              </Button>
             </div>
           </div>
         </div>
