@@ -8,21 +8,48 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Package, Plus, Search, AlertTriangle, Boxes, TrendingUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
-import { products as initialProducts, type Product } from "@/lib/mock-data";
+import { createProduct, getProducts, type Product, updateProduct } from "@/lib/api";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
   component: InventoryPage,
 });
 
-const categories = ["All", ...Array.from(new Set(initialProducts.map((p) => p.category)))];
-
 function InventoryPage() {
   const [q, setQ] = useState("");
   const [category, setCategory] = useState("All");
-  const [items] = useState<Product[]>(initialProducts);
+  const [items, setItems] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({ name: "", sku: "", category: "", stock: "", price: "" });
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await getProducts();
+        if (!active) return;
+        setItems(data);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to load inventory");
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const categories = useMemo(() => ["All", ...Array.from(new Set(items.map((item) => item.category)))], [items]);
 
   const filtered = useMemo(() => {
     return items.filter((i) => {
@@ -35,6 +62,32 @@ function InventoryPage() {
   }, [items, q, category]);
 
   const low = items.filter((i) => i.stock < 10).length;
+
+  const handleAddProduct = async () => {
+    if (!form.name || !form.sku || !form.category || form.stock === "" || form.price === "") {
+      setError("Please complete all product fields.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      const created = await createProduct({
+        name: form.name,
+        sku: form.sku,
+        category: form.category,
+        stock: Number(form.stock),
+        price: Number(form.price),
+        sold: 0,
+      });
+      setItems((current) => [created, ...current]);
+      setForm({ name: "", sku: "", category: "", stock: "", price: "" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create product");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <DashboardLayout title="Inventory">
@@ -82,23 +135,24 @@ function InventoryPage() {
               <DialogContent>
                 <DialogHeader><DialogTitle>Add New Product</DialogTitle></DialogHeader>
                 <div className="space-y-4">
-                  <div><Label className="mb-2 block">Name</Label><Input placeholder="Product name" /></div>
+                  <div><Label className="mb-2 block">Name</Label><Input placeholder="Product name" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label className="mb-2 block">SKU</Label><Input placeholder="AUTO-001" /></div>
-                    <div><Label className="mb-2 block">Category</Label><Input placeholder="Grocery" /></div>
+                    <div><Label className="mb-2 block">SKU</Label><Input placeholder="AUTO-001" value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Category</Label><Input placeholder="Grocery" value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} /></div>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <div><Label className="mb-2 block">Stock</Label><Input type="number" placeholder="0" /></div>
-                    <div><Label className="mb-2 block">Price</Label><Input type="number" placeholder="0.00" /></div>
+                    <div><Label className="mb-2 block">Stock</Label><Input type="number" placeholder="0" value={form.stock} onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))} /></div>
+                    <div><Label className="mb-2 block">Price</Label><Input type="number" placeholder="0.00" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button className="gradient-primary text-primary-foreground">Add Product</Button>
+                  <Button className="gradient-primary text-primary-foreground" onClick={handleAddProduct} disabled={submitting}>{submitting ? "Adding..." : "Add Product"}</Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
           </div>
 
+          {loading ? <div className="p-6 text-sm text-muted-foreground">Loading inventory…</div> : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
@@ -147,6 +201,7 @@ function InventoryPage() {
               </tbody>
             </table>
           </div>
+          )}
         </div>
       </div>
     </DashboardLayout>

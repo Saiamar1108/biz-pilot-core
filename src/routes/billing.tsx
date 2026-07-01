@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QuantityControl } from "@/components/dashboard/QuantityControl";
 import { Plus, Trash2, FileText, Download, Send, Zap } from "lucide-react";
-import { useMemo, useState } from "react";
-import { customerNames, productOptions, products } from "@/lib/mock-data";
+import { useEffect, useMemo, useState } from "react";
+import { createInvoice, getCustomers, getProducts, type Customer, type Product } from "@/lib/api";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({ meta: [{ title: "Billing — ShopPilot AI" }] }),
@@ -18,9 +18,34 @@ type Line = { id: number; product: string; qty: number; price: number };
 
 function BillingPage() {
   const [customer, setCustomer] = useState<string>("");
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [lines, setLines] = useState<Line[]>([
-    { id: 1, product: "Basmati Rice 5kg", qty: 2, price: 12.5 },
+    { id: 1, product: "", qty: 1, price: 0 },
   ]);
+  const [submitting, setSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const [customerData, productData] = await Promise.all([getCustomers(), getProducts()]);
+        if (!active) return;
+        setCustomers(customerData);
+        setProducts(productData);
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : "Unable to load billing data");
+      }
+    };
+
+    load();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const invoiceNumber = useMemo(() => `INV-00${Math.floor(Math.random() * 900 + 100)}`, []);
 
@@ -32,6 +57,34 @@ function BillingPage() {
   const selectProduct = (id: number, productName: string) => {
     const product = products.find((p) => p.name === productName);
     update(id, { product: productName, price: product?.price ?? 0 });
+  };
+
+  const handleGenerateInvoice = async () => {
+    if (!customer || lines.every((line) => !line.product)) {
+      setError("Select a customer and at least one product before creating an invoice.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError(null);
+      setMessage(null);
+      await createInvoice({
+        customer,
+        lineItems: lines
+          .filter((line) => line.product)
+          .map((line) => ({
+            product: products.find((product) => product.name === line.product)?.id ?? "",
+            quantity: line.qty,
+            unitPrice: line.price,
+          })),
+      });
+      setMessage("Invoice created successfully.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to create invoice");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
@@ -58,7 +111,9 @@ function BillingPage() {
               <Select value={customer} onValueChange={setCustomer}>
                 <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                 <SelectContent>
-                  {customerNames.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {customers.map((customerItem) => (
+                    <SelectItem key={customerItem.id} value={customerItem.id}>{customerItem.name}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -79,7 +134,7 @@ function BillingPage() {
                         <Select value={l.product} onValueChange={(v) => selectProduct(l.id, v)}>
                           <SelectTrigger className="bg-background"><SelectValue placeholder="Select product" /></SelectTrigger>
                           <SelectContent>
-                            {productOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                            {products.map((productItem) => <SelectItem key={productItem.id} value={productItem.name}>{productItem.name}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </div>
@@ -119,8 +174,10 @@ function BillingPage() {
               <div className="flex justify-between pt-2 border-t border-border text-base"><span className="font-semibold">Total</span><span className="font-bold font-display">${total.toFixed(2)}</span></div>
             </div>
 
-            <Button className="w-full gradient-primary text-primary-foreground shadow-glow h-11">
-              <Zap className="h-4 w-4 mr-2" /> Generate Invoice
+            {error && <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
+            {message && <div className="rounded-xl border border-accent-brand/20 bg-accent-brand/5 p-3 text-sm text-accent-brand">{message}</div>}
+            <Button className="w-full gradient-primary text-primary-foreground shadow-glow h-11" onClick={handleGenerateInvoice} disabled={submitting}>
+              <Zap className="h-4 w-4 mr-2" /> {submitting ? "Creating..." : "Generate Invoice"}
             </Button>
           </div>
         </div>
@@ -138,7 +195,7 @@ function BillingPage() {
               <span className="font-display font-bold">ShopPilot</span>
             </div>
             <div className="text-sm text-muted-foreground mb-1">Billed to</div>
-            <div className="font-semibold mb-6">{customer || "—"}</div>
+            <div className="font-semibold mb-6">{customers.find((customerItem) => customerItem.id === customer)?.name || customer || "—"}</div>
 
             <div className="space-y-2 mb-6 max-h-56 overflow-y-auto">
               {lines.filter((l) => l.product).map((l) => (

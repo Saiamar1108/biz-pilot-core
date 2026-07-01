@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Bot, Mic, Paperclip, Send, Sparkles, TrendingUp, Package, Users } from "lucide-react";
 import { useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
+import { postAiChat } from "@/lib/api";
 
 type Msg = {
   role: "user" | "ai";
@@ -39,17 +40,23 @@ export function AssistantPage() {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
+  const [sending, setSending] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const send = (text?: string) => {
+  const send = async (text?: string) => {
     const t = (text ?? input).trim();
-    if (!t) return;
+    if (!t || sending) return;
     setMsgs((m) => [...m, { role: "user", text: t }]);
     setInput("");
-    setTimeout(() => {
-      const response = aiResponses[t] ?? "Analyzing your data... Here's what I found based on the last 30 days of activity.";
-      setMsgs((m) => [...m, { role: "ai", text: response }]);
-    }, 600);
+    setSending(true);
+    try {
+      const response = await postAiChat(t);
+      setMsgs((m) => [...m, { role: "ai", text: response.message }]);
+    } catch (error) {
+      setMsgs((m) => [...m, { role: "ai", text: error instanceof Error ? error.message : "Unable to reach AI assistant right now." }]);
+    } finally {
+      setSending(false);
+    }
   };
 
   const toggleVoice = () => {

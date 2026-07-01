@@ -15,6 +15,7 @@ exports.chat = asyncHandler(async (req, res) => {
     success: true,
     data: {
       role: "assistant",
+      reply: result.reply,
       message: result.reply,
       context: result.data,
     },
