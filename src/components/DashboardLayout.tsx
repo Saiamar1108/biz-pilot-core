@@ -25,8 +25,8 @@ const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/billing", label: "Billing", icon: Receipt },
   { to: "/inventory", label: "Inventory", icon: Package },
-  { to: "/ai-assistant", label: "AI Assistant", icon: Bot },
   { to: "/customers", label: "Customers", icon: Users },
+  { to: "/assistant", label: "AI Assistant", icon: Bot },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
@@ -109,6 +109,9 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               <button className="lg:hidden" onClick={() => setMobileOpen(true)}>
                 <Menu className="h-5 w-5" />
               </button>
+              <div className="min-w-0 md:hidden">
+                <h1 className="font-display text-lg font-bold truncate">{title ?? "Dashboard"}</h1>
+              </div>
               <div className="hidden md:block min-w-0">
                 <h1 className="font-display text-xl font-bold truncate">{title ?? "Dashboard"}</h1>
               </div>
@@ -134,7 +137,7 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
 
       {/* Floating AI button */}
       <Link
-        to="/ai-assistant"
+        to="/assistant"
         className="fixed bottom-6 right-6 z-30 h-14 w-14 rounded-2xl gradient-primary shadow-glow grid place-items-center hover:scale-110 transition-transform group"
       >
         <Bot className="h-6 w-6 text-primary-foreground group-hover:animate-pulse" />

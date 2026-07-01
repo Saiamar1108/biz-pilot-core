@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
+import { PageSection } from "@/components/dashboard/PageSection";
 import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
-import { DollarSign, TrendingUp, Sparkles, Award } from "lucide-react";
+import { DollarSign, TrendingUp, Sparkles, Award, Package, Users } from "lucide-react";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({ meta: [{ title: "Analytics — ShopPilot AI" }] }),
@@ -31,6 +32,12 @@ const topProducts = [
   { name: "Basmati Rice", units: 128, revenue: 1600 },
 ];
 
+const demandPredictions = [
+  { title: "Drinks", forecast: "+22%", confidence: "94%", icon: Package, detail: "Weekend spike expected" },
+  { title: "Grocery", forecast: "+15%", confidence: "91%", icon: TrendingUp, detail: "Steady growth trend" },
+  { title: "New Customers", forecast: "+18", confidence: "87%", icon: Users, detail: "Referral campaign impact" },
+];
+
 function AnalyticsPage() {
   return (
     <DashboardLayout title="Analytics">
@@ -43,23 +50,21 @@ function AnalyticsPage() {
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="glass-card rounded-2xl p-6 lg:col-span-2">
-            <h3 className="font-display text-lg font-bold mb-6">Revenue Trend (9 months)</h3>
+          <PageSection title="Revenue Trend" description="9-month performance" className="lg:col-span-2">
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={revenue}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
                   <XAxis dataKey="m" stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} />
+                  <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]} />
                   <Line type="monotone" dataKey="v" stroke="oklch(0.549 0.222 262)" strokeWidth={3} dot={{ r: 4, fill: "oklch(0.549 0.222 262)" }} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </PageSection>
 
-          <div className="glass-card rounded-2xl p-6">
-            <h3 className="font-display text-lg font-bold mb-6">Product Performance</h3>
+          <PageSection title="Product Performance" description="Revenue by category">
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -81,12 +86,31 @@ function AnalyticsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </PageSection>
         </div>
 
+        <PageSection title="Demand Predictions" description="AI-powered forecasts for next 30 days">
+          <div className="grid sm:grid-cols-3 gap-4">
+            {demandPredictions.map((d) => (
+              <div key={d.title} className="rounded-xl border border-border p-4 hover:shadow-elegant transition">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
+                    <d.icon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div className="font-semibold">{d.title}</div>
+                    <div className="text-xs text-muted-foreground">{d.confidence} confidence</div>
+                  </div>
+                </div>
+                <div className="text-2xl font-display font-bold text-accent-brand">{d.forecast}</div>
+                <div className="text-xs text-muted-foreground mt-1">{d.detail}</div>
+              </div>
+            ))}
+          </div>
+        </PageSection>
+
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="glass-card rounded-2xl p-6">
-            <h3 className="font-display text-lg font-bold mb-4">Top-Selling Products</h3>
+          <PageSection title="Top-Selling Products">
             <div className="space-y-3">
               {topProducts.map((p, i) => (
                 <div key={p.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60">
@@ -99,7 +123,7 @@ function AnalyticsPage() {
                 </div>
               ))}
             </div>
-          </div>
+          </PageSection>
 
           <div className="rounded-2xl p-6 gradient-primary text-primary-foreground shadow-glow relative overflow-hidden">
             <div className="absolute -bottom-8 -right-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
@@ -111,26 +135,25 @@ function AnalyticsPage() {
               <div className="text-3xl font-display font-bold mb-1">+34%</div>
               <div className="text-primary-foreground/80 text-sm mb-4">Expected Q4 revenue growth based on current trends</div>
               <div className="space-y-2 text-sm">
-                <div className="bg-white/10 rounded-lg px-3 py-2">📈 Holiday season boost expected</div>
-                <div className="bg-white/10 rounded-lg px-3 py-2">🎯 Focus: Grocery + Drinks</div>
+                <div className="bg-white/10 rounded-lg px-3 py-2">Holiday season boost expected</div>
+                <div className="bg-white/10 rounded-lg px-3 py-2">Focus: Grocery + Drinks</div>
               </div>
             </div>
           </div>
 
-          <div className="glass-card rounded-2xl p-6">
-            <h3 className="font-display text-lg font-bold mb-4">Monthly Growth</h3>
+          <PageSection title="Sales Trends" description="Monthly growth rate">
             <div className="h-52">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={growth}>
                   <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
                   <XAxis dataKey="m" stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} />
+                  <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} formatter={(v: number) => [`${v}%`, "Growth"]} />
                   <Bar dataKey="v" fill="oklch(0.7 0.16 165)" radius={[8, 8, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
-          </div>
+          </PageSection>
         </div>
       </div>
     </DashboardLayout>

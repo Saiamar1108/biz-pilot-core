@@ -14,6 +14,7 @@ import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as CustomersRouteImport } from './routes/customers'
 import { Route as BillingRouteImport } from './routes/billing'
+import { Route as AssistantRouteImport } from './routes/assistant'
 import { Route as AnalyticsRouteImport } from './routes/analytics'
 import { Route as AiAssistantRouteImport } from './routes/ai-assistant'
 import { Route as IndexRouteImport } from './routes/index'
@@ -43,6 +44,11 @@ const BillingRoute = BillingRouteImport.update({
   path: '/billing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AssistantRoute = AssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AnalyticsRoute = AnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai-assistant': typeof AiAssistantRoute
   '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
   '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai-assistant': typeof AiAssistantRoute
   '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
   '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/ai-assistant': typeof AiAssistantRoute
   '/analytics': typeof AnalyticsRoute
+  '/assistant': typeof AssistantRoute
   '/billing': typeof BillingRoute
   '/customers': typeof CustomersRoute
   '/dashboard': typeof DashboardRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-assistant'
     | '/analytics'
+    | '/assistant'
     | '/billing'
     | '/customers'
     | '/dashboard'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-assistant'
     | '/analytics'
+    | '/assistant'
     | '/billing'
     | '/customers'
     | '/dashboard'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/ai-assistant'
     | '/analytics'
+    | '/assistant'
     | '/billing'
     | '/customers'
     | '/dashboard'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiAssistantRoute: typeof AiAssistantRoute
   AnalyticsRoute: typeof AnalyticsRoute
+  AssistantRoute: typeof AssistantRoute
   BillingRoute: typeof BillingRoute
   CustomersRoute: typeof CustomersRoute
   DashboardRoute: typeof DashboardRoute
@@ -171,6 +184,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BillingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/assistant': {
+      id: '/assistant'
+      path: '/assistant'
+      fullPath: '/assistant'
+      preLoaderRoute: typeof AssistantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/analytics': {
       id: '/analytics'
       path: '/analytics'
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiAssistantRoute: AiAssistantRoute,
   AnalyticsRoute: AnalyticsRoute,
+  AssistantRoute: AssistantRoute,
   BillingRoute: BillingRoute,
   CustomersRoute: CustomersRoute,
   DashboardRoute: DashboardRoute,
@@ -208,3 +229,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

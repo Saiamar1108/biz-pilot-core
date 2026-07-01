@@ -4,8 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QuantityControl } from "@/components/dashboard/QuantityControl";
 import { Plus, Trash2, FileText, Download, Send, Zap } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { customerNames, productOptions, products } from "@/lib/mock-data";
 
 export const Route = createFileRoute("/billing")({
   head: () => ({ meta: [{ title: "Billing — ShopPilot AI" }] }),
@@ -14,19 +16,23 @@ export const Route = createFileRoute("/billing")({
 
 type Line = { id: number; product: string; qty: number; price: number };
 
-const customers = ["Priya Sharma", "Marcus Chen", "Aisha Okoye", "James Patel", "Sofia Rossi"];
-const productOptions = ["Basmati Rice 5kg", "Cold Brew Bottle", "Organic Eggs (12)", "Almond Milk 1L", "Dark Chocolate 100g"];
-
 function BillingPage() {
   const [customer, setCustomer] = useState<string>("");
   const [lines, setLines] = useState<Line[]>([
     { id: 1, product: "Basmati Rice 5kg", qty: 2, price: 12.5 },
   ]);
 
+  const invoiceNumber = useMemo(() => `INV-00${Math.floor(Math.random() * 900 + 100)}`, []);
+
   const addLine = () => setLines([...lines, { id: Date.now(), product: "", qty: 1, price: 0 }]);
   const update = (id: number, patch: Partial<Line>) =>
     setLines(lines.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const remove = (id: number) => setLines(lines.filter((l) => l.id !== id));
+
+  const selectProduct = (id: number, productName: string) => {
+    const product = products.find((p) => p.name === productName);
+    update(id, { product: productName, price: product?.price ?? 0 });
+  };
 
   const subtotal = lines.reduce((s, l) => s + l.qty * l.price, 0);
   const tax = subtotal * 0.08;
@@ -52,7 +58,7 @@ function BillingPage() {
               <Select value={customer} onValueChange={setCustomer}>
                 <SelectTrigger><SelectValue placeholder="Select customer" /></SelectTrigger>
                 <SelectContent>
-                  {customers.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                  {customerNames.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -64,22 +70,44 @@ function BillingPage() {
                   <Plus className="h-4 w-4 mr-1" /> Add Item
                 </Button>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {lines.map((l) => (
-                  <div key={l.id} className="grid grid-cols-12 gap-2 items-center p-3 rounded-xl bg-secondary/50">
-                    <div className="col-span-12 sm:col-span-6">
-                      <Select value={l.product} onValueChange={(v) => update(l.id, { product: v })}>
-                        <SelectTrigger className="bg-background"><SelectValue placeholder="Product" /></SelectTrigger>
-                        <SelectContent>
-                          {productOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                  <div key={l.id} className="p-4 rounded-xl bg-secondary/50 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Product</Label>
+                        <Select value={l.product} onValueChange={(v) => selectProduct(l.id, v)}>
+                          <SelectTrigger className="bg-background"><SelectValue placeholder="Select product" /></SelectTrigger>
+                          <SelectContent>
+                            {productOptions.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <button onClick={() => remove(l.id)} className="mt-6 p-2 text-muted-foreground hover:text-destructive transition">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
-                    <Input type="number" min={1} value={l.qty} onChange={(e) => update(l.id, { qty: +e.target.value })} className="col-span-4 sm:col-span-2 bg-background" placeholder="Qty" />
-                    <Input type="number" min={0} step={0.01} value={l.price} onChange={(e) => update(l.id, { price: +e.target.value })} className="col-span-6 sm:col-span-3 bg-background" placeholder="Price" />
-                    <button onClick={() => remove(l.id)} className="col-span-2 sm:col-span-1 grid place-items-center text-muted-foreground hover:text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex flex-wrap items-end gap-4">
+                      <div>
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Quantity</Label>
+                        <QuantityControl value={l.qty} onChange={(qty) => update(l.id, { qty })} />
+                      </div>
+                      <div className="flex-1 min-w-[120px]">
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Unit Price</Label>
+                        <Input
+                          type="number"
+                          min={0}
+                          step={0.01}
+                          value={l.price}
+                          onChange={(e) => update(l.id, { price: +e.target.value })}
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="text-right">
+                        <Label className="text-xs text-muted-foreground mb-1.5 block">Line Total</Label>
+                        <div className="font-semibold font-display h-9 flex items-center">${(l.qty * l.price).toFixed(2)}</div>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -98,10 +126,10 @@ function BillingPage() {
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          <div className="glass-card rounded-2xl p-6">
+          <div className="glass-card rounded-2xl p-6 sticky top-24">
             <div className="flex items-center justify-between mb-4">
-              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Preview</div>
-              <div className="text-xs font-mono text-primary">INV-00{Math.floor(Math.random() * 900 + 100)}</div>
+              <div className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Invoice Preview</div>
+              <div className="text-xs font-mono text-primary">{invoiceNumber}</div>
             </div>
             <div className="flex items-center gap-2 mb-6">
               <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary">
@@ -113,7 +141,7 @@ function BillingPage() {
             <div className="font-semibold mb-6">{customer || "—"}</div>
 
             <div className="space-y-2 mb-6 max-h-56 overflow-y-auto">
-              {lines.filter(l => l.product).map((l) => (
+              {lines.filter((l) => l.product).map((l) => (
                 <div key={l.id} className="flex justify-between text-sm py-2 border-b border-border/60 last:border-0">
                   <div className="min-w-0 flex-1">
                     <div className="font-medium truncate">{l.product}</div>
@@ -122,7 +150,7 @@ function BillingPage() {
                   <div className="font-semibold shrink-0 ml-3">${(l.qty * l.price).toFixed(2)}</div>
                 </div>
               ))}
-              {lines.filter(l => l.product).length === 0 && (
+              {lines.filter((l) => l.product).length === 0 && (
                 <div className="text-center text-sm text-muted-foreground py-8">No items yet</div>
               )}
             </div>
