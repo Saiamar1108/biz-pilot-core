@@ -5,9 +5,38 @@ import { PageSection } from "@/components/dashboard/PageSection";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Users, TrendingUp, AlertCircle, Star, Search, Mail, Phone, Package } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { getCustomers, type Customer } from "@/lib/api";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Users,
+  TrendingUp,
+  AlertCircle,
+  Star,
+  Search,
+  Mail,
+  Phone,
+  Package,
+  Plus,
+  Pencil,
+  MapPin,
+} from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  createCustomer,
+  getCustomers,
+  getInvoices,
+  updateCustomer,
+  type Customer,
+  type CustomerPayload,
+  type Invoice,
+} from "@/lib/api";
 
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Customers — ShopPilot AI" }] }),
@@ -17,8 +46,19 @@ export const Route = createFileRoute("/customers")({
 function CustomersPage() {
   const [q, setQ] = useState("");
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [form, setForm] = useState<CustomerPayload>({
+    name: "",
+    phone: "",
+    email: "",
+    address: "",
+  });
 
   useEffect(() => {
     let active = true;
@@ -26,9 +66,10 @@ function CustomersPage() {
       try {
         setLoading(true);
         setError(null);
-        const customerData = await getCustomers();
+        const [customerData, invoiceData] = await Promise.all([getCustomers(), getInvoices()]);
         if (!active) return;
         setCustomers(customerData);
+        setInvoices(invoiceData);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load customers");
@@ -60,6 +101,7 @@ function CustomersPage() {
     const spent = customers.reduce((sum, customer) => sum + customer.totalSpent, 0);
     return purchases ? spent / purchases : 0;
   }, [customers]);
+  const recentOrders = useMemo(() => invoices.slice(0, 6), [invoices]);
 
   const filtered = useMemo(
     () =>
@@ -70,6 +112,75 @@ function CustomersPage() {
       ),
     [customers, q],
   );
+
+  const currency = (value: number) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency: "INR",
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const openAddCustomer = () => {
+    setEditingCustomer(null);
+    setForm({ name: "", phone: "", email: "", address: "" });
+    setFormError(null);
+    setIsCustomerDialogOpen(true);
+  };
+
+  const openEditCustomer = (customer: Customer) => {
+    setEditingCustomer(customer);
+    setForm({
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email,
+      address: customer.address,
+    });
+    setFormError(null);
+    setIsCustomerDialogOpen(true);
+  };
+
+  const updateForm = (field: keyof CustomerPayload, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const saveCustomer = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const phone = form.phone.trim();
+
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      setFormError("Enter a valid 10-digit Indian mobile number.");
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setFormError(null);
+      const payload = {
+        name: form.name.trim(),
+        phone,
+        email: form.email.trim(),
+        address: form.address.trim(),
+      };
+      const saved = editingCustomer
+        ? await updateCustomer(editingCustomer.id, payload)
+        : await createCustomer(payload);
+
+      setCustomers((current) =>
+        editingCustomer
+          ? current.map((customer) => (customer.id === saved.id ? saved : customer))
+          : [saved, ...current],
+      );
+      setIsCustomerDialogOpen(false);
+    } catch (err) {
+      const apiMessage =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : null;
+      setFormError(apiMessage || (err instanceof Error ? err.message : "Unable to save customer"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <DashboardLayout title="Customers">
@@ -89,13 +200,13 @@ function CustomersPage() {
           />
           <StatCard
             label="Outstanding"
-            value={`$${totalOutstanding.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            value={currency(totalOutstanding)}
             icon={AlertCircle}
             accent="destructive"
           />
           <StatCard
             label="Avg Order Value"
-            value={`$${avgOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            value={currency(avgOrderValue)}
             icon={TrendingUp}
             accent="primary"
           />
@@ -107,7 +218,16 @@ function CustomersPage() {
           </div>
         )}
 
-        <PageSection title="Customer Directory" description={`${filtered.length} customers`}>
+        <PageSection
+          title="Customer Directory"
+          description={`${filtered.length} customers`}
+          action={
+            <Button onClick={openAddCustomer} size="sm">
+              <Plus className="mr-2 h-4 w-4" />
+              Add Customer
+            </Button>
+          }
+        >
           <div className="relative max-w-sm mb-5">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
@@ -146,19 +266,17 @@ function CustomersPage() {
                         <Phone className="h-3.5 w-3.5" />
                         <span className="truncate">{customer.phone || "No phone"}</span>
                       </div>
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span className="truncate">{customer.address || "Address not added"}</span>
+                      </div>
                     </div>
                   </div>
 
                   <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
                     <div>
                       <div className="text-xs text-muted-foreground">Total spent</div>
-                      <div className="font-semibold">
-                        $
-                        {customer.totalSpent.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </div>
+                      <div className="font-semibold">{currency(customer.totalSpent)}</div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Pending due</div>
@@ -169,11 +287,7 @@ function CustomersPage() {
                             : "font-semibold text-accent-brand"
                         }
                       >
-                        $
-                        {customer.pendingAmount.toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                        {currency(customer.pendingAmount)}
                       </div>
                     </div>
                     <div>
@@ -196,6 +310,15 @@ function CustomersPage() {
                       </span>
                     </div>
                     <div className="flex gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openEditCustomer(customer)}
+                        aria-label={`Edit ${customer.name}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
                         <Mail className="h-3.5 w-3.5" />
                       </Button>
@@ -213,30 +336,28 @@ function CustomersPage() {
         <div className="grid lg:grid-cols-2 gap-6">
           <PageSection title="Order History" description="Recent transactions across all customers">
             <div className="space-y-2">
-              {customers.length === 0 ? (
+              {recentOrders.length === 0 ? (
                 <div className="text-center py-8 text-sm text-muted-foreground">
                   No recent orders available.
                 </div>
               ) : (
-                customers.slice(0, 4).map((customer) => (
+                recentOrders.map((invoice) => (
                   <div
-                    key={customer.id}
+                    key={invoice.id}
                     className="flex items-center gap-3 p-3 rounded-xl hover:bg-secondary/60 transition"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium font-mono">{customer.name}</span>
-                        <StatusBadge status={customer.status} />
+                        <span className="text-sm font-medium font-mono">{invoice.customer}</span>
+                        <StatusBadge status={invoice.status} />
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
-                        {customer.totalPurchases} orders · {customer.email}
+                        {invoice.id} · {invoice.items} item{invoice.items === 1 ? "" : "s"}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-semibold text-sm">${customer.totalSpent.toFixed(2)}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {customer.lastPurchaseDate || "No orders yet"}
-                      </div>
+                      <div className="font-semibold text-sm">{currency(invoice.amount)}</div>
+                      <div className="text-xs text-muted-foreground">{invoice.date}</div>
                     </div>
                   </div>
                 ))
@@ -270,9 +391,7 @@ function CustomersPage() {
                       <div className="text-xs text-muted-foreground">{c.email}</div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="font-bold text-destructive">
-                        ${c.pendingAmount.toFixed(2)}
-                      </div>
+                      <div className="font-bold text-destructive">{currency(c.pendingAmount)}</div>
                       <Button size="sm" variant="outline" className="mt-1 h-7 text-xs">
                         Send Reminder
                       </Button>
@@ -284,6 +403,73 @@ function CustomersPage() {
           </PageSection>
         </div>
       </div>
+      <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingCustomer ? "Edit Customer" : "Add Customer"}</DialogTitle>
+            <DialogDescription>
+              Keep customer contact details ready for invoices, reminders, and follow-ups.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={saveCustomer}>
+            <div className="space-y-2">
+              <Label htmlFor="customer-name">Full Name</Label>
+              <Input
+                id="customer-name"
+                value={form.name}
+                onChange={(event) => updateForm("name", event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-phone">Phone Number</Label>
+              <Input
+                id="customer-phone"
+                inputMode="numeric"
+                maxLength={10}
+                pattern="[6-9][0-9]{9}"
+                placeholder="9876543210"
+                value={form.phone}
+                onChange={(event) => updateForm("phone", event.target.value.replace(/\D/g, ""))}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-email">Email</Label>
+              <Input
+                id="customer-email"
+                type="email"
+                value={form.email}
+                onChange={(event) => updateForm("email", event.target.value)}
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-address">Address</Label>
+              <Textarea
+                id="customer-address"
+                value={form.address}
+                onChange={(event) => updateForm("address", event.target.value)}
+                rows={3}
+                required
+              />
+            </div>
+            {formError && <div className="text-sm text-destructive">{formError}</div>}
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCustomerDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSaving}>
+                {isSaving ? "Saving..." : editingCustomer ? "Save Changes" : "Add Customer"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

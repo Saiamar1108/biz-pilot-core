@@ -1,8 +1,8 @@
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 
-const VIP_SPEND_THRESHOLD = 2000;
-const NEW_SPEND_THRESHOLD = 500;
+const VIP_SPEND_THRESHOLD = 20000;
+const NEW_SPEND_THRESHOLD = 5000;
 
 function roundCurrency(value) {
   const parsed = Number(value || 0);

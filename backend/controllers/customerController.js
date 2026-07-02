@@ -2,6 +2,37 @@ const Customer = require("../models/Customer");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
 
+const PHONE_REGEX = /^[6-9]\d{9}$/;
+
+function sanitizeCustomerPayload(body) {
+  const payload = {
+    name: typeof body.name === "string" ? body.name.trim() : "",
+    phone: typeof body.phone === "string" ? body.phone.trim() : "",
+    email: typeof body.email === "string" ? body.email.trim().toLowerCase() : "",
+    address: typeof body.address === "string" ? body.address.trim() : "",
+  };
+
+  if (!payload.name) {
+    const error = new Error("Full name is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!payload.email) {
+    const error = new Error("Email is required");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  if (!PHONE_REGEX.test(payload.phone)) {
+    const error = new Error("Phone number must be a valid 10-digit Indian mobile number");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  return payload;
+}
+
 function normalizeCustomer(customer) {
   const totalSpent = customer.totalSpent ?? customer.spent ?? 0;
   const pendingAmount = customer.pendingAmount ?? customer.pendingPayments ?? customer.due ?? 0;
@@ -19,6 +50,7 @@ function normalizeCustomer(customer) {
     lastPurchaseDate,
     favoriteProduct: customer.favoriteProduct || "N/A",
     pendingAmount,
+    address: customer.address || "",
     customerType,
     orders: customer.orders ?? totalPurchases,
     spent: customer.spent ?? totalSpent,
@@ -61,6 +93,22 @@ exports.getCustomers = asyncHandler(async (req, res) => {
 });
 
 exports.createCustomer = asyncHandler(async (req, res) => {
-  const customer = await Customer.create(req.body);
+  const payload = sanitizeCustomerPayload(req.body);
+  const customer = await Customer.create(payload);
   res.status(201).json({ success: true, data: normalizeCustomer(customer.toObject()) });
+});
+
+exports.updateCustomer = asyncHandler(async (req, res) => {
+  const payload = sanitizeCustomerPayload(req.body);
+  const customer = await Customer.findByIdAndUpdate(req.params.id, payload, {
+    new: true,
+    runValidators: true,
+  }).lean();
+
+  if (!customer) {
+    res.status(404);
+    throw new Error("Customer not found");
+  }
+
+  res.json({ success: true, data: normalizeCustomer(customer) });
 });

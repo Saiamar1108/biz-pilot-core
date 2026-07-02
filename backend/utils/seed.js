@@ -5,43 +5,178 @@ const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const { calculateInvoiceTotals } = require("./calculateInvoice");
+const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
 
 const products = [
-  { sku: "GRO-001", name: "Basmati Rice 5kg", category: "Grocery", stock: 48, price: 12.5, sold: 128 },
-  { sku: "DAI-014", name: "Almond Milk 1L", category: "Dairy", stock: 42, price: 4.2, sold: 84 },
-  { sku: "SNK-091", name: "Dark Chocolate 100g", category: "Snacks", stock: 8, price: 3.8, sold: 210 },
-  { sku: "BEV-030", name: "Cold Brew Bottle", category: "Drinks", stock: 65, price: 5.5, sold: 320 },
-  { sku: "GRO-018", name: "Organic Eggs (12)", category: "Grocery", stock: 22, price: 6.9, sold: 190 },
-  { sku: "HH-224", name: "Dish Soap 500ml", category: "Household", stock: 27, price: 2.9, sold: 62 },
-  { sku: "SNK-102", name: "Trail Mix 250g", category: "Snacks", stock: 15, price: 7.4, sold: 55 },
-  { sku: "BEV-041", name: "Sparkling Water 6pk", category: "Drinks", stock: 5, price: 8.99, sold: 145 },
-  { sku: "GRO-032", name: "Whole Wheat Bread", category: "Grocery", stock: 18, price: 3.25, sold: 240 },
-  { sku: "HH-118", name: "Olive Oil 500ml", category: "Household", stock: 31, price: 9.75, sold: 98 },
+  {
+    sku: "GRO-001",
+    name: "India Gate Basmati Rice 5kg",
+    category: "Grocery",
+    stock: 320,
+    price: 760,
+  },
+  { sku: "GRO-002", name: "Aashirvaad Atta 5kg", category: "Grocery", stock: 280, price: 315 },
+  { sku: "GRO-003", name: "Fortune Sunflower Oil 1L", category: "Grocery", stock: 260, price: 165 },
+  { sku: "DAI-014", name: "Amul Taaza Milk 1L", category: "Dairy", stock: 420, price: 68 },
+  { sku: "DAI-022", name: "Amul Butter 500g", category: "Dairy", stock: 180, price: 285 },
+  { sku: "SNK-091", name: "Haldiram's Namkeen 400g", category: "Snacks", stock: 220, price: 145 },
+  { sku: "SNK-102", name: "Britannia Good Day 600g", category: "Snacks", stock: 240, price: 130 },
+  { sku: "BEV-030", name: "Tata Tea Premium 1kg", category: "Beverages", stock: 150, price: 520 },
+  { sku: "BEV-041", name: "Nescafe Classic 200g", category: "Beverages", stock: 120, price: 610 },
+  {
+    sku: "HH-118",
+    name: "Surf Excel Detergent 2kg",
+    category: "Household",
+    stock: 170,
+    price: 430,
+  },
+  { sku: "HH-224", name: "Vim Dishwash Gel 750ml", category: "Household", stock: 210, price: 185 },
+  { sku: "PC-301", name: "Dove Soap Pack of 4", category: "Personal Care", stock: 190, price: 220 },
 ];
 
 const customers = [
-  { name: "Priya Sharma", email: "priya@mail.com", phone: "+1 555 0101", orders: 24, spent: 1840, due: 0, pendingPayments: 0, status: "vip", lastOrder: new Date("2026-06-28") },
-  { name: "Marcus Chen", email: "marcus@brew.co", phone: "+1 555 0102", orders: 18, spent: 1210, due: 90, pendingPayments: 90, status: "regular", lastOrder: new Date("2026-06-27") },
-  { name: "Aisha Okoye", email: "aisha@lagos.co", phone: "+1 555 0103", orders: 32, spent: 2890, due: 0, pendingPayments: 0, status: "vip", lastOrder: new Date("2026-06-29") },
-  { name: "James Patel", email: "jamesp@mail.com", phone: "+1 555 0104", orders: 6, spent: 420, due: 65, pendingPayments: 65, status: "new", lastOrder: new Date("2026-06-25") },
-  { name: "Sofia Rossi", email: "sofia@rossi.it", phone: "+1 555 0105", orders: 14, spent: 940, due: 0, pendingPayments: 0, status: "regular", lastOrder: new Date("2026-06-26") },
-  { name: "Bhuvana Sri", email: "bhuvana@example.com", phone: "7569681350", orders: 0, spent: 0, due: 0, pendingPayments: 0, status: "new", lastOrder: new Date() },
+  {
+    name: "Bhuvana Sri",
+    phone: "7569681350",
+    email: "bhuvana.sri@example.com",
+    address: "12-4-91, Madhapur, Hyderabad, Telangana",
+  },
+  {
+    name: "Rahul Kumar",
+    phone: "9876543210",
+    email: "rahul.kumar@example.com",
+    address: "44 MG Road, Bengaluru, Karnataka",
+  },
+  {
+    name: "Priya Sharma",
+    phone: "9123456780",
+    email: "priya.sharma@example.com",
+    address: "B-18 Lajpat Nagar, New Delhi",
+  },
+  {
+    name: "Arjun Reddy",
+    phone: "9988776655",
+    email: "arjun.reddy@example.com",
+    address: "Plot 27, Jubilee Hills, Hyderabad, Telangana",
+  },
+  {
+    name: "Sneha Patel",
+    phone: "9001122334",
+    email: "sneha.patel@example.com",
+    address: "6 Navrangpura Road, Ahmedabad, Gujarat",
+  },
+  {
+    name: "Kiran Verma",
+    phone: "9812345678",
+    email: "kiran.verma@example.com",
+    address: "88 Gomti Nagar, Lucknow, Uttar Pradesh",
+  },
+  {
+    name: "Meera Joshi",
+    phone: "9345678901",
+    email: "meera.joshi@example.com",
+    address: "21 FC Road, Pune, Maharashtra",
+  },
+  {
+    name: "Rohit Naik",
+    phone: "9765432109",
+    email: "rohit.naik@example.com",
+    address: "9 Panaji Market Road, Panaji, Goa",
+  },
+  {
+    name: "Aditi Rao",
+    phone: "9870011223",
+    email: "aditi.rao@example.com",
+    address: "302 Anna Nagar, Chennai, Tamil Nadu",
+  },
+  {
+    name: "Vikram Singh",
+    phone: "9012345678",
+    email: "vikram.singh@example.com",
+    address: "55 Civil Lines, Jaipur, Rajasthan",
+  },
+  {
+    name: "Nisha Gupta",
+    phone: "9393939393",
+    email: "nisha.gupta@example.com",
+    address: "14 Salt Lake Sector II, Kolkata, West Bengal",
+  },
+  {
+    name: "Sanjay Yadav",
+    phone: "8899776655",
+    email: "sanjay.yadav@example.com",
+    address: "117 Aliganj, Lucknow, Uttar Pradesh",
+  },
+  {
+    name: "Pooja Nair",
+    phone: "9445566778",
+    email: "pooja.nair@example.com",
+    address: "73 Marine Drive, Kochi, Kerala",
+  },
+  {
+    name: "Harsha Vardhan",
+    phone: "9988112233",
+    email: "harsha.vardhan@example.com",
+    address: "8 Benz Circle, Vijayawada, Andhra Pradesh",
+  },
+  {
+    name: "Kavya Rani",
+    phone: "9556677889",
+    email: "kavya.rani@example.com",
+    address: "19 Kankarbagh Main Road, Patna, Bihar",
+  },
+  {
+    name: "Deepak Sharma",
+    phone: "9009988776",
+    email: "deepak.sharma@example.com",
+    address: "A-42 Malviya Nagar, Bhopal, Madhya Pradesh",
+  },
+  {
+    name: "Anjali Das",
+    phone: "9776655443",
+    email: "anjali.das@example.com",
+    address: "31 Saheed Nagar, Bhubaneswar, Odisha",
+  },
+  {
+    name: "Naveen Kumar",
+    phone: "9887766554",
+    email: "naveen.kumar@example.com",
+    address: "5 Banjara Colony, Mysuru, Karnataka",
+  },
+  {
+    name: "Divya Patel",
+    phone: "9123987654",
+    email: "divya.patel@example.com",
+    address: "24 Ring Road, Surat, Gujarat",
+  },
+  {
+    name: "Suresh Reddy",
+    phone: "9344556677",
+    email: "suresh.reddy@example.com",
+    address: "16 Dwaraka Nagar, Visakhapatnam, Andhra Pradesh",
+  },
 ];
 
+function createRng(seed = 42626) {
+  let value = seed;
+  return () => {
+    value = (value * 16807) % 2147483647;
+    return (value - 1) / 2147483646;
+  };
+}
+
 function lineItem(product, quantity) {
-  const lineTotal = parseFloat((quantity * product.price).toFixed(2));
   return {
     product: product._id,
     productName: product.name,
     sku: product.sku,
     quantity,
     unitPrice: product.price,
-    lineTotal,
+    lineTotal: parseFloat((quantity * product.price).toFixed(2)),
   };
 }
 
-function buildInvoice({ invoiceNumber, customer, items, status, createdAt }) {
-  const lineItems = items.map(({ product, quantity }) => lineItem(product, quantity));
+function buildInvoice({ invoiceNumber, customer, lineItems, status, createdAt }) {
   const { subtotal, taxRate, tax, total } = calculateInvoiceTotals(lineItems, env.taxRate);
 
   return {
@@ -55,7 +190,47 @@ function buildInvoice({ invoiceNumber, customer, items, status, createdAt }) {
     total,
     status,
     createdAt,
+    updatedAt: createdAt,
   };
+}
+
+function pickInvoiceDate(index, rng) {
+  const windows = [
+    { start: new Date("2026-04-01T10:00:00+05:30"), days: 30 },
+    { start: new Date("2026-05-01T10:00:00+05:30"), days: 31 },
+    { start: new Date("2026-06-01T10:00:00+05:30"), days: 30 },
+    { start: new Date("2026-07-01T10:00:00+05:30"), days: 2 },
+  ];
+  const window = windows[Math.min(Math.floor(index / 25), windows.length - 1)];
+  const date = new Date(window.start);
+
+  date.setDate(date.getDate() + Math.floor(rng() * window.days));
+  date.setHours(10 + Math.floor(rng() * 10), Math.floor(rng() * 60), 0, 0);
+  return date;
+}
+
+function buildLineItemsForTarget(createdProducts, targetTotal, rng) {
+  const maxSubtotal = targetTotal / (1 + env.taxRate);
+  const affordableProducts = createdProducts.filter((product) => product.price <= maxSubtotal);
+  const first = affordableProducts[Math.floor(rng() * affordableProducts.length)];
+  const firstQuantity = Math.max(
+    1,
+    Math.min(6, Math.floor((maxSubtotal * (0.45 + rng() * 0.35)) / first.price)),
+  );
+  const items = [lineItem(first, firstQuantity)];
+  const subtotal = () => items.reduce((sum, item) => sum + item.lineTotal, 0);
+
+  for (let attempt = 0; attempt < 4 && subtotal() < maxSubtotal * 0.82; attempt += 1) {
+    const remaining = maxSubtotal - subtotal();
+    const options = createdProducts.filter((product) => product.price <= remaining);
+    if (!options.length) break;
+
+    const product = options[Math.floor(rng() * options.length)];
+    const quantity = Math.max(1, Math.min(5, Math.floor(remaining / product.price)));
+    items.push(lineItem(product, quantity));
+  }
+
+  return items;
 }
 
 async function seed() {
@@ -66,110 +241,54 @@ async function seed() {
 
   const createdProducts = await Product.insertMany(products);
   const createdCustomers = await Customer.insertMany(customers);
-
-  const bySku = Object.fromEntries(createdProducts.map((p) => [p.sku, p]));
-  const byEmail = Object.fromEntries(createdCustomers.map((c) => [c.email, c]));
-
-  const invoices = [
-    buildInvoice({
-      invoiceNumber: "INV-10277",
-      customer: byEmail["priya@mail.com"],
-      items: [
-        { product: bySku["GRO-001"], quantity: 3 },
-        { product: bySku["DAI-014"], quantity: 6 },
-        { product: bySku["GRO-032"], quantity: 4 },
-      ],
-      status: "paid",
-      createdAt: new Date("2026-06-22"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10278",
-      customer: byEmail["marcus@brew.co"],
-      items: [
-        { product: bySku["BEV-030"], quantity: 12 },
-        { product: bySku["SNK-091"], quantity: 8 },
-      ],
-      status: "paid",
-      createdAt: new Date("2026-06-23"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10279",
-      customer: byEmail["sofia@rossi.it"],
-      items: [
-        { product: bySku["HH-118"], quantity: 2 },
-        { product: bySku["HH-224"], quantity: 3 },
-        { product: bySku["GRO-018"], quantity: 2 },
-      ],
-      status: "paid",
-      createdAt: new Date("2026-06-24"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10280",
-      customer: byEmail["jamesp@mail.com"],
-      items: [
-        { product: bySku["GRO-001"], quantity: 1 },
-        { product: bySku["SNK-102"], quantity: 2 },
-      ],
-      status: "pending",
-      createdAt: new Date("2026-06-25"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10281",
-      customer: byEmail["aisha@lagos.co"],
-      items: [
-        { product: bySku["BEV-041"], quantity: 6 },
-        { product: bySku["BEV-030"], quantity: 10 },
-        { product: bySku["SNK-091"], quantity: 15 },
-      ],
-      status: "paid",
-      createdAt: new Date("2026-06-26"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10282",
-      customer: byEmail["aisha@lagos.co"],
-      items: [
-        { product: bySku["GRO-018"], quantity: 5 },
-        { product: bySku["GRO-032"], quantity: 8 },
-        { product: bySku["DAI-014"], quantity: 10 },
-      ],
-      status: "paid",
-      createdAt: new Date("2026-06-27"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10283",
-      customer: byEmail["marcus@brew.co"],
-      items: [
-        { product: bySku["BEV-030"], quantity: 6 },
-        { product: bySku["BEV-041"], quantity: 4 },
-      ],
-      status: "pending",
-      createdAt: new Date("2026-06-28"),
-    }),
-    buildInvoice({
-      invoiceNumber: "INV-10284",
-      customer: byEmail["priya@mail.com"],
-      items: [
-        { product: bySku["GRO-001"], quantity: 2 },
-        { product: bySku["HH-118"], quantity: 1 },
-        { product: bySku["SNK-102"], quantity: 3 },
-      ],
-      status: "overdue",
-      createdAt: new Date("2026-06-15"),
-    }),
+  const rng = createRng();
+  const weightedCustomers = [
+    ...createdCustomers,
+    ...createdCustomers.slice(0, 8),
+    ...createdCustomers.slice(0, 4),
   ];
+  const invoices = [];
+
+  for (let index = 0; index < 100; index += 1) {
+    const customer = weightedCustomers[Math.floor(rng() * weightedCustomers.length)];
+    const targetTotal = 300 + Math.floor(rng() * 4600);
+    const createdAt = pickInvoiceDate(index, rng);
+    const statusRoll = rng();
+    const status = statusRoll < 0.68 ? "paid" : statusRoll < 0.9 ? "pending" : "overdue";
+
+    invoices.push(
+      buildInvoice({
+        invoiceNumber: `INV-2026-${String(index + 1).padStart(4, "0")}`,
+        customer,
+        lineItems: buildLineItemsForTarget(createdProducts, targetTotal, rng),
+        status,
+        createdAt,
+      }),
+    );
+  }
+
+  invoices.sort((a, b) => a.createdAt - b.createdAt);
+  invoices.forEach((invoice, index) => {
+    invoice.invoiceNumber = `INV-2026-${String(index + 1).padStart(4, "0")}`;
+  });
 
   const createdInvoices = await Invoice.insertMany(invoices);
 
-  // Link invoices to customer orderHistory
-  for (const inv of createdInvoices) {
-    await Customer.findByIdAndUpdate(inv.customer, {
-      $push: { orderHistory: inv._id }
-    });
+  for (const invoice of createdInvoices) {
+    await Customer.findByIdAndUpdate(invoice.customer, { $push: { orderHistory: invoice._id } });
+
+    for (const item of invoice.lineItems) {
+      await Product.findByIdAndUpdate(item.product, {
+        $inc: { stock: -item.quantity, sold: item.quantity },
+      });
+    }
   }
+
+  await recalculateAllCustomerMetrics();
 
   console.log(`Seeded ${createdProducts.length} products`);
   console.log(`Seeded ${createdCustomers.length} customers`);
-  console.log(`Seeded ${invoices.length} invoices`);
+  console.log(`Seeded ${createdInvoices.length} invoices`);
   console.log("Done.");
 
   await mongoose.connection.close();

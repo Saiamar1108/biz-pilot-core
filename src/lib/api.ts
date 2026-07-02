@@ -31,6 +31,7 @@ export type Customer = {
   name: string;
   email: string;
   phone: string;
+  address: string;
   totalPurchases: number;
   totalSpent: number;
   lastPurchaseDate: string;
@@ -48,6 +49,7 @@ export type Customer = {
 
 export type Invoice = {
   id: string;
+  customerId: string;
   customer: string;
   amount: number;
   status: "paid" | "pending" | "overdue" | "sent";
@@ -141,6 +143,7 @@ const normalizeCustomer = (value: unknown): Customer => {
     name: asString(item.name),
     email: asString(item.email),
     phone: asString(item.phone),
+    address: asString(item.address),
     totalPurchases: asNumber(item.totalPurchases ?? item.orders),
     totalSpent: asNumber(item.totalSpent ?? item.spent),
     lastPurchaseDate: normalizeDate(asString(item.lastPurchaseDate ?? item.lastOrder)),
@@ -163,6 +166,7 @@ const normalizeInvoice = (value: unknown): Invoice => {
 
   return {
     id: asString(item.invoiceNumber ?? item._id ?? item.id),
+    customerId: asString(customer._id ?? customer.id ?? item.customer),
     customer:
       Object.keys(customer).length > 0
         ? asString(customer.name ?? item.customerName)
@@ -197,6 +201,23 @@ export async function deleteProduct(id: string) {
 export async function getCustomers() {
   const response = await api.get<ApiResponse<unknown[]>>("/customers");
   return response.data.data.map(normalizeCustomer);
+}
+
+export type CustomerPayload = {
+  name: string;
+  phone: string;
+  email: string;
+  address: string;
+};
+
+export async function createCustomer(payload: CustomerPayload) {
+  const response = await api.post<ApiResponse<unknown>>("/customers", payload);
+  return normalizeCustomer(response.data.data);
+}
+
+export async function updateCustomer(id: string, payload: CustomerPayload) {
+  const response = await api.put<ApiResponse<unknown>>(`/customers/${id}`, payload);
+  return normalizeCustomer(response.data.data);
 }
 
 export async function getInvoices() {

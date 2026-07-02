@@ -5,6 +5,7 @@ const customerSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     phone: { type: String, trim: true, default: "" },
+    address: { type: String, trim: true, default: "" },
     totalPurchases: { type: Number, default: 0, min: 0 },
     totalSpent: { type: Number, default: 0, min: 0 },
     lastPurchaseDate: { type: Date, default: Date.now },
