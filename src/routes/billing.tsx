@@ -97,6 +97,8 @@ function BillingPage() {
       setBackendInvoiceNumber(created.id);
       setInvoiceCreated(true);
       setMessage("Invoice created successfully.");
+      const customerData = await getCustomers();
+      setCustomers(customerData);
     } catch (err) {
       setInvoiceCreated(false);
       setError(err instanceof Error ? err.message : "Unable to create invoice");
@@ -250,34 +252,45 @@ function BillingPage() {
       pdf.save(`invoice-${created.id}.pdf`);
 
       setInvoiceCreated(true);
-      setMessage("Invoice sent to WhatsApp successfully.");
-      toast.success("Invoice sent to WhatsApp successfully");
+      setMessage("Invoice sent successfully.");
+      toast.success("Invoice sent successfully");
 
-      const messageLines = [
-        `Hello ${selectedCustomer.name} 👋`,
-        "", 
-        "Your invoice from ShopPilot is ready.",
-        "", 
-        `Invoice No: ${created.id}`,
-        `Date: ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`,
-        "",
-        "Items:",
-        ...lines
-          .filter((line) => line.product)
-          .map((line) => {
-            const lineTotal = line.qty * line.price;
-            return `${line.product} x ${line.qty} = ₹${lineTotal.toFixed(2)}`;
-          }),
-        "",
-        `Subtotal: ₹${subtotal.toFixed(2)}`,
-        `Tax (8%): ₹${tax.toFixed(2)}`,
-        `Total: ₹${total.toFixed(2)}`,
-        "",
-        "Thank you for shopping with us.",
-      ];
+      const customerData = await getCustomers();
+      setCustomers(customerData);
 
-      const encodedMessage = encodeURIComponent(messageLines.join("\n"));
-      window.open(`https://wa.me/${waPhone}?text=${encodedMessage}`, "_blank");
+      const cleanPhone = selectedCustomer.phone.replace(/\D/g, "");
+      const phone10 = cleanPhone.slice(-10);
+      const currentDateString = new Date().toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      });
+
+      const messageText = `Hello ${selectedCustomer.name} 👋
+
+Your invoice from ShopPilot is ready.
+
+Invoice No: ${created.id}
+Date: ${currentDateString}
+
+Items:
+${lines
+  .filter((line) => line.product)
+  .map((line) => {
+    const lineTotal = line.qty * line.price;
+    return `${line.product} x ${line.qty} = ₹${lineTotal.toFixed(2)}`;
+  })
+  .join("\n")}
+
+Subtotal: ₹${subtotal.toFixed(2)}
+Tax (8%): ₹${tax.toFixed(2)}
+Total: ₹${total.toFixed(2)}
+
+Thank you for shopping with us.`;
+
+      const encodedMessage = encodeURIComponent(messageText);
+      const whatsappUrl = `https://wa.me/91${phone10}?text=${encodedMessage}`;
+      window.open(whatsappUrl, "_blank");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unable to send invoice.";
       setError(message);
@@ -313,6 +326,30 @@ function BillingPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {selectedCustomer && (
+              <div className="p-4 rounded-xl bg-secondary/30 border border-border/50 space-y-3 text-sm animate-in fade-in slide-in-from-top-1 duration-200">
+                <div className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Customer Support Details</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-2.5 gap-x-4">
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Phone</span>
+                    <span className="font-medium text-foreground block">{selectedCustomer.phone || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Email</span>
+                    <span className="font-medium text-foreground block truncate">{selectedCustomer.email || "—"}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Pending Payments</span>
+                    <span className="font-semibold text-destructive block">₹{(selectedCustomer.pendingPayments ?? 0).toFixed(2)}</span>
+                  </div>
+                  <div>
+                    <span className="text-xs text-muted-foreground block">Order History</span>
+                    <span className="font-medium text-foreground block">{selectedCustomer.orderHistory?.length ?? 0} invoices</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-3">

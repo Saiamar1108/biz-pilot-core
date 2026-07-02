@@ -8,6 +8,7 @@ const {
   buildLineItems,
   generateInvoiceNumber,
 } = require("../utils/calculateInvoice");
+const { recalculateCustomerMetrics } = require("../services/customerMetrics");
 
 exports.getInvoices = asyncHandler(async (req, res) => {
   const { status, customer } = req.query;
@@ -60,18 +61,10 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     });
   }
 
-  customer.orders += 1;
-  customer.spent = parseFloat((customer.spent + total).toFixed(2));
-  if (status !== "paid") {
-    customer.due = parseFloat((customer.due + total).toFixed(2));
-    customer.pendingPayments = customer.due;
-  } else {
-    customer.pendingPayments = parseFloat((customer.pendingPayments ?? 0).toFixed(2));
-  }
   customer.orderHistory = Array.isArray(customer.orderHistory) ? customer.orderHistory : [];
   customer.orderHistory.push(invoice._id);
-  customer.lastOrder = new Date();
   await customer.save();
+  await recalculateCustomerMetrics(customer._id);
 
   const populated = await Invoice.findById(invoice._id).populate("customer", "name email");
   res.status(201).json({ success: true, data: populated });

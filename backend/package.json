@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "seed": "node utils/seed.js",
+    "migrate:customers": "node utils/migrateCustomers.js",
     "postinstall": "xattr -cr node_modules/.cache/mongodb-memory-server 2>/dev/null || true"
   },
   "dependencies": {

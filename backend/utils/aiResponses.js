@@ -5,14 +5,66 @@ const env = require("../config/env");
 
 const OPENAI_API_URL = "https://api.openai.com/v1/chat/completions";
 
+const numberOrZero = (value) => {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const money = (value) => numberOrZero(value).toFixed(2);
+
+function normalizeCustomer(customer) {
+  const totalSpent = numberOrZero(customer.totalSpent ?? customer.spent);
+  const pendingAmount = numberOrZero(
+    customer.pendingAmount ?? customer.pendingPayments ?? customer.due,
+  );
+
+  return {
+    ...customer,
+    name: customer.name || "N/A",
+    totalSpent,
+    spent: numberOrZero(customer.spent ?? totalSpent),
+    pendingAmount,
+    due: numberOrZero(customer.due ?? pendingAmount),
+    favoriteProduct: customer.favoriteProduct || "N/A",
+    customerType:
+      customer.customerType ||
+      (customer.status === "vip" ? "VIP" : customer.status === "new" ? "New" : "Regular"),
+    status: customer.status || "regular",
+  };
+}
+
+function normalizeProduct(product) {
+  return {
+    ...product,
+    name: product.name || "N/A",
+    sku: product.sku || "",
+    category: product.category || "General",
+    stock: numberOrZero(product.stock),
+    price: numberOrZero(product.price),
+    sold: numberOrZero(product.sold),
+  };
+}
+
+function normalizeInvoice(invoice) {
+  return {
+    ...invoice,
+    total: numberOrZero(invoice.total),
+    createdAt: invoice.createdAt || new Date(),
+  };
+}
+
 async function getAnalyticsContext() {
-  const [products, customers, invoices] = await Promise.all([
+  const [rawProducts, rawCustomers, rawInvoices] = await Promise.all([
     Product.find().lean(),
     Customer.find().lean(),
     Invoice.find().lean(),
   ]);
 
-  const totalSales = invoices.reduce((sum, inv) => sum + inv.total, 0);
+  const products = rawProducts.map(normalizeProduct);
+  const customers = rawCustomers.map(normalizeCustomer);
+  const invoices = rawInvoices.map(normalizeInvoice);
+
+  const totalSales = invoices.reduce((sum, inv) => sum + numberOrZero(inv.total), 0);
   const lowStockItems = products.filter((p) => p.stock < env.lowStockThreshold);
   const topProducts = [...products].sort((a, b) => b.sold - a.sold).slice(0, 5);
 
@@ -20,14 +72,22 @@ async function getAnalyticsContext() {
   for (const inv of invoices) {
     const date = new Date(inv.createdAt);
     const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    monthlyRevenue[key] = (monthlyRevenue[key] || 0) + inv.total;
+    monthlyRevenue[key] = numberOrZero(monthlyRevenue[key]) + numberOrZero(inv.total);
   }
 
   const monthlyRevenueArray = Object.entries(monthlyRevenue)
-    .map(([month, revenue]) => ({ month, revenue: parseFloat(revenue.toFixed(2)) }))
+    .map(([month, revenue]) => ({ month, revenue: parseFloat(money(revenue)) }))
     .sort((a, b) => a.month.localeCompare(b.month));
 
-  return { totalSales, monthlyRevenue: monthlyRevenueArray, topProducts, lowStockItems, customers, products, invoices };
+  return {
+    totalSales,
+    monthlyRevenue: monthlyRevenueArray,
+    topProducts,
+    lowStockItems,
+    customers,
+    products,
+    invoices,
+  };
 }
 
 function buildHeuristicResponse(message, ctx) {
@@ -36,7 +96,7 @@ function buildHeuristicResponse(message, ctx) {
   if (text.includes("revenue") || text.includes("sales")) {
     const latest = ctx.monthlyRevenue.at(-1);
     return {
-      reply: `Total sales are $${ctx.totalSales.toFixed(2)}. ${latest ? `Latest month (${latest.month}): $${latest.revenue.toFixed(2)}.` : "No monthly data yet."}`,
+      reply: `Total sales are $${money(ctx.totalSales)}. ${latest ? `Latest month (${latest.month}): $${money(latest.revenue)}.` : "No monthly data yet."}`,
       data: { totalSales: ctx.totalSales, monthlyRevenue: ctx.monthlyRevenue },
     };
   }
@@ -51,23 +111,29 @@ function buildHeuristicResponse(message, ctx) {
     };
   }
 
-  if (text.includes("top") && (text.includes("product") || text.includes("selling") || text.includes("seller"))) {
-    const top = ctx.topProducts.slice(0, 3).map((p) => `${p.name} (${p.sold} sold)`).join(", ");
+  if (
+    text.includes("top") &&
+    (text.includes("product") || text.includes("selling") || text.includes("seller"))
+  ) {
+    const top = ctx.topProducts
+      .slice(0, 3)
+      .map((p) => `${p.name || "N/A"} (${numberOrZero(p.sold)} sold)`)
+      .join(", ");
     return {
-      reply: ctx.topProducts.length
-        ? `Top sellers: ${top}.`
-        : "No product sales data yet.",
+      reply: ctx.topProducts.length ? `Top sellers: ${top}.` : "No product sales data yet.",
       data: { topProducts: ctx.topProducts },
     };
   }
 
   if (text.includes("customer")) {
-    const top = [...ctx.customers].sort((a, b) => b.spent - a.spent).slice(0, 5);
-    const names = top.map((c) => `${c.name} ($${c.spent})`).join(", ");
+    const top = [...ctx.customers]
+      .sort((a, b) => numberOrZero(b.totalSpent ?? b.spent) - numberOrZero(a.totalSpent ?? a.spent))
+      .slice(0, 5);
+    const names = top
+      .map((c) => `${c.name || "N/A"} ($${money(c.totalSpent ?? c.spent)})`)
+      .join(", ");
     return {
-      reply: top.length
-        ? `Top customers by spend: ${names}.`
-        : "No customer data yet.",
+      reply: top.length ? `Top customers by spend: ${names}.` : "No customer data yet.",
       data: { topCustomers: top },
     };
   }
@@ -82,35 +148,56 @@ function buildHeuristicResponse(message, ctx) {
   }
 
   if (text.includes("pending") || text.includes("payment") || text.includes("due")) {
-    const pending = ctx.customers.filter((c) => c.due > 0);
-    const total = pending.reduce((s, c) => s + c.due, 0);
+    const pending = ctx.customers.filter((c) => numberOrZero(c.pendingAmount ?? c.due) > 0);
+    const total = pending.reduce((s, c) => s + numberOrZero(c.pendingAmount ?? c.due), 0);
     return {
       reply: pending.length
-        ? `${pending.length} customers have outstanding balances totaling $${total.toFixed(2)}: ${pending.map((c) => c.name).join(", ")}.`
+        ? `${pending.length} customers have outstanding balances totaling $${money(total)}: ${pending.map((c) => c.name || "N/A").join(", ")}.`
         : "No pending payments at the moment.",
       data: { pendingPayments: pending, totalDue: total },
     };
   }
 
   return {
-    reply: "I can help with revenue, inventory, top products, customers, and demand forecasts. Try asking about this week's revenue or which products are running low.",
+    reply:
+      "I can help with revenue, inventory, top products, customers, and demand forecasts. Try asking about this week's revenue or which products are running low.",
     data: null,
   };
 }
 
 function formatBusinessContext(ctx) {
-  const topProducts = ctx.topProducts.slice(0, 5).map((p) => `${p.name} (${p.sold} sold, stock ${p.stock})`).join("; ") || "None";
-  const lowStock = ctx.lowStockItems.slice(0, 5).map((p) => `${p.name} (${p.stock} left)`).join("; ") || "None";
-  const pendingPayments = ctx.customers.filter((c) => c.due > 0).slice(0, 5).map((c) => `${c.name} ($${c.due.toFixed(2)})`).join("; ") || "None";
-  const customerInsights = [...ctx.customers]
-    .sort((a, b) => b.spent - a.spent)
-    .slice(0, 5)
-    .map((c) => `${c.name} spent $${c.spent.toFixed(2)} (${c.status})`)
-    .join("; ") || "None";
-  const revenueTrend = ctx.monthlyRevenue
-    .slice(-3)
-    .map((m) => `${m.month}: $${m.revenue.toFixed(2)}`)
-    .join("; ") || "None";
+  const topProducts =
+    ctx.topProducts
+      .slice(0, 5)
+      .map(
+        (p) => `${p.name || "N/A"} (${numberOrZero(p.sold)} sold, stock ${numberOrZero(p.stock)})`,
+      )
+      .join("; ") || "None";
+  const lowStock =
+    ctx.lowStockItems
+      .slice(0, 5)
+      .map((p) => `${p.name || "N/A"} (${numberOrZero(p.stock)} left)`)
+      .join("; ") || "None";
+  const pendingPayments =
+    ctx.customers
+      .filter((c) => numberOrZero(c.pendingAmount ?? c.due) > 0)
+      .slice(0, 5)
+      .map((c) => `${c.name || "N/A"} ($${money(c.pendingAmount ?? c.due)})`)
+      .join("; ") || "None";
+  const customerInsights =
+    [...ctx.customers]
+      .sort((a, b) => numberOrZero(b.totalSpent ?? b.spent) - numberOrZero(a.totalSpent ?? a.spent))
+      .slice(0, 5)
+      .map(
+        (c) =>
+          `${c.name || "N/A"} spent $${money(c.totalSpent ?? c.spent)} (${c.customerType || c.status || "Regular"})`,
+      )
+      .join("; ") || "None";
+  const revenueTrend =
+    ctx.monthlyRevenue
+      .slice(-3)
+      .map((m) => `${m.month}: $${money(m.revenue)}`)
+      .join("; ") || "None";
 
   return `Top products: ${topProducts}
 Low stock items: ${lowStock}
@@ -139,7 +226,8 @@ async function askOpenAI(message, ctx) {
       messages: [
         {
           role: "system",
-          content: "You are ShopPilot AI, a helpful assistant for a retail business. Answer questions about sales, inventory, customers, invoices, and restocking clearly and concisely.",
+          content:
+            "You are ShopPilot AI, a helpful assistant for a retail business. Answer questions about sales, inventory, customers, invoices, and restocking clearly and concisely.",
         },
         {
           role: "system",

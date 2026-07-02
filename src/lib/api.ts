@@ -31,6 +31,12 @@ export type Customer = {
   name: string;
   email: string;
   phone: string;
+  totalPurchases: number;
+  totalSpent: number;
+  lastPurchaseDate: string;
+  favoriteProduct: string;
+  pendingAmount: number;
+  customerType: "VIP" | "Regular" | "New";
   orders: number;
   spent: number;
   due: number;
@@ -52,7 +58,14 @@ export type Invoice = {
 export type AnalyticsSummary = {
   totalSales: number;
   monthlyRevenue: Array<{ month: string; revenue: number }>;
-  topProducts: Array<{ id: string; name: string; sku: string; sold: number; revenue: number; category: string }>;
+  topProducts: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    sold: number;
+    revenue: number;
+    category: string;
+  }>;
   lowStockItems: Array<{ id: string; name: string; sku: string; stock: number; category: string }>;
 };
 
@@ -62,6 +75,42 @@ export type AiChatResponse = {
   context: unknown;
 };
 
+type ApiRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): ApiRecord =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as ApiRecord) : {};
+
+const asString = (value: unknown, fallback = ""): string =>
+  typeof value === "string" ? value : value == null ? fallback : String(value);
+
+const asNumber = (value: unknown, fallback = 0): number => {
+  const parsed = Number(value ?? fallback);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const normalizeCustomerType = (value: unknown, status: unknown): Customer["customerType"] => {
+  if (value === "VIP" || value === "Regular" || value === "New") return value;
+  if (status === "vip") return "VIP";
+  if (status === "new") return "New";
+  return "Regular";
+};
+
+const normalizeCustomerStatus = (
+  value: unknown,
+  customerType: Customer["customerType"],
+): Customer["status"] => {
+  if (value === "vip" || value === "regular" || value === "new") return value;
+  return customerType === "VIP" ? "vip" : customerType === "New" ? "new" : "regular";
+};
+
+const normalizeInvoiceStatus = (value: unknown): Invoice["status"] => {
+  if (value === "paid" || value === "pending" || value === "overdue" || value === "sent") {
+    return value;
+  }
+
+  return "pending";
+};
+
 const normalizeDate = (value?: string | Date | null) => {
   if (!value) return "";
   const date = value instanceof Date ? value : new Date(value);
@@ -69,66 +118,89 @@ const normalizeDate = (value?: string | Date | null) => {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 };
 
-const normalizeProduct = (item: any): Product => ({
-  id: item._id ?? item.id ?? item.sku,
-  sku: item.sku ?? "",
-  name: item.name ?? "",
-  category: item.category ?? "General",
-  stock: Number(item.stock ?? 0),
-  price: Number(item.price ?? 0),
-  sold: Number(item.sold ?? 0),
-});
+const normalizeProduct = (value: unknown): Product => {
+  const item = asRecord(value);
 
-const normalizeCustomer = (item: any): Customer => ({
-  id: item._id ?? item.id ?? item.email,
-  name: item.name ?? "",
-  email: item.email ?? "",
-  phone: item.phone ?? "",
-  orders: Number(item.orders ?? 0),
-  spent: Number(item.spent ?? 0),
-  due: Number(item.due ?? 0),
-  pendingPayments: Number(item.pendingPayments ?? item.due ?? 0),
-  orderHistory: Array.isArray(item.orderHistory) ? item.orderHistory.map(String) : [],
-  status: item.status ?? "regular",
-  lastOrder: normalizeDate(item.lastOrder),
-});
+  return {
+    id: asString(item._id ?? item.id ?? item.sku),
+    sku: asString(item.sku),
+    name: asString(item.name),
+    category: asString(item.category, "General"),
+    stock: asNumber(item.stock),
+    price: asNumber(item.price),
+    sold: asNumber(item.sold),
+  };
+};
 
-const normalizeInvoice = (item: any): Invoice => ({
-  id: item.invoiceNumber ?? item._id ?? item.id ?? "",
-  customer: typeof item.customer === "object" ? item.customer?.name ?? item.customerName ?? "" : item.customerName ?? item.customer ?? "",
-  amount: Number(item.total ?? item.amount ?? 0),
-  status: item.status ?? "pending",
-  date: normalizeDate(item.createdAt ?? item.date),
-  items: Array.isArray(item.lineItems) ? item.lineItems.length : Number(item.items ?? 0),
-});
+const normalizeCustomer = (value: unknown): Customer => {
+  const item = asRecord(value);
+  const customerType = normalizeCustomerType(item.customerType, item.status);
+
+  return {
+    id: asString(item._id ?? item.id ?? item.email),
+    name: asString(item.name),
+    email: asString(item.email),
+    phone: asString(item.phone),
+    totalPurchases: asNumber(item.totalPurchases ?? item.orders),
+    totalSpent: asNumber(item.totalSpent ?? item.spent),
+    lastPurchaseDate: normalizeDate(asString(item.lastPurchaseDate ?? item.lastOrder)),
+    favoriteProduct: asString(item.favoriteProduct),
+    pendingAmount: asNumber(item.pendingAmount ?? item.pendingPayments ?? item.due),
+    customerType,
+    orders: asNumber(item.orders ?? item.totalPurchases),
+    spent: asNumber(item.spent ?? item.totalSpent),
+    due: asNumber(item.due ?? item.pendingAmount),
+    pendingPayments: asNumber(item.pendingPayments ?? item.pendingAmount ?? item.due),
+    orderHistory: Array.isArray(item.orderHistory) ? item.orderHistory.map(String) : [],
+    status: normalizeCustomerStatus(item.status, customerType),
+    lastOrder: normalizeDate(asString(item.lastOrder ?? item.lastPurchaseDate)),
+  };
+};
+
+const normalizeInvoice = (value: unknown): Invoice => {
+  const item = asRecord(value);
+  const customer = asRecord(item.customer);
+
+  return {
+    id: asString(item.invoiceNumber ?? item._id ?? item.id),
+    customer:
+      Object.keys(customer).length > 0
+        ? asString(customer.name ?? item.customerName)
+        : asString(item.customerName ?? item.customer),
+    amount: asNumber(item.total ?? item.amount),
+    status: normalizeInvoiceStatus(item.status),
+    date: normalizeDate(asString(item.createdAt ?? item.date)),
+    items: Array.isArray(item.lineItems) ? item.lineItems.length : asNumber(item.items),
+  };
+};
 
 export async function getProducts() {
-  const response = await api.get<ApiResponse<any[]>>("/products");
+  const response = await api.get<ApiResponse<unknown[]>>("/products");
   return response.data.data.map(normalizeProduct);
 }
 
 export async function createProduct(payload: Omit<Product, "id">) {
-  const response = await api.post<ApiResponse<any>>("/products", payload);
+  const response = await api.post<ApiResponse<unknown>>("/products", payload);
   return normalizeProduct(response.data.data);
 }
 
 export async function updateProduct(id: string, payload: Partial<Omit<Product, "id">>) {
-  const response = await api.put<ApiResponse<any>>(`/products/${id}`, payload);
+  const response = await api.put<ApiResponse<unknown>>(`/products/${id}`, payload);
   return normalizeProduct(response.data.data);
 }
 
 export async function deleteProduct(id: string) {
-  const response = await api.delete<ApiResponse<any>>(`/products/${id}`);
+  const response = await api.delete<ApiResponse<unknown>>(`/products/${id}`);
   return response.data.data;
 }
 
 export async function getCustomers() {
-  const response = await api.get<ApiResponse<any[]>>("/customers");
+  const response = await api.get<ApiResponse<unknown[]>>("/customers");
   return response.data.data.map(normalizeCustomer);
 }
 
 export async function getInvoices() {
-  const response = await api.get<ApiResponse<any[]>>("/invoices");
+  const response = await api.get<ApiResponse<unknown[]>>("/invoices");
   return response.data.data.map(normalizeInvoice);
 }
 
@@ -138,7 +210,7 @@ export async function createInvoice(payload: {
   status?: string;
   taxRate?: number;
 }) {
-  const response = await api.post<ApiResponse<any>>("/invoices", payload);
+  const response = await api.post<ApiResponse<unknown>>("/invoices", payload);
   return normalizeInvoice(response.data.data);
 }
 

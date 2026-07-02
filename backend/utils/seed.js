@@ -20,12 +20,12 @@ const products = [
 ];
 
 const customers = [
-  { name: "Priya Sharma", email: "priya@mail.com", phone: "+1 555 0101", orders: 24, spent: 1840, due: 0, status: "vip", lastOrder: new Date("2026-06-28") },
-  { name: "Marcus Chen", email: "marcus@brew.co", phone: "+1 555 0102", orders: 18, spent: 1210, due: 90, status: "regular", lastOrder: new Date("2026-06-27") },
-  { name: "Aisha Okoye", email: "aisha@lagos.co", phone: "+1 555 0103", orders: 32, spent: 2890, due: 0, status: "vip", lastOrder: new Date("2026-06-29") },
-  { name: "James Patel", email: "jamesp@mail.com", phone: "+1 555 0104", orders: 6, spent: 420, due: 65, status: "new", lastOrder: new Date("2026-06-25") },
-  { name: "Sofia Rossi", email: "sofia@rossi.it", phone: "+1 555 0105", orders: 14, spent: 940, due: 0, status: "regular", lastOrder: new Date("2026-06-26") },
-  { name: "Bhuvana Sri", email: "bhuvana@example.com", phone: "7569681350", orders: 0, spent: 0, due: 0, status: "new", lastOrder: new Date() },
+  { name: "Priya Sharma", email: "priya@mail.com", phone: "+1 555 0101", orders: 24, spent: 1840, due: 0, pendingPayments: 0, status: "vip", lastOrder: new Date("2026-06-28") },
+  { name: "Marcus Chen", email: "marcus@brew.co", phone: "+1 555 0102", orders: 18, spent: 1210, due: 90, pendingPayments: 90, status: "regular", lastOrder: new Date("2026-06-27") },
+  { name: "Aisha Okoye", email: "aisha@lagos.co", phone: "+1 555 0103", orders: 32, spent: 2890, due: 0, pendingPayments: 0, status: "vip", lastOrder: new Date("2026-06-29") },
+  { name: "James Patel", email: "jamesp@mail.com", phone: "+1 555 0104", orders: 6, spent: 420, due: 65, pendingPayments: 65, status: "new", lastOrder: new Date("2026-06-25") },
+  { name: "Sofia Rossi", email: "sofia@rossi.it", phone: "+1 555 0105", orders: 14, spent: 940, due: 0, pendingPayments: 0, status: "regular", lastOrder: new Date("2026-06-26") },
+  { name: "Bhuvana Sri", email: "bhuvana@example.com", phone: "7569681350", orders: 0, spent: 0, due: 0, pendingPayments: 0, status: "new", lastOrder: new Date() },
 ];
 
 function lineItem(product, quantity) {
@@ -158,7 +158,14 @@ async function seed() {
     }),
   ];
 
-  await Invoice.insertMany(invoices);
+  const createdInvoices = await Invoice.insertMany(invoices);
+
+  // Link invoices to customer orderHistory
+  for (const inv of createdInvoices) {
+    await Customer.findByIdAndUpdate(inv.customer, {
+      $push: { orderHistory: inv._id }
+    });
+  }
 
   console.log(`Seeded ${createdProducts.length} products`);
   console.log(`Seeded ${createdCustomers.length} customers`);
