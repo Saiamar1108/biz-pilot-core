@@ -11,11 +11,12 @@ const customerRoutes = require("./routes/customerRoutes");
 const invoiceRoutes = require("./routes/invoiceRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const aiRoutes = require("./routes/aiRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 const app = express();
 
 app.use(cors({ origin: env.corsOrigin, credentials: true }));
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 if (env.nodeEnv === "development") {
@@ -31,6 +32,7 @@ app.use("/customers", customerRoutes);
 app.use("/invoices", invoiceRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/ai", aiRoutes);
+app.use("/settings", settingsRoutes);
 
 app.use(notFound);
 app.use(errorHandler);

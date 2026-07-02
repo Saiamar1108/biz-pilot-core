@@ -77,6 +77,26 @@ export type AiChatResponse = {
   context: unknown;
 };
 
+export type SettingsProfile = {
+  fullName: string;
+  email: string;
+  phone: string;
+  timezone: string;
+  imageDataUrl: string;
+};
+
+export type NotificationSettings = {
+  invoiceNotifications: boolean;
+  stockAlerts: boolean;
+  paymentReminders: boolean;
+  aiInsightsAlerts: boolean;
+};
+
+export type AppSettings = {
+  profile: SettingsProfile;
+  notifications: NotificationSettings;
+};
+
 type ApiRecord = Record<string, unknown>;
 
 const asRecord = (value: unknown): ApiRecord =>
@@ -178,6 +198,28 @@ const normalizeInvoice = (value: unknown): Invoice => {
   };
 };
 
+const normalizeSettings = (value: unknown): AppSettings => {
+  const item = asRecord(value);
+  const profile = asRecord(item.profile);
+  const notifications = asRecord(item.notifications);
+
+  return {
+    profile: {
+      fullName: asString(profile.fullName, "A. Sai Amar Chaitanya"),
+      email: asString(profile.email, "asaiamar@shoppilot.ai"),
+      phone: asString(profile.phone, "+91 75696 81350"),
+      timezone: asString(profile.timezone, "Asia/Kolkata"),
+      imageDataUrl: asString(profile.imageDataUrl),
+    },
+    notifications: {
+      invoiceNotifications: notifications.invoiceNotifications !== false,
+      stockAlerts: notifications.stockAlerts !== false,
+      paymentReminders: notifications.paymentReminders !== false,
+      aiInsightsAlerts: notifications.aiInsightsAlerts === true,
+    },
+  };
+};
+
 export async function getProducts() {
   const response = await api.get<ApiResponse<unknown[]>>("/products");
   return response.data.data.map(normalizeProduct);
@@ -238,6 +280,30 @@ export async function createInvoice(payload: {
 export async function getAnalytics() {
   const response = await api.get<ApiResponse<AnalyticsSummary>>("/analytics");
   return response.data.data;
+}
+
+export async function getSettings() {
+  const response = await api.get<ApiResponse<unknown>>("/settings");
+  return normalizeSettings(response.data.data);
+}
+
+export async function updateProfile(profile: Omit<SettingsProfile, "imageDataUrl">) {
+  const response = await api.put<ApiResponse<unknown>>("/settings/profile", { profile });
+  return normalizeSettings(response.data.data);
+}
+
+export async function updateProfileImage(imageDataUrl: string) {
+  const response = await api.put<ApiResponse<unknown>>("/settings/profile-image", {
+    imageDataUrl,
+  });
+  return normalizeSettings(response.data.data);
+}
+
+export async function updateNotifications(notifications: NotificationSettings) {
+  const response = await api.put<ApiResponse<unknown>>("/settings/notifications", {
+    notifications,
+  });
+  return normalizeSettings(response.data.data);
 }
 
 export async function postAiChat(message: string) {
