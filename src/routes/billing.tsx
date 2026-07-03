@@ -290,6 +290,8 @@ function BillingPage() {
     setCompletedInvoice(created);
     setInvoiceCreated(true);
     setShowNextCustomer(true);
+    // Auto reset cart after invoice creation to prevent duplicate detection
+    setLines([emptyLine()]);
   };
 
   const addLine = () => {
