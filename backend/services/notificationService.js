@@ -60,17 +60,23 @@ async function createNotification({
 }
 
 async function syncSystemNotifications() {
-  const [lowStockProducts, pendingInvoices] = await Promise.all([
+  const [lowStockProducts, pendingInvoices, expiringProducts] = await Promise.all([
     Product.find({
       stock: { $lte: env.lowStockThreshold },
     })
-      .select("_id name stock")
+      .select("_id name stock expiryDate")
       .lean(),
 
     Invoice.find({
       status: { $in: [...PENDING_BUCKET_STATUSES] },
     })
       .select("_id invoiceNumber customerName total createdAt pendingAmount")
+      .lean(),
+
+    Product.find({
+      expiryDate: { $ne: null },
+    })
+      .select("_id name expiryDate stock")
       .lean(),
   ]);
 
@@ -84,9 +90,41 @@ async function syncSystemNotifications() {
     });
   }
 
-  // PENDING PAYMENT ALERTS
+  // EXPIRY ALERTS
   const now = Date.now();
+  for (const product of expiringProducts) {
+    const daysUntilExpiry = Math.floor(
+      (new Date(product.expiryDate).getTime() - now) / (24 * 60 * 60 * 1000)
+    );
 
+    if (daysUntilExpiry < 0) {
+      // Expired
+      await createNotification({
+        type: "product_expired",
+        message: `${product.name} expired ${Math.abs(daysUntilExpiry)} days ago (${product.stock} units)`,
+        relatedId: String(product._id),
+        key: `expired-${String(product._id)}`,
+      });
+    } else if (daysUntilExpiry <= 7) {
+      // Expiring soon
+      await createNotification({
+        type: "product_expiring_soon",
+        message: `${product.name} expires in ${daysUntilExpiry} days (${product.stock} units)`,
+        relatedId: String(product._id),
+        key: `expiring-soon-${String(product._id)}`,
+      });
+    } else if (daysUntilExpiry <= 30) {
+      // Expiring in 30 days
+      await createNotification({
+        type: "product_expiring",
+        message: `${product.name} expires in ${daysUntilExpiry} days (${product.stock} units)`,
+        relatedId: String(product._id),
+        key: `expiring-${String(product._id)}`,
+      });
+    }
+  }
+
+  // PENDING PAYMENT ALERTS
   for (const invoice of pendingInvoices) {
     const daysPending = Math.floor(
       (now - new Date(invoice.createdAt).getTime()) /

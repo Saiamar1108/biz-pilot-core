@@ -248,6 +248,114 @@ export const EMPTY_ANALYTICS: AnalyticsSummary = {
   smartPredictions: [],
 };
 
+// Inventory Intelligence Types
+export type InventoryInsights = {
+  movementAnalysis: {
+    fastMoving: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      salesCount: number;
+      price: number;
+    }>;
+    slowMoving: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      salesCount: number;
+      daysSinceLastSale: number | null;
+    }>;
+    deadStock: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      daysSinceLastSale: number | null;
+    }>;
+    bestSellers: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      salesCount: number;
+      revenue: number;
+    }>;
+  };
+  restockPredictions: Array<{
+    id: string;
+    name: string;
+    sku: string;
+    category: string;
+    currentStock: number;
+    avgDailySales: number;
+    daysUntilStockout: number | null;
+    recommendedReorder: number;
+    urgency: "critical" | "high" | "medium" | "low";
+  }>;
+  expiryAlerts: {
+    expired: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      expiryDate: string;
+      daysUntilExpiry: number;
+    }>;
+    critical: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      expiryDate: string;
+      daysUntilExpiry: number;
+    }>;
+    warning: Array<{
+      id: string;
+      name: string;
+      sku: string;
+      category: string;
+      stock: number;
+      expiryDate: string;
+      daysUntilExpiry: number;
+    }>;
+  };
+  categoryPerformance: Array<{
+    category: string;
+    revenue: number;
+    profit: number;
+    unitsSold: number;
+    profitMargin: number;
+  }>;
+  stockTurnover: {
+    turnoverRatio: number;
+    totalCOGS: number;
+    averageInventoryValue: number;
+    period: string;
+  };
+};
+
+export type PurchaseOrder = {
+  items: Array<{
+    productName: string;
+    sku: string;
+    category: string;
+    currentStock: number;
+    recommendedQuantity: number;
+    urgency: "critical" | "high" | "medium" | "low";
+    estimatedCost: number;
+  }>;
+  totalEstimatedCost: number;
+  generatedAt: string;
+};
+
 const normalizeMonthlySeries = (
   value: unknown,
 ): Array<{ month: string; revenue: number }> => {
@@ -855,4 +963,22 @@ export async function updateNotifications(notifications: NotificationSettings) {
 export async function postAiChat(message: string) {
   const response = await api.post<ApiResponse<AiChatResponse>>("/ai/chat", { message });
   return response.data.data;
+}
+
+// Inventory Intelligence API
+export async function getInventoryInsights() {
+  const response = await api.get<ApiResponse<unknown>>("/inventory-intelligence/insights");
+  return response.data.data as InventoryInsights;
+}
+
+export async function getPurchaseOrder() {
+  const response = await api.get<ApiResponse<unknown>>("/inventory-intelligence/purchase-order");
+  return response.data.data as PurchaseOrder;
+}
+
+export async function getProductByBarcode(barcode: string) {
+  const response = await api.get<ApiResponse<{ found: boolean; data?: Product; message?: string }>>(
+    `/inventory-intelligence/barcode/${barcode}`
+  );
+  return response.data;
 }
