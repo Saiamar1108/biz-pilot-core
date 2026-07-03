@@ -21,6 +21,11 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem } from "@/lib/api";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
+import {
+  ONBOARDING_CLOSE_NAV_EVENT,
+  ONBOARDING_OPEN_NAV_EVENT,
+  onboardingTargetIds,
+} from "@/lib/onboarding-tour";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
@@ -76,6 +81,19 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
     };
   }, []);
 
+  useEffect(() => {
+    const openNav = () => setMobileOpen(true);
+    const closeNav = () => setMobileOpen(false);
+
+    window.addEventListener(ONBOARDING_OPEN_NAV_EVENT, openNav);
+    window.addEventListener(ONBOARDING_CLOSE_NAV_EVENT, closeNav);
+
+    return () => {
+      window.removeEventListener(ONBOARDING_OPEN_NAV_EVENT, openNav);
+      window.removeEventListener(ONBOARDING_CLOSE_NAV_EVENT, closeNav);
+    };
+  }, []);
+
   const markRead = async (id: string) => {
     await markNotificationRead(id);
     const data = await getNotifications();
@@ -120,6 +138,7 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                   key={item.to}
                   to={item.to}
                   onClick={() => setMobileOpen(false)}
+                  id={getNavTourTargetId(item.label)}
                   className={cn(
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
                     active
@@ -178,7 +197,12 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
             <div className="flex items-center gap-2 shrink-0">
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
-                  <Button variant="outline" size="icon" className="relative">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="relative"
+                    id={onboardingTargetIds.notifications}
+                  >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 rounded-full bg-destructive text-[10px] text-white min-w-4 h-4 px-1 flex items-center justify-center">
@@ -245,4 +269,13 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
       </Link>
     </div>
   );
+}
+
+function getNavTourTargetId(label: string) {
+  if (label === "Inventory") return onboardingTargetIds.productsNav;
+  if (label === "Customers") return onboardingTargetIds.customersNav;
+  if (label === "Invoices") return onboardingTargetIds.invoicesNav;
+  if (label === "Analytics") return onboardingTargetIds.analyticsNav;
+  if (label === "Settings") return onboardingTargetIds.settingsNav;
+  return undefined;
 }

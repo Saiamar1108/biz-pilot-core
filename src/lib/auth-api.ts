@@ -49,6 +49,11 @@ export async function fetchCurrentSession() {
   return response.data.data;
 }
 
+export async function completeOnboarding() {
+  const response = await api.patch<ApiResponse<{ user: AuthUser }>>("/auth/onboarding-complete");
+  return response.data.data.user;
+}
+
 export async function requestPasswordReset(email: string) {
   const response = await api.post<ApiResponse<{ message: string; devResetToken?: string }>>(
     "/auth/forgot-password",

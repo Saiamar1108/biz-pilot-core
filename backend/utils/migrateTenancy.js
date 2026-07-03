@@ -32,7 +32,24 @@ async function ensureUniqueShopSlug(baseName) {
   return slug;
 }
 
+async function migrateShopSchema() {
+  // Migrate shops from shopName to name field
+  const shopsWithOldName = await Shop.find({ shopName: { $exists: true } });
+  
+  for (const shop of shopsWithOldName) {
+    if (!shop.name && shop.shopName) {
+      shop.name = shop.shopName;
+      delete shop.shopName;
+      await shop.save();
+    }
+  }
+  
+  return shopsWithOldName.length;
+}
+
 async function ensureDefaultShop() {
+  await migrateShopSchema();
+  
   let shop = await Shop.findOne({ isDefault: true });
 
   if (!shop) {

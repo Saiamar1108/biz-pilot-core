@@ -32,9 +32,7 @@ async function buildShopReadFilter(req) {
 
   if (!shopId) return {};
 
-  return {
-    $or: [{ shopId }, { shopId: { $exists: false } }, { shopId: null }],
-  };
+  return { shopId };
 }
 
 async function buildShopWriteFilter(req) {

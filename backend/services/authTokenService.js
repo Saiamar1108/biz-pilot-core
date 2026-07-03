@@ -15,7 +15,7 @@ function getRefreshCookieOptions(rememberMe = false) {
   return {
     httpOnly: true,
     secure: env.nodeEnv === "production",
-    sameSite: "strict",
+    sameSite: env.nodeEnv === "production" ? "strict" : "lax",
     maxAge,
     path: "/auth",
   };

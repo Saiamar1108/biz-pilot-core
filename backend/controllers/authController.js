@@ -13,6 +13,7 @@ const { generateResetToken } = require("../utils/tokens");
 const {
   claimDefaultShopForFirstUser,
   createShopForUser,
+  runTenancyMigration,
 } = require("../utils/migrateTenancy");
 const env = require("../config/env");
 
@@ -27,6 +28,7 @@ function sanitizeUser(user) {
     role: user.role,
     shopId: String(user.shopId),
     isVerified: user.isVerified,
+    onboardingCompleted: user.onboardingCompleted === true,
     lastLogin: user.lastLogin,
   };
 }
@@ -40,12 +42,7 @@ function setRefreshCookie(res, token, rememberMe) {
 }
 
 function clearRefreshCookie(res) {
-  res.clearCookie(env.refreshCookieName, {
-    httpOnly: true,
-    secure: env.nodeEnv === "production",
-    sameSite: "strict",
-    path: "/auth",
-  });
+  res.clearCookie(env.refreshCookieName, getRefreshCookieOptions(false));
 }
 
 exports.register = asyncHandler(async (req, res) => {
@@ -69,6 +66,9 @@ exports.register = asyncHandler(async (req, res) => {
     res.status(409);
     throw new Error("Email already registered");
   }
+
+  // Run migration to ensure existing data has shopId
+  await runTenancyMigration();
 
   const userCount = await User.countDocuments();
   let shop;
@@ -131,7 +131,7 @@ exports.register = asyncHandler(async (req, res) => {
       user: sanitizeUser(user),
       shop: {
         id: String(shop._id),
-        name: shop.name,
+        shopName: shop.name,
         slug: shop.slug,
       },
       accessToken,
@@ -230,7 +230,7 @@ exports.login = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(user),
       shop: shop
-        ? { id: String(shop._id), name: shop.name, slug: shop.slug }
+        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
         : null,
       accessToken,
     },
@@ -241,8 +241,10 @@ exports.refresh = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.[env.refreshCookieName];
 
   if (!refreshToken) {
-    res.status(401);
-    throw new Error("Refresh token missing");
+    return res.status(401).json({
+      success: false,
+      message: "Refresh token missing",
+    });
   }
 
   try {
@@ -266,8 +268,10 @@ exports.refresh = asyncHandler(async (req, res) => {
     });
   } catch (error) {
     clearRefreshCookie(res);
-    res.status(401);
-    throw new Error("Invalid refresh token");
+    return res.status(401).json({
+      success: false,
+      message: "Invalid refresh token",
+    });
   }
 });
 
@@ -305,8 +309,28 @@ exports.me = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(req.user),
       shop: shop
-        ? { id: String(shop._id), name: shop.name, slug: shop.slug }
+        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
         : null,
+    },
+  });
+});
+
+exports.completeOnboarding = asyncHandler(async (req, res) => {
+  const user = await User.findByIdAndUpdate(
+    req.user._id,
+    { $set: { onboardingCompleted: true } },
+    { new: true },
+  );
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  res.json({
+    success: true,
+    data: {
+      user: sanitizeUser(user),
     },
   });
 });

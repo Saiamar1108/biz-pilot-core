@@ -5,6 +5,7 @@ const {
   logout,
   refresh,
   me,
+  completeOnboarding,
   forgotPassword,
   resetPassword,
 } = require("../controllers/authController");
@@ -24,6 +25,7 @@ router.post("/login", loginRateLimiter, login);
 router.post("/refresh", authActionRateLimiter, refresh);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, shopScopeMiddleware, me);
+router.patch("/onboarding-complete", authMiddleware, completeOnboarding);
 router.post("/forgot-password", authActionRateLimiter, forgotPassword);
 router.post("/reset-password", authActionRateLimiter, resetPassword);
 

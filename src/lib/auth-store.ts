@@ -10,6 +10,7 @@ export type AuthUser = {
   role: "owner" | "staff" | "admin";
   shopId: string;
   isVerified: boolean;
+  onboardingCompleted: boolean;
   lastLogin?: string | null;
 };
 

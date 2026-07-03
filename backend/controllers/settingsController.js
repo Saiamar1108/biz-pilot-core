@@ -5,15 +5,14 @@ const env = require("../config/env");
 const SETTINGS_KEY = "default";
 const IMAGE_DATA_URL_REGEX = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
-async function getSettingsDocument(req) {
-  const shopId = req?.shopId;
-  const filter = shopId
-    ? { shopId, key: SETTINGS_KEY }
-    : { key: SETTINGS_KEY };
+function getShopSettingsFilter(req) {
+  return { shopId: req.shopId, key: SETTINGS_KEY };
+}
 
+async function getSettingsDocument(req) {
   return Setting.findOneAndUpdate(
-    filter,
-    { $setOnInsert: { key: SETTINGS_KEY, shopId } },
+    getShopSettingsFilter(req),
+    { $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId } },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 }
@@ -137,7 +136,7 @@ exports.getSettings = asyncHandler(async (req, res) => {
 exports.updateProfile = asyncHandler(async (req, res) => {
   const profile = sanitizeProfile(req.body.profile || req.body);
   const settings = await Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
+    getShopSettingsFilter(req),
     {
       $set: {
         "profile.fullName": profile.fullName,
@@ -145,6 +144,7 @@ exports.updateProfile = asyncHandler(async (req, res) => {
         "profile.phone": profile.phone,
         "profile.timezone": profile.timezone,
       },
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
     },
     { new: true, upsert: true, runValidators: true },
   ).lean();
@@ -168,8 +168,11 @@ exports.updateProfileImage = asyncHandler(async (req, res) => {
   }
 
   const settings = await Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
-    { $set: { "profile.imageDataUrl": imageDataUrl } },
+    getShopSettingsFilter(req),
+    {
+      $set: { "profile.imageDataUrl": imageDataUrl },
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
+    },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
@@ -179,8 +182,11 @@ exports.updateProfileImage = asyncHandler(async (req, res) => {
 exports.updateBusiness = asyncHandler(async (req, res) => {
   const business = sanitizeBusiness(req.body.business || req.body);
   const settings = await Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
-    { $set: Object.fromEntries(Object.entries(business).map(([key, value]) => [`business.${key}`, value])) },
+    getShopSettingsFilter(req),
+    {
+      $set: Object.fromEntries(Object.entries(business).map(([key, value]) => [`business.${key}`, value])),
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
+    },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
@@ -203,8 +209,11 @@ exports.updateBusinessLogo = asyncHandler(async (req, res) => {
   }
 
   const settings = await Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
-    { $set: { "business.logoDataUrl": logoDataUrl } },
+    getShopSettingsFilter(req),
+    {
+      $set: { "business.logoDataUrl": logoDataUrl },
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
+    },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
@@ -214,8 +223,11 @@ exports.updateBusinessLogo = asyncHandler(async (req, res) => {
 exports.updateNotifications = asyncHandler(async (req, res) => {
   const notifications = sanitizeNotifications(req.body.notifications || req.body);
   const settings = await Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
-    { $set: { notifications } },
+    getShopSettingsFilter(req),
+    {
+      $set: { notifications },
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
+    },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 

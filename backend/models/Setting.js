@@ -55,4 +55,16 @@ const settingSchema = new mongoose.Schema(
 
 settingSchema.index({ shopId: 1, key: 1 }, { unique: true, sparse: true });
 
-module.exports = mongoose.model("Setting", settingSchema);
+const Setting = mongoose.model("Setting", settingSchema);
+
+Setting.dropLegacyKeyIndex = async function dropLegacyKeyIndex() {
+  try {
+    await this.collection.dropIndex("key_1");
+  } catch (error) {
+    if (error?.code !== 27 && !/index not found/i.test(error?.message || "")) {
+      console.warn("[Setting] Could not drop legacy key index:", error.message);
+    }
+  }
+};
+
+module.exports = Setting;

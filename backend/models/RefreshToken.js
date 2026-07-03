@@ -10,7 +10,7 @@ const refreshTokenSchema = new mongoose.Schema(
     },
     tokenHash: { type: String, required: true, unique: true },
     rememberMe: { type: Boolean, default: false },
-    expiresAt: { type: Date, required: true, index: true },
+    expiresAt: { type: Date, required: true },
     revokedAt: { type: Date },
     replacedByTokenHash: { type: String },
     ip: { type: String, trim: true, default: "" },

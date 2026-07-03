@@ -19,6 +19,7 @@ import {
   type SettingsProfile,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/auth-guard";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: requireAuth,
@@ -27,6 +28,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
+  const { replayTutorial } = useOnboarding();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<SettingsProfile>({
@@ -236,6 +238,12 @@ function SettingsPage() {
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-4xl">
+        <div className="mb-4 flex justify-end">
+          <Button variant="outline" onClick={replayTutorial}>
+            Replay Tutorial
+          </Button>
+        </div>
+
         <Tabs defaultValue="profile">
           <TabsList className="mb-6 bg-secondary/60 p-1 h-11">
             <TabsTrigger value="profile">Profile</TabsTrigger>

@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   fetchCurrentSession,
+  completeOnboarding,
   loginAccount,
   logoutAccount,
   refreshSessionToken,
@@ -31,6 +32,7 @@ type AuthContextValue = {
   }) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  markOnboardingComplete: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -98,6 +100,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setShop(null);
   }, []);
 
+  const markOnboardingComplete = useCallback(async () => {
+    const updatedUser = await completeOnboarding();
+    setUser(updatedUser);
+  }, []);
+
   const value = useMemo(
     () => ({
       user,
@@ -108,8 +115,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       register,
       logout,
       refresh: restoreSession,
+      markOnboardingComplete,
     }),
-    [user, shop, loading, login, register, logout, restoreSession],
+    [user, shop, loading, login, register, logout, restoreSession, markOnboardingComplete],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

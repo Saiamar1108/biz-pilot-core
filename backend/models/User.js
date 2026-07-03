@@ -23,6 +23,7 @@ const userSchema = new mongoose.Schema(
       required: true,
     },
     isVerified: { type: Boolean, default: true },
+    onboardingCompleted: { type: Boolean, default: false },
     lastLogin: { type: Date },
     failedLoginAttempts: { type: Number, default: 0, min: 0 },
     lockUntil: { type: Date },

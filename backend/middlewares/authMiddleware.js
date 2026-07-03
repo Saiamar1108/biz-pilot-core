@@ -15,37 +15,45 @@ const authMiddleware = async (req, res, next) => {
   try {
     const token = extractBearerToken(req);
     if (!token) {
-      res.status(401);
-      throw new Error("Authentication required");
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
     }
 
     let payload;
     try {
       payload = verifyAccessToken(token);
-    } catch (error) {
-      res.status(401);
-      throw new Error("Invalid or expired access token");
+    } catch {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired access token",
+      });
     }
 
     const user = await User.findById(payload.sub).select(
-      "name email role shopId isVerified lastLogin lockUntil",
+      "name email role shopId isVerified onboardingCompleted lastLogin lockUntil",
     );
 
     if (!user) {
-      res.status(401);
-      throw new Error("User not found");
+      return res.status(401).json({
+        success: false,
+        message: "User not found",
+      });
     }
 
     if (user.isLocked && user.isLocked()) {
-      res.status(423);
-      throw new Error("Account temporarily locked");
+      return res.status(423).json({
+        success: false,
+        message: "Account temporarily locked",
+      });
     }
 
     req.user = user;
     req.shopId = resolveShopObjectId(user.shopId);
-    next();
+    return next();
   } catch (error) {
-    next(error);
+    return next(error);
   }
 };
 
@@ -56,7 +64,7 @@ const optionalAuthMiddleware = async (req, res, next) => {
   try {
     const payload = verifyAccessToken(token);
     const user = await User.findById(payload.sub).select(
-      "name email role shopId isVerified",
+      "name email role shopId isVerified onboardingCompleted",
     );
     if (user) {
       req.user = user;
@@ -73,13 +81,17 @@ const roleMiddleware =
   (...roles) =>
   (req, res, next) => {
     if (!req.user) {
-      res.status(401);
-      return next(new Error("Authentication required"));
+      return res.status(401).json({
+        success: false,
+        message: "Authentication required",
+      });
     }
 
     if (!roles.includes(req.user.role)) {
-      res.status(403);
-      return next(new Error("Insufficient permissions"));
+      return res.status(403).json({
+        success: false,
+        message: "Insufficient permissions",
+      });
     }
 
     return next();
@@ -91,8 +103,10 @@ const shopScopeMiddleware = (req, res, next) => {
   }
 
   if (!req.shopId) {
-    res.status(403);
-    return next(new Error("Shop context missing"));
+    return res.status(403).json({
+      success: false,
+      message: "Shop context missing",
+    });
   }
 
   return next();

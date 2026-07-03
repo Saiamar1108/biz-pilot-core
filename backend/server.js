@@ -5,6 +5,7 @@ const cookieParser = require("cookie-parser");
 
 const connectDB = require("./config/db");
 const env = require("./config/env");
+const Setting = require("./models/Setting");
 const { notFound, errorHandler } = require("./middlewares/errorHandler");
 const { runTenancyMigration } = require("./utils/migrateTenancy");
 
@@ -49,6 +50,8 @@ app.use(errorHandler);
 
 async function startServer() {
   await connectDB();
+  await Setting.dropLegacyKeyIndex();
+  await Setting.syncIndexes();
   await runTenancyMigration();
 
   app.listen(env.port, () => {

@@ -17,6 +17,7 @@ import { formatCurrency } from "@/lib/currency";
 import { buildLast7DaysRevenue } from "@/lib/sales-chart";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 import { requireAuth } from "@/lib/auth-guard";
+import { onboardingTargetIds } from "@/lib/onboarding-tour";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: requireAuth,
@@ -99,7 +100,10 @@ function DashboardPage() {
       <div className="space-y-6">
         <QuickActions />
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div
+          id={onboardingTargetIds.dashboardOverview}
+          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+        >
           <StatCard
             label="Revenue Collected"
             value={statValue(analytics?.revenueReceived, formatCurrency)}
