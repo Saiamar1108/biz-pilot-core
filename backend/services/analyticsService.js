@@ -385,6 +385,147 @@ function buildRecommendations({ lowStockItems, pendingAgingAlerts, topProducts }
   ];
 }
 
+const PURCHASE_ORDER_WINDOW_DAYS = 30;
+const PURCHASE_ORDER_TARGET_DAYS = 10; // 7 days base stock + 3 days buffer
+const PURCHASE_ORDER_MAX_DAYS = 15; // safety cap: never stock beyond 15 days
+
+function describeStockDuration(daysOfStock) {
+  if (daysOfStock === null) return "no recent sales";
+  if (daysOfStock <= 0) return "no stock on hand";
+  if (daysOfStock < 1) return "less than 1 day";
+  if (daysOfStock < 2) return "less than 2 days";
+  const rounded = Math.round(daysOfStock);
+  return `about ${rounded} ${rounded === 1 ? "day" : "days"}`;
+}
+
+function scoreSalesConsistency(dailySales, totalSold) {
+  if (totalSold <= 0) return { score: 0, label: "Low" };
+
+  const days = dailySales.length;
+  const mean = totalSold / days;
+  const variance =
+    dailySales.reduce((sum, value) => sum + (value - mean) ** 2, 0) / days;
+  const std = Math.sqrt(variance);
+  const cv = mean > 0 ? std / mean : 0;
+
+  // Steadier day-to-day sales (low coefficient of variation) => more trust.
+  const steadiness = 1 / (1 + cv);
+  // Selling on more days of the window => a stronger, more reliable signal.
+  const coverage = dailySales.filter((value) => value > 0).length / days;
+
+  let score = Math.round(100 * (0.6 * steadiness + 0.4 * coverage));
+  if (totalSold < 5) score = Math.min(score, 45);
+  score = Math.max(5, Math.min(99, score));
+
+  const label = score >= 70 ? "High" : score >= 40 ? "Medium" : "Low";
+  return { score, label };
+}
+
+function buildPurchaseOrder(products, recentInvoices, now = Date.now()) {
+  const windowStart = now - PURCHASE_ORDER_WINDOW_DAYS * 86400000;
+
+  const salesByProduct = new Map();
+  for (const invoice of recentInvoices) {
+    const created = new Date(invoice.createdAt).getTime();
+    if (!Number.isFinite(created) || created < windowStart) continue;
+
+    const dayIndex = Math.min(
+      PURCHASE_ORDER_WINDOW_DAYS - 1,
+      Math.max(0, Math.floor((created - windowStart) / 86400000))
+    );
+
+    for (const item of invoice.lineItems || []) {
+      const productId = String(item.product?._id || item.product || "");
+      if (!productId) continue;
+
+      const quantity = numberOrZero(item.quantity);
+      const row =
+        salesByProduct.get(productId) || {
+          total: 0,
+          daily: new Array(PURCHASE_ORDER_WINDOW_DAYS).fill(0),
+        };
+      row.total += quantity;
+      row.daily[dayIndex] += quantity;
+      salesByProduct.set(productId, row);
+    }
+  }
+
+  const urgencyRank = { Critical: 0, High: 1, Medium: 2, Low: 3 };
+
+  const items = products
+    .map((product) => {
+      const sales =
+        salesByProduct.get(product.id) || {
+          total: 0,
+          daily: new Array(PURCHASE_ORDER_WINDOW_DAYS).fill(0),
+        };
+
+      const avgDailySales = round2(sales.total / PURCHASE_ORDER_WINDOW_DAYS);
+      const currentStock = numberOrZero(product.stock);
+
+      const targetQty = avgDailySales * PURCHASE_ORDER_TARGET_DAYS - currentStock;
+      const maxQty = Math.max(
+        0,
+        avgDailySales * PURCHASE_ORDER_MAX_DAYS - currentStock
+      );
+      const recommendedQty = Math.max(
+        0,
+        Math.min(Math.round(targetQty), Math.round(maxQty))
+      );
+
+      const daysOfStock =
+        avgDailySales > 0 ? round2(currentStock / avgDailySales) : null;
+
+      let urgency = "Low";
+      if (daysOfStock !== null) {
+        if (daysOfStock < 2) urgency = "Critical";
+        else if (daysOfStock < 5) urgency = "High";
+        else if (daysOfStock < 10) urgency = "Medium";
+      }
+
+      const { score: confidence, label: confidenceLabel } =
+        scoreSalesConsistency(sales.daily, sales.total);
+
+      const avgDisplay = Number(avgDailySales.toFixed(1));
+      let reason;
+      if (avgDailySales <= 0) {
+        reason = `No recent sales; ${currentStock} units in stock.`;
+      } else if (daysOfStock !== null && daysOfStock <= 0) {
+        reason = `Selling ${avgDisplay}/day and currently out of stock.`;
+      } else {
+        reason = `Selling ${avgDisplay}/day, current stock lasts ${describeStockDuration(
+          daysOfStock
+        )}.`;
+      }
+
+      return {
+        id: product.id,
+        name: product.name,
+        sku: product.sku,
+        category: product.category,
+        currentStock,
+        avgDailySales,
+        totalSoldLast30Days: round2(sales.total),
+        daysOfStock,
+        recommendedQty,
+        urgency,
+        confidence,
+        confidenceLabel,
+        reason,
+      };
+    })
+    // Only reorder products with demonstrated demand (avoids over-ordering dead stock).
+    .filter((item) => item.recommendedQty > 0 && item.avgDailySales > 0)
+    .sort(
+      (a, b) =>
+        urgencyRank[a.urgency] - urgencyRank[b.urgency] ||
+        (a.daysOfStock ?? Infinity) - (b.daysOfStock ?? Infinity) ||
+        b.recommendedQty - a.recommendedQty
+    );
+
+  return items;
+}
+
 async function buildAnalytics(options = {}) {
   await ensureDemoData();
 
@@ -413,6 +554,14 @@ async function buildAnalytics(options = {}) {
   const customers = rawCustomers.map(normalizeCustomer);
   const invoices = (financialSummary.invoices || []).map(normalizeInvoice);
   const productsById = new Map(products.map((product) => [product.id, product]));
+
+  const purchaseOrderWindowStart = new Date(
+    Date.now() - PURCHASE_ORDER_WINDOW_DAYS * 86400000
+  );
+  const recentInvoices = await Invoice.find({
+    createdAt: { $gte: purchaseOrderWindowStart },
+  }).lean();
+  const purchaseOrder = buildPurchaseOrder(products, recentInvoices);
 
   const totalBilled = financialSummary.totalBilled;
   const revenueReceived = financialSummary.collectedRevenue;
@@ -544,6 +693,7 @@ async function buildAnalytics(options = {}) {
       date: new Date(invoice.createdAt).toISOString(),
     })),
     recommendations,
+    purchaseOrder,
     productAnalytics: {
       byCategory: lineAgg.byCategory,
       byProduct: lineAgg.byProduct,

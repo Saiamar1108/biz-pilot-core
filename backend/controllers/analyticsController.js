@@ -177,6 +177,23 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
     ),
     activityFeed: Array.isArray(ctx.activityFeed) ? ctx.activityFeed : [],
     recommendations: Array.isArray(ctx.recommendations) ? ctx.recommendations : [],
+    purchaseOrder: Array.isArray(ctx.purchaseOrder)
+      ? ctx.purchaseOrder.map((item) => ({
+          id: item.id || "",
+          name: item.name || "N/A",
+          sku: item.sku || "",
+          category: item.category || "General",
+          currentStock: safeNumber(item.currentStock),
+          avgDailySales: round2(item.avgDailySales),
+          totalSoldLast30Days: safeNumber(item.totalSoldLast30Days),
+          daysOfStock: item.daysOfStock == null ? null : round2(item.daysOfStock),
+          recommendedQty: safeNumber(item.recommendedQty),
+          urgency: item.urgency || "Low",
+          confidence: safeNumber(item.confidence),
+          confidenceLabel: item.confidenceLabel || "Low",
+          reason: item.reason || "",
+        }))
+      : [],
   };
 
   res.status(200).json({
