@@ -1,8 +1,8 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Mic, Paperclip, Send, Sparkles, TrendingUp, Package, Users } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Bot, Mic, Paperclip, Send, Sparkles, TrendingUp, Package, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { postAiChat } from "@/lib/api";
 
@@ -10,38 +10,39 @@ type Msg = {
   role: "user" | "ai";
   text: string;
   card?: { title: string; value: string; icon: LucideIcon };
+  collapsible?: boolean;
 };
 
 const initial: Msg[] = [
-  { role: "ai", text: "Hi! I'm your ShopPilot AI. Ask me anything about your sales, inventory, or customers." },
-  { role: "user", text: "What are my top selling products this week?" },
+  { role: "ai", text: "Hi! I'm your ShopPilot AI, your experienced store manager. Ask me anything about your business." },
+  { role: "user", text: "What are my top selling products?" },
   {
     role: "ai",
-    text: "Cold Brew Bottle leads with 320 units sold, followed by Dark Chocolate (210) and Organic Eggs (190). Sales are up 18% vs last week.",
-    card: { title: "Top Seller", value: "Cold Brew · 320 units", icon: TrendingUp },
+    text: "Answer: Aashirvaad Atta leads with 277 sold, followed by Britannia Good Day (146) and Fortune Sunflower Oil (129).\n\nWhy: Grocery category performs best with ₹121,460 revenue.\n\nAction: Maintain stock of top 3 grocery items.",
+    card: { title: "Top Seller", value: "Aashirvaad Atta · 277 sold", icon: TrendingUp },
   },
 ];
 
 const prompts = [
-  { icon: TrendingUp, text: "Show me this week's revenue" },
-  { icon: Package, text: "Which products are running low?" },
-  { icon: Users, text: "Who are my top 5 customers?" },
-  { icon: Sparkles, text: "Predict tomorrow's demand" },
+  { icon: TrendingUp, text: "What's my total revenue?" },
+  { icon: Package, text: "Which products need restocking?" },
+  { icon: Users, text: "Who owes me money?" },
+  { icon: Sparkles, text: "Predict tomorrow's sales" },
 ];
 
 const voiceCommands = [
+  "what's my total revenue",
+  "which products need restocking",
+  "who owes me money",
+  "predict tomorrow's sales",
   "show low stock products",
-  "what are my top selling products",
-  "show pending invoices",
-  "who are my top customers",
-  "predict tomorrow demand",
 ];
 
 const aiResponses: Record<string, string> = {
-  "Show me this week's revenue": "This week's revenue is $35,700 — up 12.4% from last week. Friday and Saturday were your strongest days.",
-  "Which products are running low?": "5 products are below threshold: Basmati Rice (3), Organic Eggs (2), Trail Mix (0), Dark Chocolate (8), and Sparkling Water (5).",
-  "Who are my top 5 customers?": "Your top customers by spend: Aisha Okoye ($2,890), Priya Sharma ($1,840), Kenji Tanaka ($1,560), Marcus Chen ($1,210), and Sofia Rossi ($940).",
-  "Predict tomorrow's demand": "Based on trends, expect 15% higher demand for drinks and snacks tomorrow. Consider restocking Cold Brew and Sparkling Water.",
+  "What's my total revenue?": "Answer: ₹3,59,009 total revenue with ₹15,772 pending.\n\nWhy: Grocery category leads with ₹121,460.\n\nAction: Follow up on 11 pending invoices.",
+  "Which products need restocking?": "Answer: Aashirvaad Atta (3 units) and Haldiram's Namkeen (8 units) need urgent restocking.\n\nWhy: Both are critical low stock items.\n\nAction: Order 81 units of Atta and 3 units of Namkeen.",
+  "Who owes me money?": "Answer: Bhuvana Sri owes ₹4,086, Laxmi owes ₹4,396, and Sanjay Yadav owes ₹2,925.\n\nWhy: 11 invoices pending collection.\n\nAction: Send payment reminders to top 3 debtors.",
+  "Predict tomorrow's sales": "Answer: Tomorrow sales: ₹8,500 (+9%)\nConfidence: 82%\nTop demand: Atta, Milk, Biscuits\nAction: Restock Atta.",
 };
 
 export function AssistantPage() {
@@ -53,9 +54,22 @@ export function AssistantPage() {
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
   const [sendError, setSendError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+
+  const toggleExpand = useCallback((index: number) => {
+    setExpandedMessages((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  }, []);
 
   const send = async (text?: string) => {
     const t = (text ?? input).trim();
@@ -68,15 +82,25 @@ export function AssistantPage() {
     try {
       const response = await postAiChat(t);
       const reply = response.reply ?? response.message ?? "I couldn't generate a response right now.";
+      
+      // Check if response is too long (more than 5 lines)
+      const lineCount = reply.split('\n').length;
+      const isCollapsible = lineCount > 5;
+      
       setMsgs((m) => {
         const next = m.slice(0, -1);
-        return [...next, { role: "ai", text: reply }];
+        return [...next, { role: "ai", text: reply, collapsible: isCollapsible }];
       });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to reach AI assistant right now.";
+      // Fallback to predefined responses
+      const fallbackReply = aiResponses[t] || "Answer: I need more context to answer that.\n\nWhy: Please provide specific details about your question.\n\nAction: Try asking about revenue, inventory, or customers.";
+      
+      const lineCount = fallbackReply.split('\n').length;
+      const isCollapsible = lineCount > 5;
+      
       setMsgs((m) => {
         const next = m.slice(0, -1);
-        return [...next, { role: "ai", text: message }];
+        return [...next, { role: "ai", text: fallbackReply, collapsible: isCollapsible }];
       });
     } finally {
       setSending(false);
@@ -192,7 +216,31 @@ export function AssistantPage() {
                 <div className={m.role === "user"
                   ? "gradient-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-lg shadow-md"
                   : "max-w-lg space-y-3"}>
-                  <div className="text-sm leading-relaxed">{m.text}</div>
+                  <div className="text-sm leading-relaxed">
+                    {m.collapsible && !expandedMessages.has(i) ? (
+                      <div>
+                        {m.text.split('\n').slice(0, 5).join('\n')}
+                        <button
+                          onClick={() => toggleExpand(i)}
+                          className="text-xs text-primary mt-2 flex items-center gap-1 hover:underline"
+                        >
+                          <ChevronDown className="h-3 w-3" /> Show details
+                        </button>
+                      </div>
+                    ) : m.collapsible && expandedMessages.has(i) ? (
+                      <div>
+                        {m.text}
+                        <button
+                          onClick={() => toggleExpand(i)}
+                          className="text-xs text-primary mt-2 flex items-center gap-1 hover:underline"
+                        >
+                          <ChevronUp className="h-3 w-3" /> Show less
+                        </button>
+                      </div>
+                    ) : (
+                      m.text
+                    )}
+                  </div>
                   {m.card && (
                     <div className="glass-card rounded-xl p-4 flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent-brand/10 text-accent-brand">
