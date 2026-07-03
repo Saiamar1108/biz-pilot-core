@@ -21,6 +21,7 @@ import {
   Mic,
   RotateCcw,
   UserRound,
+  Barcode,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -38,6 +39,7 @@ import {
   getProducts,
   getSettings,
   updateInvoicePayment,
+  getProductByBarcode,
   type BusinessProfile,
   type Customer,
   type CustomerPayload,
@@ -98,6 +100,8 @@ function BillingPage() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
   const [voiceParseResult, setVoiceParseResult] = useState<ParsedVoiceInvoice | null>(null);
+  const [barcodeInput, setBarcodeInput] = useState("");
+  const [scanningBarcode, setScanningBarcode] = useState(false);
   const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const customersRef = useRef(customers);
   const productsRef = useRef(products);
@@ -396,6 +400,51 @@ function BillingPage() {
     setCompletedInvoice(null);
     setShowNextCustomer(false);
     toast.success("Previous order loaded into cart.");
+  };
+
+  const handleBarcodeSearch = async () => {
+    if (!barcodeInput.trim()) return;
+    
+    try {
+      setScanningBarcode(true);
+      const response = await getProductByBarcode(barcodeInput.trim());
+      
+      if (response.found && response.data) {
+        const product = response.data;
+        // Check if product already in cart
+        const existingLine = lines.find(line => line.productId === product.id);
+        
+        if (existingLine) {
+          // Update quantity
+          updateLine(existingLine.id, { qty: existingLine.qty + 1 });
+          toast.success(`Added another ${product.name} to cart`);
+        } else {
+          // Add new line
+          const newLine = emptyLine();
+          newLine.productId = product.id;
+          newLine.product = product.name;
+          newLine.qty = 1;
+          newLine.price = product.price;
+          setLines([...lines, newLine]);
+          toast.success(`Added ${product.name} to cart`);
+        }
+        
+        setBarcodeInput("");
+      } else {
+        toast.error("Product not found with this barcode. Add it manually.");
+      }
+    } catch (err) {
+      toast.error("Failed to search for product by barcode");
+    } finally {
+      setScanningBarcode(false);
+    }
+  };
+
+  const handleBarcodeKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleBarcodeSearch();
+    }
   };
 
   const getBusinessProfile = () =>
@@ -769,9 +818,22 @@ function BillingPage() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <Label>Line Items</Label>
-                <Button size="sm" variant="outline" onClick={addLine}>
-                  <Plus className="h-4 w-4 mr-1" /> Add Item
-                </Button>
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Barcode className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Scan barcode..."
+                      value={barcodeInput}
+                      onChange={(e) => setBarcodeInput(e.target.value)}
+                      onKeyPress={handleBarcodeKeyPress}
+                      disabled={scanningBarcode}
+                      className="pl-9 w-48"
+                    />
+                  </div>
+                  <Button size="sm" variant="outline" onClick={addLine}>
+                    <Plus className="h-4 w-4 mr-1" /> Add Item
+                  </Button>
+                </div>
               </div>
               <div className="space-y-3">
                 {lines.map((line) => (
