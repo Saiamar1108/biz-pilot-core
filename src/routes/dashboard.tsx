@@ -6,11 +6,12 @@ import { AIInsightsWidget } from "@/components/dashboard/AIInsightsWidget";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentInvoices } from "@/components/dashboard/RecentInvoices";
 import { LowStockAlerts } from "@/components/dashboard/LowStockAlerts";
+import { InventoryWidgets } from "@/components/inventory/InventoryWidgets";
 import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
-import { getAnalytics, getInvoices, getProducts, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
+import { getAnalytics, getInvoices, getProducts, getSettings, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
 import { formatGrowthRate } from "@/lib/analytics";
 import { formatCurrency } from "@/lib/currency";
 import { buildLast7DaysRevenue } from "@/lib/sales-chart";
@@ -25,6 +26,7 @@ function DashboardPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [businessName, setBusinessName] = useState("ShopPilot AI");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,15 +37,17 @@ function DashboardPage() {
       try {
         if (showLoading) setLoading(true);
         setError(null);
-        const [invoiceData, productData, analyticsData] = await Promise.all([
+        const [invoiceData, productData, analyticsData, settings] = await Promise.all([
           getInvoices(),
           getProducts(),
           getAnalytics(),
+          getSettings(),
         ]);
         if (!active) return;
         setInvoices(invoiceData);
         setProducts(productData);
         setAnalytics(analyticsData);
+        setBusinessName(settings.business?.storeName || "ShopPilot AI");
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load dashboard data");
@@ -269,6 +273,9 @@ function DashboardPage() {
             accent="primary"
           />
         </div>
+
+        {/* Inventory Intelligence Widgets */}
+        <InventoryWidgets businessName={businessName} />
       </div>
     </DashboardLayout>
   );
