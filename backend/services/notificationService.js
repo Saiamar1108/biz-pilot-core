@@ -11,7 +11,7 @@ async function createNotification({
   relatedId = "",
   key = null,
 }) {
-  // If key exists → update existing notification
+  // If key exists → update existing notification (prevents duplicates)
   if (key) {
     return Notification.findOneAndUpdate(
       { key },
@@ -32,7 +32,25 @@ async function createNotification({
     );
   }
 
-  // If no key → create new notification WITHOUT key
+  // If no key → check for similar notifications to prevent duplicates
+  // Use a combination of type, message, and relatedId to identify duplicates
+  if (type && message) {
+    const existing = await Notification.findOne({
+      type,
+      message,
+      relatedId,
+      read: false,
+      createdAt: {
+        $gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
+      },
+    });
+
+    if (existing) {
+      return existing; // Return existing instead of creating duplicate
+    }
+  }
+
+  // If no key and no recent duplicate → create new notification
   return Notification.create({
     type,
     message,

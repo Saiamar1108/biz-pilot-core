@@ -27,6 +27,7 @@ const reminderSentSchema = new mongoose.Schema(
   {
     type: { type: String, enum: ["day3", "day7", "day15"], required: true },
     sentAt: { type: Date, default: Date.now },
+    preview: { type: String, default: "" },
   },
   { _id: false }
 );
