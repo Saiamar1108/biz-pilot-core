@@ -1,5 +1,6 @@
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
+const { getOutstandingAmount } = require("../utils/invoiceAmounts");
 
 const VIP_SPEND_THRESHOLD = 20000;
 const NEW_SPEND_THRESHOLD = 5000;
@@ -55,35 +56,42 @@ function getFavoriteProduct(invoices) {
 async function calculateCustomerMetrics(customerId) {
   const customer = await Customer.findById(customerId).select("createdAt lastOrder").lean();
   const invoices = await Invoice.find({ customer: customerId })
-    .select("lineItems status total createdAt")
+    .select("lineItems status total amount paidAmount pendingAmount paidAt createdAt")
     .sort({ createdAt: 1 })
     .lean();
 
   const totalPurchases = invoices.length;
+  const totalBilled = roundCurrency(
+    invoices.reduce((sum, invoice) => sum + Number(invoice.total ?? invoice.amount ?? 0), 0),
+  );
   const totalSpent = roundCurrency(
-    invoices.reduce((sum, invoice) => sum + Number(invoice.total || 0), 0),
+    invoices.reduce((sum, invoice) => sum + Number(invoice.paidAmount || 0), 0),
   );
   const pendingAmount = roundCurrency(
-    invoices.reduce(
-      (sum, invoice) => (invoice.status === "paid" ? sum : sum + Number(invoice.total || 0)),
-      0,
-    ),
+    invoices.reduce((sum, invoice) => sum + getOutstandingAmount(invoice), 0),
   );
   const fallbackDate = customer?.lastOrder || customer?.createdAt || new Date();
   const lastPurchaseDate = invoices.length
     ? invoices[invoices.length - 1].createdAt || fallbackDate
     : fallbackDate;
   const favoriteProduct = getFavoriteProduct(invoices);
+  const paidInvoices = invoices
+    .filter((invoice) => invoice.status === "paid")
+    .sort((a, b) => new Date(b.paidAt || b.createdAt) - new Date(a.paidAt || a.createdAt));
+  const lastPaymentDate = paidInvoices[0]?.paidAt || paidInvoices[0]?.createdAt || null;
   const customerType = getCustomerType(totalSpent);
 
   return {
     totalPurchases,
+    totalBilled,
     totalSpent,
     lastPurchaseDate,
     favoriteProduct,
     pendingAmount,
+    lastPaymentDate,
     customerType,
     orders: totalPurchases,
+    billed: totalBilled,
     spent: totalSpent,
     due: pendingAmount,
     pendingPayments: pendingAmount,

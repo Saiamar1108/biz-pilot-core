@@ -36,9 +36,9 @@ const features = [
 ];
 
 const testimonials = [
-  { name: "Priya Sharma", role: "Owner, Sharma Groceries", quote: "ShopPilot cut my billing time by 70%. The AI knows my inventory better than I do.", rating: 5 },
-  { name: "Marcus Chen", role: "Founder, Brew Lab Coffee", quote: "Voice orders during rush hour changed our business. It's like having a second cashier.", rating: 5 },
-  { name: "Aisha Okoye", role: "CEO, Lagos Fashion Co.", quote: "The predictive analytics helped us stock the right sizes. Sales up 34% in one quarter.", rating: 5 },
+  { name: "Priya Sharma", role: "Owner, Sharma Groceries, Vijayawada", quote: "ShopPilot AI cut my billing time dramatically. Stock alerts and customer dues are all in one place.", rating: 5 },
+  { name: "Rahul Kumar", role: "Proprietor, Kumar Kirana, Patamata", quote: "Creating invoices with GST details and WhatsApp sharing saves us hours every week.", rating: 5 },
+  { name: "Sneha Patel", role: "Manager, Patel Supermart, Governorpet", quote: "The dashboard shows real sales from our invoices — no more guessing what sold best.", rating: 5 },
 ];
 
 function LandingPage() {
@@ -51,7 +51,7 @@ function LandingPage() {
             <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary shadow-glow">
               <Zap className="h-5 w-5 text-primary-foreground" fill="currentColor" />
             </div>
-            <span className="font-display text-lg font-bold">ShopPilot</span>
+            <span className="font-display text-lg font-bold">ShopPilot AI</span>
           </Link>
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
             <a href="#features" className="hover:text-foreground">Features</a>
@@ -109,9 +109,9 @@ function LandingPage() {
                 <div className="absolute inset-0 gradient-mesh opacity-40" />
                 <div className="relative grid grid-cols-3 gap-4 p-8 w-full max-w-3xl">
                   {[
-                    { label: "Revenue", value: "$48,290", icon: BarChart3 },
-                    { label: "Orders", value: "1,284", icon: Receipt },
-                    { label: "AI Actions", value: "8,432", icon: Bot },
+                    { label: "Billing", value: "Invoices", icon: BarChart3 },
+                    { label: "Inventory", value: "Live Stock", icon: Receipt },
+                    { label: "AI Assistant", value: "Insights", icon: Bot },
                   ].map((s) => (
                     <div key={s.label} className="glass-card rounded-2xl p-4 text-left">
                       <s.icon className="h-5 w-5 text-primary mb-3" />
@@ -214,7 +214,7 @@ function LandingPage() {
               <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary">
                 <Zap className="h-5 w-5 text-primary-foreground" fill="currentColor" />
               </div>
-              <span className="font-display text-lg font-bold">ShopPilot</span>
+              <span className="font-display text-lg font-bold">ShopPilot AI</span>
             </Link>
             <p className="mt-4 text-sm text-muted-foreground max-w-xs">
               The AI copilot for modern shops and SMEs. Sell more, work less.

@@ -6,13 +6,15 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Key, Copy, Plus, Trash2 } from "lucide-react";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   getSettings,
+  updateBusiness,
+  updateBusinessLogo,
   updateNotifications,
   updateProfile,
   updateProfileImage,
+  type BusinessProfile,
   type NotificationSettings,
   type SettingsProfile,
 } from "@/lib/api";
@@ -24,10 +26,11 @@ export const Route = createFileRoute("/settings")({
 
 function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<SettingsProfile>({
-    fullName: "A. Sai Amar Chaitanya",
-    email: "asaiamar@shoppilot.ai",
-    phone: "+91 75696 81350",
+    fullName: "",
+    email: "",
+    phone: "",
     timezone: "Asia/Kolkata",
     imageDataUrl: "",
   });
@@ -37,15 +40,24 @@ function SettingsPage() {
     paymentReminders: true,
     aiInsightsAlerts: false,
   });
+  const [business, setBusiness] = useState<BusinessProfile>({
+    storeName: "",
+    ownerName: "",
+    gstNumber: "",
+    phone: "",
+    email: "",
+    address: "",
+    category: "",
+    logoDataUrl: "",
+    upiId: "",
+  });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
+  const [savingBusiness, setSavingBusiness] = useState(false);
+  const [savingLogo, setSavingLogo] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
-  const [keys] = useState([
-    { name: "Production", key: "sk_live_••••••••••••4a9f", created: "Mar 12, 2026" },
-    { name: "Development", key: "sk_test_••••••••••••81ac", created: "Jan 4, 2026" },
-  ]);
 
   useEffect(() => {
     let active = true;
@@ -54,6 +66,7 @@ function SettingsPage() {
       .then((settings) => {
         if (!active) return;
         setProfile(settings.profile);
+        setBusiness(settings.business);
         setNotifications(settings.notifications);
       })
       .catch((err) => {
@@ -70,6 +83,9 @@ function SettingsPage() {
 
   const setProfileField = (field: keyof SettingsProfile, value: string) => {
     setProfile((current) => ({ ...current, [field]: value }));
+  };
+  const setBusinessField = (field: keyof BusinessProfile, value: string) => {
+    setBusiness((current) => ({ ...current, [field]: value }));
   };
 
   const saveProfile = async () => {
@@ -134,6 +150,68 @@ function SettingsPage() {
     reader.readAsDataURL(file);
   };
 
+  const saveBusiness = async () => {
+    try {
+      setSavingBusiness(true);
+      setError("");
+      setMessage("");
+      const settings = await updateBusiness({
+        storeName: business.storeName,
+        ownerName: business.ownerName,
+        gstNumber: business.gstNumber,
+        phone: business.phone,
+        email: business.email,
+        address: business.address,
+        category: business.category,
+        upiId: business.upiId,
+      });
+      setBusiness(settings.business);
+      setMessage("Business profile saved");
+    } catch (err) {
+      setError(getErrorMessage(err, "Unable to save business profile"));
+    } finally {
+      setSavingBusiness(false);
+    }
+  };
+
+  const uploadLogo = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setError("Upload a valid logo image file");
+      return;
+    }
+
+    if (file.size > 2_000_000) {
+      setError("Logo must be smaller than 2MB");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const logoDataUrl = typeof reader.result === "string" ? reader.result : "";
+      if (!logoDataUrl) return;
+
+      setBusiness((current) => ({ ...current, logoDataUrl }));
+      setSavingLogo(true);
+      setError("");
+      setMessage("");
+
+      try {
+        const settings = await updateBusinessLogo(logoDataUrl);
+        setBusiness(settings.business);
+        setMessage("Business logo saved");
+      } catch (err) {
+        setError(getErrorMessage(err, "Unable to save logo"));
+      } finally {
+        setSavingLogo(false);
+        event.target.value = "";
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const toggleNotification = async (field: keyof NotificationSettings, checked: boolean) => {
     const next = { ...notifications, [field]: checked };
     setNotifications(next);
@@ -161,7 +239,6 @@ function SettingsPage() {
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="api">API Keys</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -235,31 +312,75 @@ function SettingsPage() {
           </TabsContent>
 
           <TabsContent value="business">
-            <div className="glass-card rounded-2xl p-6 space-y-4">
-              <h3 className="font-display text-lg font-bold">Business Details</h3>
+            <div className="glass-card rounded-2xl p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+                <Avatar className="h-20 w-20 ring-4 ring-primary/10">
+                  <AvatarImage src={business.logoDataUrl || undefined} alt={business.storeName} />
+                  <AvatarFallback className="gradient-primary text-primary-foreground font-bold text-xl">
+                    {getInitials(business.storeName)}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="font-display text-lg font-bold">{business.storeName}</h3>
+                  <p className="text-sm text-muted-foreground mb-2">{business.category}</p>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={uploadLogo}
+                  />
+                  <Button size="sm" variant="outline" onClick={() => logoInputRef.current?.click()} disabled={savingLogo}>
+                    {savingLogo ? "Saving..." : "Upload Logo"}
+                  </Button>
+                </div>
+              </div>
               <div className="grid sm:grid-cols-2 gap-4">
                 <div>
-                  <Label className="mb-2 block">Business Name</Label>
-                  <Input defaultValue="Amari General Store" />
+                  <Label className="mb-2 block">Store Name</Label>
+                  <Input value={business.storeName} onChange={(event) => setBusinessField("storeName", event.target.value)} />
                 </div>
                 <div>
-                  <Label className="mb-2 block">Tax ID</Label>
-                  <Input defaultValue="TAX-2938-AZ" />
+                  <Label className="mb-2 block">Owner Name</Label>
+                  <Input value={business.ownerName} onChange={(event) => setBusinessField("ownerName", event.target.value)} />
+                </div>
+                <div>
+                  <Label className="mb-2 block">GST Number</Label>
+                  <Input value={business.gstNumber} onChange={(event) => setBusinessField("gstNumber", event.target.value)} />
+                </div>
+                <div>
+                  <Label className="mb-2 block">UPI ID</Label>
+                  <Input
+                    placeholder="shop@upi"
+                    value={business.upiId}
+                    onChange={(event) => setBusinessField("upiId", event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-2 block">Phone</Label>
+                  <Input value={business.phone} onChange={(event) => setBusinessField("phone", event.target.value)} />
+                </div>
+                <div>
+                  <Label className="mb-2 block">Email</Label>
+                  <Input type="email" value={business.email} onChange={(event) => setBusinessField("email", event.target.value)} />
+                </div>
+                <div>
+                  <Label className="mb-2 block">Business Category</Label>
+                  <Input value={business.category} onChange={(event) => setBusinessField("category", event.target.value)} />
                 </div>
                 <div className="sm:col-span-2">
                   <Label className="mb-2 block">Address</Label>
-                  <Input defaultValue="221B Baker Street, Suite 3, London" />
-                </div>
-                <div>
-                  <Label className="mb-2 block">Currency</Label>
-                  <Input defaultValue="USD" />
-                </div>
-                <div>
-                  <Label className="mb-2 block">Tax Rate</Label>
-                  <Input defaultValue="8%" />
+                  <Input value={business.address} onChange={(event) => setBusinessField("address", event.target.value)} />
                 </div>
               </div>
-              <Button className="gradient-primary text-primary-foreground">Update Business</Button>
+              {(message || error) && (
+                <div className={error ? "text-sm text-destructive" : "text-sm text-accent-brand"}>
+                  {error || message}
+                </div>
+              )}
+              <Button className="gradient-primary text-primary-foreground" onClick={saveBusiness} disabled={savingBusiness}>
+                {savingBusiness ? "Saving..." : "Save Business Profile"}
+              </Button>
             </div>
           </TabsContent>
 
@@ -304,47 +425,6 @@ function SettingsPage() {
                   />
                 </div>
               ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="api">
-            <div className="glass-card rounded-2xl p-6 space-y-5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-display text-lg font-bold">API Keys</h3>
-                  <p className="text-sm text-muted-foreground">Manage keys for the ShopPilot API</p>
-                </div>
-                <Button className="gradient-primary text-primary-foreground">
-                  <Plus className="h-4 w-4 mr-1" /> New Key
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {keys.map((k) => (
-                  <div
-                    key={k.key}
-                    className="flex items-center gap-3 p-4 rounded-xl border border-border bg-background"
-                  >
-                    <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary shrink-0">
-                      <Key className="h-4 w-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-sm">{k.name}</div>
-                      <div className="text-xs text-muted-foreground font-mono truncate">
-                        {k.key}
-                      </div>
-                    </div>
-                    <div className="hidden sm:block text-xs text-muted-foreground shrink-0">
-                      {k.created}
-                    </div>
-                    <Button variant="ghost" size="icon" className="shrink-0">
-                      <Copy className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="icon" className="shrink-0 text-destructive">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
             </div>
           </TabsContent>
         </Tabs>

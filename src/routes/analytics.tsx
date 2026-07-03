@@ -2,211 +2,667 @@ import { createFileRoute } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { PageSection } from "@/components/dashboard/PageSection";
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, BarChart, Bar } from "recharts";
-import { DollarSign, TrendingUp, Sparkles, Award, Package, Users } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { getAnalytics, type AnalyticsSummary } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  LineChart,
+  Line,
+  ResponsiveContainer,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from "recharts";
+import {
+  DollarSign,
+  TrendingUp,
+  Award,
+  ShoppingCart,
+  Download,
+  FileText,
+  Sparkles,
+  Users,
+  Package,
+  Clock,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  EMPTY_ANALYTICS,
+  getAnalytics,
+  type AnalyticsRangePreset,
+  type AnalyticsSummary,
+  type ProductAnalyticsRow,
+} from "@/lib/api";
+import { formatMonthLabel } from "@/lib/analytics";
+import { exportAnalyticsCsv, exportAnalyticsPdf } from "@/lib/analytics-export";
+import { formatCurrency } from "@/lib/currency";
+import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 
 export const Route = createFileRoute("/analytics")({
-  head: () => ({ meta: [{ title: "Analytics — ShopPilot AI" }] }),
+  head: () => ({
+    meta: [{ title: "Analytics — ShopPilot AI" }],
+  }),
   component: AnalyticsPage,
 });
 
-const fallbackRevenue = [
-  { m: "Jan", v: 12000 }, { m: "Feb", v: 15800 }, { m: "Mar", v: 14200 },
-  { m: "Apr", v: 19400 }, { m: "May", v: 22100 }, { m: "Jun", v: 25800 },
-  { m: "Jul", v: 28900 }, { m: "Aug", v: 31200 }, { m: "Sep", v: 34500 },
-];
-const fallbackGrowth = [
-  { m: "May", v: 8 }, { m: "Jun", v: 12 }, { m: "Jul", v: 15 },
-  { m: "Aug", v: 18 }, { m: "Sep", v: 22 }, { m: "Oct", v: 28 },
+const chartColors = [
+  "oklch(0.549 0.222 262)",
+  "oklch(0.7 0.16 165)",
+  "oklch(0.65 0.19 258)",
+  "oklch(0.78 0.16 75)",
+  "oklch(0.55 0.2 30)",
+  "oklch(0.6 0.18 200)",
 ];
 
+const RANGE_OPTIONS: { value: AnalyticsRangePreset; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "today", label: "Today" },
+  { value: "last7", label: "Last 7 days" },
+  { value: "last30", label: "Last 30 days" },
+  { value: "thismonth", label: "This month" },
+  { value: "custom", label: "Custom" },
+];
+
+function mergeMonthlySeries(
+  monthlyRevenue: AnalyticsSummary["monthlyRevenue"],
+  monthlyPendingRevenue: AnalyticsSummary["monthlyPendingRevenue"],
+) {
+  const monthKeys = Array.from(
+    new Set([
+      ...(monthlyRevenue || []).map((entry) => entry.month),
+      ...(monthlyPendingRevenue || []).map((entry) => entry.month),
+    ]),
+  )
+    .filter(Boolean)
+    .sort();
+
+  return monthKeys.map((month) => ({
+    m: formatMonthLabel(month),
+    collected:
+      (monthlyRevenue || []).find((entry) => entry.month === month)?.revenue ?? 0,
+    pending:
+      (monthlyPendingRevenue || []).find((entry) => entry.month === month)
+        ?.revenue ?? 0,
+  }));
+}
+
+function ProductTable({ rows, valueKey }: { rows: ProductAnalyticsRow[]; valueKey: "revenue" | "profit" | "units" }) {
+  if (!rows.length) {
+    return <p className="text-sm text-muted-foreground">No product data for this period.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.slice(0, 8).map((row, index) => (
+        <div
+          key={`${row.name}-${index}`}
+          className="flex items-center justify-between rounded-lg border p-3 text-sm"
+        >
+          <div>
+            <p className="font-medium">{row.name || row.category}</p>
+            <p className="text-muted-foreground">{row.category}</p>
+          </div>
+          <div className="text-right">
+            <p>{row.units} units</p>
+            <p className="font-semibold">
+              {valueKey === "units"
+                ? `${row.units} sold`
+                : formatCurrency(row[valueKey])}
+            </p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CustomerList({
+  rows,
+  highlight,
+}: {
+  rows: AnalyticsSummary["customerIntelligence"]["topPaying"];
+  highlight: "spent" | "pending" | "orders" | "aov";
+}) {
+  if (!rows.length) {
+    return <p className="text-sm text-muted-foreground">No customer data yet.</p>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {rows.map((customer, index) => (
+        <div
+          key={customer.id || `${customer.name}-${index}`}
+          className="flex items-center justify-between rounded-lg border p-3 text-sm"
+        >
+          <span className="font-medium">
+            {index + 1}. {customer.name}
+          </span>
+          <span className="font-semibold">
+            {highlight === "spent" && formatCurrency(customer.totalSpent)}
+            {highlight === "pending" && formatCurrency(customer.pendingAmount)}
+            {highlight === "orders" && `${customer.orders} orders`}
+            {highlight === "aov" && formatCurrency(customer.avgOrderValue)}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AnalyticsPage() {
-  const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
+  const [analytics, setAnalytics] = useState<AnalyticsSummary>(EMPTY_ANALYTICS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState<AnalyticsRangePreset>("all");
+  const [customStart, setCustomStart] = useState("");
+  const [customEnd, setCustomEnd] = useState("");
+
+  const loadAnalytics = useCallback(
+    async (showLoading = true) => {
+      try {
+        if (showLoading) setLoading(true);
+        setError(null);
+
+        const params =
+          range === "custom" && customStart && customEnd
+            ? { range, startDate: customStart, endDate: customEnd }
+            : { range: range === "custom" ? "all" : range };
+
+        const data = await getAnalytics(params);
+        setAnalytics(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to load analytics");
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [range, customStart, customEnd],
+  );
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
+
+    const run = async () => {
       try {
         setLoading(true);
         setError(null);
-        const data = await getAnalytics();
-        if (!active) return;
-        setAnalytics(data);
+        const params =
+          range === "custom" && customStart && customEnd
+            ? { range, startDate: customStart, endDate: customEnd }
+            : { range: range === "custom" ? "all" : range };
+        const data = await getAnalytics(params);
+        if (active) setAnalytics(data);
       } catch (err) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : "Unable to load analytics");
+        if (active) {
+          setError(err instanceof Error ? err.message : "Unable to load analytics");
+        }
       } finally {
         if (active) setLoading(false);
       }
     };
 
-    load();
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+
+    void run();
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    window.addEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
+
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+      window.removeEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
     };
-  }, []);
+  }, [range, customStart, customEnd]);
 
-  const revenue = useMemo(() => analytics?.monthlyRevenue?.map((entry) => ({ m: entry.month, v: entry.revenue })) ?? fallbackRevenue, [analytics]);
-  const pieData = useMemo(() => {
-    if (!analytics?.topProducts?.length) {
-      return [
-        { name: "No data", v: 100, color: "oklch(0.78 0.16 75)" },
-      ];
-    }
-    return analytics.topProducts.slice(0, 4).map((product, index) => ({
-      name: product.name,
-      v: product.sold,
-      color: ["oklch(0.549 0.222 262)", "oklch(0.7 0.16 165)", "oklch(0.65 0.19 258)", "oklch(0.78 0.16 75)"][index % 4],
-    }));
-  }, [analytics]);
+  const revenue = useMemo(
+    () =>
+      mergeMonthlySeries(
+        analytics.monthlyRevenue || [],
+        analytics.monthlyPendingRevenue || [],
+      ),
+    [analytics],
+  );
 
-  const topProducts = useMemo(() => analytics?.topProducts?.slice(0, 4).map((product) => ({ name: product.name, units: product.sold, revenue: product.revenue })) ?? [], [analytics]);
-  const demandPredictions = useMemo(() => [
-    { title: "Low Stock", forecast: `${analytics?.lowStockItems?.length ?? 0}`, confidence: "Live", icon: Package, detail: "Products below threshold" },
-    { title: "Revenue", forecast: `${analytics?.monthlyRevenue?.at(-1)?.revenue ? `$${analytics.monthlyRevenue.at(-1)?.revenue.toLocaleString()}` : "—"}`, confidence: "Current", icon: TrendingUp, detail: "Latest month trend" },
-    { title: "Top Products", forecast: `${analytics?.topProducts?.length ?? 0}`, confidence: "Updated", icon: Users, detail: "Top-selling items" },
-  ], [analytics]);
+  const receivables = useMemo(
+    () =>
+      (analytics.monthlyPendingRevenue || []).map((entry) => ({
+        m: formatMonthLabel(entry.month),
+        v: entry.revenue,
+      })),
+    [analytics],
+  );
+
+  const profitTrends = useMemo(
+    () =>
+      (analytics.monthlyProfitTrends || []).map((entry) => ({
+        m: formatMonthLabel(entry.month),
+        collected: entry.collected,
+        pending: entry.pending,
+        profit: entry.profit,
+      })),
+    [analytics],
+  );
+
+  const categoryPie = useMemo(
+    () =>
+      (analytics.productAnalytics?.byCategory || []).map((row, index) => ({
+        name: row.category,
+        value: row.revenue,
+        color: chartColors[index % chartColors.length],
+      })),
+    [analytics],
+  );
+
+  const categoryBar = useMemo(
+    () =>
+      (analytics.productAnalytics?.byCategory || []).map((row) => ({
+        name: row.category,
+        revenue: row.revenue,
+        profit: row.profit,
+      })),
+    [analytics],
+  );
+
+  const predictions = analytics.smartPredictions?.length
+    ? analytics.smartPredictions
+    : analytics.demandPredictions || [];
 
   return (
     <DashboardLayout title="Analytics">
       <div className="space-y-6">
-        {error && <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">{error}</div>}
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap gap-2">
+            {RANGE_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                size="sm"
+                variant={range === option.value ? "default" : "outline"}
+                onClick={() => setRange(option.value)}
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => exportAnalyticsCsv(analytics)}
+            >
+              <Download className="h-4 w-4 mr-1" />
+              Export CSV
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void exportAnalyticsPdf(analytics)}
+            >
+              <FileText className="h-4 w-4 mr-1" />
+              Export PDF
+            </Button>
+          </div>
+        </div>
 
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Total Revenue" value={`$${(analytics?.totalSales ?? 203900).toLocaleString()}`} change={22.4} icon={DollarSign} accent="primary" />
-          <StatCard label="Growth Rate" value="28%" change={6} icon={TrendingUp} accent="emerald" />
-          <StatCard label="AI Predictions" value="94% acc" change={2.1} icon={Sparkles} accent="primary" />
-          <StatCard label="Top Category" value="Grocery" icon={Award} accent="emerald" />
+        {range === "custom" && (
+          <div className="flex flex-wrap items-end gap-3 rounded-xl border p-4">
+            <div>
+              <label className="text-xs text-muted-foreground">Start date</label>
+              <Input
+                type="date"
+                value={customStart}
+                onChange={(event) => setCustomStart(event.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground">End date</label>
+              <Input
+                type="date"
+                value={customEnd}
+                onChange={(event) => setCustomEnd(event.target.value)}
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => void loadAnalytics()}
+              disabled={!customStart || !customEnd}
+            >
+              Apply
+            </Button>
+          </div>
+        )}
+
+        <p className="text-sm text-muted-foreground">
+          Showing: <span className="font-medium text-foreground">{analytics.dateRange.label}</span>
+        </p>
+
+        {error && (
+          <div className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm text-destructive">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <StatCard
+            label="Collected Revenue"
+            value={loading ? "…" : formatCurrency(analytics.revenueReceived)}
+            icon={DollarSign}
+            accent="primary"
+          />
+          <StatCard
+            label="Pending Revenue"
+            value={loading ? "…" : formatCurrency(analytics.pendingRevenue)}
+            icon={TrendingUp}
+            accent="warning"
+          />
+          <StatCard
+            label="Total Billed"
+            value={loading ? "…" : formatCurrency(analytics.totalBilled)}
+            icon={ShoppingCart}
+            accent="emerald"
+          />
+          <StatCard
+            label="Profit"
+            value={loading ? "…" : formatCurrency(analytics.profit)}
+            icon={Award}
+            accent="emerald"
+          />
+          <StatCard
+            label="Orders"
+            value={loading ? "…" : analytics.totalOrders.toLocaleString("en-IN")}
+            icon={ShoppingCart}
+            accent="primary"
+          />
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <PageSection title="Revenue Trend" description="Monthly performance" className="lg:col-span-2">
-            {loading ? (
-              <div className="h-80 flex items-center justify-center text-sm text-muted-foreground">Loading analytics…</div>
-            ) : (
-              <div className="h-80">
+          <PageSection
+            title="Cashflow Chart"
+            description="Collected vs Pending by month"
+            className="lg:col-span-2"
+          >
+            <div className="h-80">
+              {revenue.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No monthly revenue data yet.
+                </div>
+              ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={revenue}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
-                    <XAxis dataKey="m" stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `$${v / 1000}k`} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} formatter={(v: number) => [`$${v.toLocaleString()}`, "Revenue"]} />
-                    <Line type="monotone" dataKey="v" stroke="oklch(0.549 0.222 262)" strokeWidth={3} dot={{ r: 4, fill: "oklch(0.549 0.222 262)" }} />
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="m" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Legend />
+                    <Line
+                      type="monotone"
+                      dataKey="collected"
+                      name="Collected"
+                      stroke="oklch(0.7 0.16 165)"
+                      strokeWidth={3}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="pending"
+                      name="Pending"
+                      stroke="oklch(0.78 0.16 75)"
+                      strokeWidth={3}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
-            )}
+              )}
+            </div>
           </PageSection>
 
-          <PageSection title="Product Performance" description="Best-selling items">
-            {loading ? (
-              <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">Loading performance…</div>
-            ) : (
-              <>
-                <div className="h-52">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={pieData} dataKey="v" innerRadius={50} outerRadius={80} paddingAngle={4}>
-                        {pieData.map((e, i) => <Cell key={i} fill={e.color} />)}
-                      </Pie>
-                      <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} />
-                    </PieChart>
-                  </ResponsiveContainer>
+          <PageSection title="Outstanding Receivables" description="Pending by invoice month">
+            <div className="h-80">
+              {receivables.length === 0 ? (
+                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                  No outstanding receivables yet.
                 </div>
-                <div className="space-y-2 mt-4">
-                  {pieData.map((p) => (
-                    <div key={p.name} className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2.5 w-2.5 rounded-full" style={{ background: p.color }} />
-                        {p.name}
-                      </div>
-                      <span className="font-semibold">{p.v}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+              ) : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={receivables}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="m" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Bar
+                      dataKey="v"
+                      name="Pending"
+                      fill="oklch(0.78 0.16 75)"
+                      radius={[8, 8, 0, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
           </PageSection>
         </div>
 
-        <PageSection title="Demand Predictions" description="AI-powered insights from current data">
-          <div className="grid sm:grid-cols-3 gap-4">
-            {demandPredictions.map((d) => (
-              <div key={d.title} className="rounded-xl border border-border p-4 hover:shadow-elegant transition">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="grid h-10 w-10 place-items-center rounded-lg bg-primary/10 text-primary">
-                    <d.icon className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <div className="font-semibold">{d.title}</div>
-                    <div className="text-xs text-muted-foreground">{d.confidence} confidence</div>
-                  </div>
-                </div>
-                <div className="text-2xl font-display font-bold text-accent-brand">{d.forecast}</div>
-                <div className="text-xs text-muted-foreground mt-1">{d.detail}</div>
+        <PageSection title="Profit Trends" description="Revenue vs Profit vs Pending (monthly)">
+          <div className="h-80">
+            {profitTrends.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                No profit trend data yet.
               </div>
-            ))}
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={profitTrends}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="m" />
+                  <YAxis />
+                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Legend />
+                  <Bar dataKey="collected" name="Collected" fill="oklch(0.549 0.222 262)" />
+                  <Bar dataKey="profit" name="Profit" fill="oklch(0.7 0.16 165)" />
+                  <Bar dataKey="pending" name="Pending" fill="oklch(0.78 0.16 75)" />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </PageSection>
 
-        <div className="grid lg:grid-cols-3 gap-6">
-          <PageSection title="Top-Selling Products">
-            {loading ? (
-              <div className="py-8 text-sm text-muted-foreground">Loading top products…</div>
-            ) : (
-              <div className="space-y-3">
-                {topProducts.map((p, i) => (
-                  <div key={p.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-secondary/60">
-                    <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary/10 text-primary font-bold text-sm">{i + 1}</div>
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-sm truncate">{p.name}</div>
-                      <div className="text-xs text-muted-foreground">{p.units} units</div>
-                    </div>
-                    <div className="font-semibold text-sm">${p.revenue}</div>
-                  </div>
-                ))}
-              </div>
-            )}
+        <PageSection title="Product Analytics" description="Category and product performance">
+          <Tabs defaultValue="category">
+            <TabsList className="mb-4 flex flex-wrap h-auto">
+              <TabsTrigger value="category">Category-wise</TabsTrigger>
+              <TabsTrigger value="product">Product-wise</TabsTrigger>
+              <TabsTrigger value="profitable">Most profitable</TabsTrigger>
+              <TabsTrigger value="low">Low performing</TabsTrigger>
+            </TabsList>
+
+            <div className="grid lg:grid-cols-2 gap-6">
+              <TabsContent value="category" className="mt-0 space-y-4">
+                <div className="h-64">
+                  {categoryPie.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No category sales yet.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={categoryPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
+                          {categoryPie.map((entry, index) => (
+                            <Cell key={entry.name} fill={entry.color || chartColors[index % chartColors.length]} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+                <ProductTable rows={analytics.productAnalytics.byCategory} valueKey="revenue" />
+              </TabsContent>
+
+              <TabsContent value="product" className="mt-0 space-y-4">
+                <div className="h-64">
+                  {categoryBar.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No product sales yet.</p>
+                  ) : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={categoryBar}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                        <Bar dataKey="revenue" fill="oklch(0.549 0.222 262)" radius={[6, 6, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+                <ProductTable rows={analytics.productAnalytics.byProduct} valueKey="revenue" />
+              </TabsContent>
+
+              <TabsContent value="profitable" className="mt-0 lg:col-span-2">
+                <ProductTable rows={analytics.productAnalytics.mostProfitable} valueKey="profit" />
+              </TabsContent>
+
+              <TabsContent value="low" className="mt-0 lg:col-span-2">
+                <ProductTable rows={analytics.productAnalytics.lowPerforming} valueKey="units" />
+              </TabsContent>
+            </div>
+          </Tabs>
+        </PageSection>
+
+        <div className="grid lg:grid-cols-2 gap-6">
+          <PageSection title="Customer Intelligence" description="Who pays, who owes, who buys often">
+            <Tabs defaultValue="paying">
+              <TabsList className="mb-4 flex flex-wrap h-auto">
+                <TabsTrigger value="paying">Top paying</TabsTrigger>
+                <TabsTrigger value="pending">Most pending</TabsTrigger>
+                <TabsTrigger value="frequent">Most frequent</TabsTrigger>
+                <TabsTrigger value="aov">Avg order value</TabsTrigger>
+              </TabsList>
+              <TabsContent value="paying">
+                <CustomerList rows={analytics.customerIntelligence.topPaying} highlight="spent" />
+              </TabsContent>
+              <TabsContent value="pending">
+                <CustomerList rows={analytics.customerIntelligence.mostPending} highlight="pending" />
+              </TabsContent>
+              <TabsContent value="frequent">
+                <CustomerList rows={analytics.customerIntelligence.mostFrequent} highlight="orders" />
+              </TabsContent>
+              <TabsContent value="aov">
+                <CustomerList
+                  rows={analytics.customerIntelligence.avgOrderValueByCustomer}
+                  highlight="aov"
+                />
+              </TabsContent>
+            </Tabs>
           </PageSection>
 
-          <div className="rounded-2xl p-6 gradient-primary text-primary-foreground shadow-glow relative overflow-hidden">
-            <div className="absolute -bottom-8 -right-8 h-40 w-40 rounded-full bg-white/10 blur-2xl" />
-            <div className="relative">
-              <div className="flex items-center gap-2 mb-3">
-                <Sparkles className="h-5 w-5" />
-                <div className="text-sm font-semibold uppercase tracking-wider">AI Prediction</div>
-              </div>
-              <div className="text-3xl font-display font-bold mb-1">+34%</div>
-              <div className="text-primary-foreground/80 text-sm mb-4">Expected Q4 revenue growth based on current trends</div>
-              <div className="space-y-2 text-sm">
-                <div className="bg-white/10 rounded-lg px-3 py-2">Holiday season boost expected</div>
-                <div className="bg-white/10 rounded-lg px-3 py-2">Focus: Grocery + Drinks</div>
-              </div>
-            </div>
-          </div>
-
-          <PageSection title="Sales Trends" description="Monthly growth rate">
-            {loading ? (
-              <div className="h-52 flex items-center justify-center text-sm text-muted-foreground">Loading trends…</div>
-            ) : (
-              <div className="h-52">
+          <PageSection title="Invoice Aging" description="Pending amounts by age bucket">
+            <div className="h-64 mb-4">
+              {(analytics.invoiceAging || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No pending invoices to age.</p>
+              ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={fallbackGrowth}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
-                    <XAxis dataKey="m" stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} />
-                    <YAxis stroke="oklch(0.5 0.03 258)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }} formatter={(v: number) => [`${v}%`, "Growth"]} />
-                    <Bar dataKey="v" fill="oklch(0.7 0.16 165)" radius={[8, 8, 0, 0]} />
+                  <BarChart data={analytics.invoiceAging}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="label" />
+                    <YAxis />
+                    <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                    <Bar dataKey="amount" fill="oklch(0.55 0.2 30)" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
-              </div>
-            )}
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              {(analytics.invoiceAging || []).map((bucket) => (
+                <div key={bucket.label} className="rounded-lg border p-3 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Clock className="h-4 w-4" />
+                    {bucket.label}
+                  </div>
+                  <p className="mt-1 font-semibold">{formatCurrency(bucket.amount)}</p>
+                  <p className="text-xs text-muted-foreground">{bucket.count} invoices</p>
+                </div>
+              ))}
+            </div>
           </PageSection>
         </div>
+
+        <PageSection title="Smart Predictions" description="AI-powered business forecasts">
+          <div className="grid md:grid-cols-3 gap-4">
+            {predictions.length === 0 ? (
+              <p className="text-sm text-muted-foreground md:col-span-3">
+                Predictions will appear as your store accumulates data.
+              </p>
+            ) : (
+              predictions.map((prediction, index) => {
+                const icons = [Package, TrendingUp, Users];
+                const Icon = icons[index % icons.length];
+                return (
+                  <div key={`${prediction.title}-${index}`} className="rounded-xl border p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-medium text-muted-foreground">
+                        {prediction.confidence}
+                      </span>
+                    </div>
+                    <h4 className="font-semibold">{prediction.title}</h4>
+                    <p className="text-sm mt-1">{prediction.forecast}</p>
+                    <p className="text-xs text-muted-foreground mt-2">{prediction.detail}</p>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </PageSection>
+
+        <PageSection title="Top Products">
+          <div className="space-y-3">
+            {(analytics.topProducts || []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No product sales data yet.</p>
+            ) : (
+              analytics.topProducts.slice(0, 5).map((product, index) => (
+                <div
+                  key={`${product.id}-${index}`}
+                  className="flex justify-between items-center p-3 border rounded-lg"
+                >
+                  <span>
+                    {index + 1}. {product.name}
+                  </span>
+                  <span>{product.sold} sold</span>
+                  <span>{formatCurrency(product.revenue)}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </PageSection>
+
+        <PageSection title="AI Insights">
+          <div className="rounded-xl p-5 bg-primary text-white">
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="h-5 w-5" />
+              <span className="text-sm opacity-80">Live recommendations</span>
+            </div>
+            <h3 className="font-bold text-lg mb-2">
+              {analytics.recommendations?.[0] ??
+                "Insights will appear as your store accumulates sales data."}
+            </h3>
+            <p className="text-sm opacity-80">
+              {analytics.recommendations?.[1] ??
+                "Track inventory and invoices to unlock forecasts."}
+            </p>
+            <div className="mt-4 space-y-2">
+              {(analytics.recommendations?.slice(2) || []).map((item, index) => (
+                <div key={`${item}-${index}`} className="bg-white/10 p-2 rounded-lg text-sm">
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </PageSection>
       </div>
     </DashboardLayout>
   );

@@ -1,8 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   LayoutDashboard,
   Receipt,
+  FileText,
   Package,
   Bot,
   Users,
@@ -10,20 +11,21 @@ import {
   Settings,
   Menu,
   X,
-  Search,
-  Bell,
-  Sparkles,
   Zap,
+  Bell,
+  CheckCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem } from "@/lib/api";
+import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 
 const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/billing", label: "Billing", icon: Receipt },
+  { to: "/invoices", label: "Invoices", icon: FileText },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/assistant", label: "AI Assistant", icon: Bot },
@@ -34,6 +36,54 @@ const navItems = [
 export function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+
+  const unreadLabel = useMemo(
+    () => (unreadCount > 99 ? "99+" : String(unreadCount)),
+    [unreadCount],
+  );
+
+  useEffect(() => {
+    let active = true;
+    const loadNotifications = async () => {
+      try {
+        const data = await getNotifications();
+        if (!active) return;
+        setNotifications(data.notifications);
+        setUnreadCount(data.unreadCount);
+      } catch {
+        // keep header resilient even if notifications fail
+      }
+    };
+
+    void loadNotifications();
+    const interval = window.setInterval(() => {
+      void loadNotifications();
+    }, 30000);
+    const refreshHandler = () => void loadNotifications();
+    window.addEventListener(DATA_REFRESH_EVENT, refreshHandler);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+      window.removeEventListener(DATA_REFRESH_EVENT, refreshHandler);
+    };
+  }, []);
+
+  const markRead = async (id: string) => {
+    await markNotificationRead(id);
+    const data = await getNotifications();
+    setNotifications(data.notifications);
+    setUnreadCount(data.unreadCount);
+  };
+
+  const markAllRead = async () => {
+    await clearNotifications();
+    const data = await getNotifications();
+    setNotifications(data.notifications);
+    setUnreadCount(data.unreadCount);
+  };
 
   return (
     <div className="min-h-screen flex w-full bg-background">
@@ -50,7 +100,7 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary shadow-glow">
                 <Zap className="h-5 w-5 text-primary-foreground" fill="currentColor" />
               </div>
-              <span className="font-display text-lg font-bold tracking-tight">ShopPilot</span>
+              <span className="font-display text-lg font-bold tracking-tight">ShopPilot AI</span>
             </Link>
             <button className="lg:hidden" onClick={() => setMobileOpen(false)}>
               <X className="h-5 w-5" />
@@ -79,17 +129,8 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
             })}
           </nav>
 
-          <div className="p-3 border-t border-sidebar-border">
-            <div className="glass-card rounded-xl p-4 bg-linear-to-br from-primary/10 to-accent-brand/10">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span className="text-xs font-semibold">Pro Plan</span>
-              </div>
-              <p className="text-xs text-muted-foreground mb-3">Unlock advanced AI features</p>
-              <Button size="sm" className="w-full gradient-primary text-primary-foreground">
-                Upgrade
-              </Button>
-            </div>
+          <div className="p-3 border-t border-sidebar-border text-xs text-muted-foreground">
+            Built for Indian retailers
           </div>
         </div>
       </aside>
@@ -115,16 +156,50 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               <div className="hidden md:block min-w-0">
                 <h1 className="font-display text-xl font-bold truncate">{title ?? "Dashboard"}</h1>
               </div>
-              <div className="hidden lg:flex items-center relative ml-6 max-w-md flex-1">
-                <Search className="absolute left-3 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search anything..." className="pl-9 bg-secondary/60 border-transparent" />
-              </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
-                <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 grid place-items-center text-[10px] bg-destructive text-destructive-foreground">3</Badge>
-              </Button>
+              <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="icon" className="relative">
+                    <Bell className="h-4 w-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 rounded-full bg-destructive text-[10px] text-white min-w-4 h-4 px-1 flex items-center justify-center">
+                        {unreadLabel}
+                      </span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-0">
+                  <div className="flex items-center justify-between px-3 py-2 border-b">
+                    <div className="text-sm font-semibold">Notifications</div>
+                    <Button size="sm" variant="ghost" onClick={() => void markAllRead()}>
+                      <CheckCheck className="h-4 w-4 mr-1" /> Mark all read
+                    </Button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-4 text-sm text-muted-foreground">No notifications yet.</div>
+                    ) : (
+                      notifications.map((item) => (
+                        <button
+                          type="button"
+                          key={item.id}
+                          className={cn(
+                            "w-full text-left px-3 py-2 border-b hover:bg-secondary/50",
+                            !item.read && "bg-primary/5",
+                          )}
+                          onClick={() => void markRead(item.id)}
+                        >
+                          <div className="text-sm">{item.message}</div>
+                          <div className="text-[11px] text-muted-foreground mt-1">
+                            {new Date(item.createdAt).toLocaleString("en-IN")}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Avatar className="h-9 w-9 ring-2 ring-primary/20">
                 <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-sm">SA</AvatarFallback>
               </Avatar>

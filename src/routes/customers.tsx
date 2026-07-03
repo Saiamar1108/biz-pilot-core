@@ -32,11 +32,19 @@ import {
   createCustomer,
   getCustomers,
   getInvoices,
+  getSettings,
+  updateInvoicePayment,
   updateCustomer,
+  type BusinessProfile,
   type Customer,
   type CustomerPayload,
   type Invoice,
 } from "@/lib/api";
+import { formatCurrency } from "@/lib/currency";
+import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
+import { DATA_REFRESH_EVENT, emitDataRefresh } from "@/lib/live-refresh";
+import { generateReminderMessage, getInvoiceOutstanding, openWhatsApp } from "@/lib/invoice";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/customers")({
   head: () => ({ meta: [{ title: "Customers — ShopPilot AI" }] }),
@@ -51,6 +59,9 @@ function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
+  const [reminderCustomerId, setReminderCustomerId] = useState<string | null>(null);
+  const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [form, setForm] = useState<CustomerPayload>({
@@ -58,36 +69,109 @@ function CustomersPage() {
     phone: "",
     email: "",
     address: "",
+    gstNumber: "",
+    notes: "",
   });
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
+
+    const load = async (showLoading = true) => {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         setError(null);
-        const [customerData, invoiceData] = await Promise.all([getCustomers(), getInvoices()]);
+        const [customerData, invoiceData, settings] = await Promise.all([
+          getCustomers(),
+          getInvoices(),
+          getSettings(),
+        ]);
         if (!active) return;
         setCustomers(customerData);
         setInvoices(invoiceData);
+        setBusiness(settings.business);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load customers");
       } finally {
-        if (active) setLoading(false);
+        if (active && showLoading) setLoading(false);
       }
     };
 
-    load();
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        void load(false);
+      }
+    };
+
+    void load(true);
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+    window.addEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
+
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
+      window.removeEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
     };
   }, []);
 
-  const pending = useMemo(
-    () => customers.filter((customer) => customer.pendingAmount > 0),
-    [customers],
-  );
+  const pending = useMemo(() => {
+    const grouped = new Map<string, { customer: Customer; pendingAmount: number }>();
+    for (const invoice of invoices) {
+      const outstanding = getInvoiceOutstanding(invoice);
+      if (outstanding <= 0) continue;
+      const customerRef = customers.find((item) => item.id === invoice.customerId);
+      if (!customerRef) continue;
+      const current = grouped.get(customerRef.id);
+      if (current) current.pendingAmount += outstanding;
+      else grouped.set(customerRef.id, { customer: customerRef, pendingAmount: outstanding });
+    }
+    return [...grouped.values()]
+      .sort((a, b) => b.pendingAmount - a.pendingAmount)
+      .map((entry) => ({ ...entry.customer, pendingAmount: entry.pendingAmount }));
+  }, [customers, invoices]);
+
+  const handleSendReminder = async (customer: Customer) => {
+    if (!business) {
+      toast.error("Business settings not loaded yet.");
+      return;
+    }
+    if (!customer.phone) {
+      toast.error("Customer phone number is missing.");
+      return;
+    }
+
+    const customerInvoices = invoices
+      .filter((invoice) => invoice.customerId === customer.id)
+      .filter((invoice) => getInvoiceOutstanding(invoice) > 0)
+      .sort(
+        (a, b) =>
+          getInvoiceOutstanding(b) - getInvoiceOutstanding(a) ||
+          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+      );
+
+    const targetInvoice = customerInvoices[0];
+    if (!targetInvoice) {
+      toast.error("No pending invoice found for this customer.");
+      return;
+    }
+
+    try {
+      setReminderCustomerId(customer.id);
+      const message = generateReminderMessage({
+        invoice: targetInvoice,
+        business,
+        customer,
+      });
+      openWhatsApp(customer.phone, message);
+      toast.success(`Payment reminder opened for ${customer.name}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to send reminder");
+    } finally {
+      setReminderCustomerId(null);
+    }
+  };
   const vipCustomers = useMemo(
     () => customers.filter((customer) => customer.customerType === "VIP"),
     [customers],
@@ -101,7 +185,13 @@ function CustomersPage() {
     const spent = customers.reduce((sum, customer) => sum + customer.totalSpent, 0);
     return purchases ? spent / purchases : 0;
   }, [customers]);
-  const recentOrders = useMemo(() => invoices.slice(0, 6), [invoices]);
+  const recentOrders = useMemo(
+    () =>
+      [...invoices]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10),
+    [invoices],
+  );
 
   const filtered = useMemo(
     () =>
@@ -113,16 +203,11 @@ function CustomersPage() {
     [customers, q],
   );
 
-  const currency = (value: number) =>
-    new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: "INR",
-      maximumFractionDigits: 0,
-    }).format(value);
+  const currency = formatCurrency;
 
   const openAddCustomer = () => {
     setEditingCustomer(null);
-    setForm({ name: "", phone: "", email: "", address: "" });
+    setForm({ name: "", phone: "", email: "", address: "", gstNumber: "", notes: "" });
     setFormError(null);
     setIsCustomerDialogOpen(true);
   };
@@ -134,6 +219,8 @@ function CustomersPage() {
       phone: customer.phone,
       email: customer.email,
       address: customer.address,
+      gstNumber: customer.gstNumber,
+      notes: customer.notes,
     });
     setFormError(null);
     setIsCustomerDialogOpen(true);
@@ -160,6 +247,8 @@ function CustomersPage() {
         phone,
         email: form.email.trim(),
         address: form.address.trim(),
+        gstNumber: form.gstNumber?.trim() ?? "",
+        notes: form.notes?.trim() ?? "",
       };
       const saved = editingCustomer
         ? await updateCustomer(editingCustomer.id, payload)
@@ -179,6 +268,19 @@ function CustomersPage() {
       setFormError(apiMessage || (err instanceof Error ? err.message : "Unable to save customer"));
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleMarkInvoicePaid = async (invoiceId: string) => {
+    try {
+      setUpdatingInvoiceId(invoiceId);
+      await updateInvoicePayment(invoiceId, { status: "paid" });
+      const [customerData, invoiceData] = await Promise.all([getCustomers(), getInvoices()]);
+      setCustomers(customerData);
+      setInvoices(invoiceData);
+      emitDataRefresh();
+    } finally {
+      setUpdatingInvoiceId(null);
     }
   };
 
@@ -291,9 +393,21 @@ function CustomersPage() {
                       </div>
                     </div>
                     <div>
-                      <div className="text-xs text-muted-foreground">Last purchase</div>
+                      <div className="text-xs text-muted-foreground">Total paid</div>
+                      <div className="font-semibold">{currency(customer.totalSpent)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Total pending</div>
+                      <div className="font-semibold text-warning">{currency(customer.pendingAmount)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Total billed</div>
+                      <div className="font-semibold">{currency(customer.totalBilled)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Last payment</div>
                       <div className="font-medium">
-                        {customer.lastPurchaseDate || "No purchases"}
+                        {customer.lastPaymentDate || "No payment yet"}
                       </div>
                     </div>
                     <div>
@@ -349,7 +463,7 @@ function CustomersPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-medium font-mono">{invoice.customer}</span>
-                        <StatusBadge status={invoice.status} />
+                        <PaymentStatusBadge status={invoice.status} />
                       </div>
                       <div className="text-xs text-muted-foreground truncate">
                         {invoice.id} · {invoice.items} item{invoice.items === 1 ? "" : "s"}
@@ -358,6 +472,18 @@ function CustomersPage() {
                     <div className="text-right shrink-0">
                       <div className="font-semibold text-sm">{currency(invoice.amount)}</div>
                       <div className="text-xs text-muted-foreground">{invoice.date}</div>
+                      {invoice.status !== "paid" && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="mt-1 h-7 text-xs"
+                          disabled={updatingInvoiceId === invoice.id}
+                          onClick={() => void handleMarkInvoicePaid(invoice.id)}
+                        >
+                          Mark Paid
+                        </Button>
+                      )}
                     </div>
                   </div>
                 ))
@@ -392,8 +518,14 @@ function CustomersPage() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-bold text-destructive">{currency(c.pendingAmount)}</div>
-                      <Button size="sm" variant="outline" className="mt-1 h-7 text-xs">
-                        Send Reminder
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="mt-1 h-7 text-xs"
+                        disabled={reminderCustomerId === c.id}
+                        onClick={() => void handleSendReminder(c)}
+                      >
+                        {reminderCustomerId === c.id ? "Sending…" : "Send Reminder"}
                       </Button>
                     </div>
                   </div>
@@ -451,7 +583,25 @@ function CustomersPage() {
                 value={form.address}
                 onChange={(event) => updateForm("address", event.target.value)}
                 rows={3}
-                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-gst">GST Number</Label>
+              <Input
+                id="customer-gst"
+                value={form.gstNumber ?? ""}
+                onChange={(event) => updateForm("gstNumber", event.target.value.toUpperCase())}
+                placeholder="37ABCDE1234F1Z5"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="customer-notes">Notes</Label>
+              <Textarea
+                id="customer-notes"
+                value={form.notes ?? ""}
+                onChange={(event) => updateForm("notes", event.target.value)}
+                rows={2}
+                placeholder="Delivery preferences, credit terms, etc."
               />
             </div>
             {formError && <div className="text-sm text-destructive">{formError}</div>}

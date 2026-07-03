@@ -7,7 +7,26 @@ const lineItemSchema = new mongoose.Schema(
     sku: { type: String },
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
+    costPrice: { type: Number, min: 0, default: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
+  },
+  { _id: false }
+);
+
+const paymentHistorySchema = new mongoose.Schema(
+  {
+    amount: { type: Number, required: true, min: 0 },
+    method: { type: String, trim: true, default: "" },
+    paidAt: { type: Date, default: Date.now },
+    note: { type: String, trim: true, default: "" },
+  },
+  { _id: false }
+);
+
+const reminderSentSchema = new mongoose.Schema(
+  {
+    type: { type: String, enum: ["day3", "day7", "day15"], required: true },
+    sentAt: { type: Date, default: Date.now },
   },
   { _id: false }
 );
@@ -21,8 +40,16 @@ const invoiceSchema = new mongoose.Schema(
     subtotal: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, required: true, min: 0 },
     tax: { type: Number, required: true, min: 0 },
+    discount: { type: Number, default: 0, min: 0 },
     total: { type: Number, required: true, min: 0 },
-    status: { type: String, enum: ["paid", "pending", "overdue", "sent"], default: "pending" },
+    pendingAmount: { type: Number, default: 0, min: 0 },
+    status: { type: String, enum: ["paid", "pending", "partial", "overdue", "sent"], default: "pending" },
+    paidAmount: { type: Number, default: 0, min: 0 },
+    paidAt: { type: Date },
+    paymentMethod: { type: String, trim: true, default: "" },
+    paymentHistory: { type: [paymentHistorySchema], default: [] },
+    remindersSent: { type: [reminderSentSchema], default: [] },
+    dueDate: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
   },
   { timestamps: true }
 );

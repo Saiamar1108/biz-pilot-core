@@ -1,14 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import type { Invoice } from "@/lib/api";
-
-const statusStyles = {
-  paid: "bg-accent-brand/10 text-accent-brand",
-  pending: "bg-warning/15 text-warning",
-  overdue: "bg-destructive/10 text-destructive",
-};
+import { formatCurrency } from "@/lib/currency";
+import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
 
 export function RecentInvoices({ invoices }: { invoices: Invoice[] }) {
   return (
@@ -21,15 +16,13 @@ export function RecentInvoices({ invoices }: { invoices: Invoice[] }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium font-mono">{inv.id}</span>
-              <span className={cn("text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full", statusStyles[inv.status])}>
-                {inv.status}
-              </span>
+              <PaymentStatusBadge status={inv.status} />
             </div>
             <div className="text-xs text-muted-foreground truncate">
               {inv.customer} · {inv.items} items · {inv.date}
             </div>
           </div>
-          <div className="font-semibold text-sm shrink-0">${inv.amount.toFixed(2)}</div>
+          <div className="font-semibold text-sm shrink-0">{formatCurrency(inv.amount)}</div>
         </div>
       ))}
       <Link to="/billing">

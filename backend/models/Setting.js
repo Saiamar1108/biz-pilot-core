@@ -27,10 +27,26 @@ const profileSchema = new mongoose.Schema(
   { _id: false },
 );
 
+const businessSchema = new mongoose.Schema(
+  {
+    storeName: { type: String, trim: true, default: "SaiMart Retail" },
+    ownerName: { type: String, trim: true, default: "A. Sai Amar Chaitanya" },
+    gstNumber: { type: String, trim: true, default: "37ABCDE1234F1Z5" },
+    phone: { type: String, trim: true, default: "+91 7569681350" },
+    email: { type: String, lowercase: true, trim: true, default: "support@saimart.in" },
+    address: { type: String, trim: true, default: "Vijayawada, Andhra Pradesh" },
+    category: { type: String, trim: true, default: "Grocery & Retail" },
+    logoDataUrl: { type: String, default: "" },
+    upiId: { type: String, trim: true, default: "" },
+  },
+  { _id: false },
+);
+
 const settingSchema = new mongoose.Schema(
   {
     key: { type: String, required: true, unique: true, default: "default" },
     profile: { type: profileSchema, default: () => ({}) },
+    business: { type: businessSchema, default: () => ({}) },
     notifications: { type: notificationSchema, default: () => ({}) },
   },
   { timestamps: true },

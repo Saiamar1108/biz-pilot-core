@@ -1,6 +1,7 @@
 const Customer = require("../models/Customer");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
+const { ensureDemoData } = require("../utils/demoData");
 
 const PHONE_REGEX = /^[6-9]\d{9}$/;
 
@@ -10,6 +11,8 @@ function sanitizeCustomerPayload(body) {
     phone: typeof body.phone === "string" ? body.phone.trim() : "",
     email: typeof body.email === "string" ? body.email.trim().toLowerCase() : "",
     address: typeof body.address === "string" ? body.address.trim() : "",
+    gstNumber: typeof body.gstNumber === "string" ? body.gstNumber.trim().toUpperCase() : "",
+    notes: typeof body.notes === "string" ? body.notes.trim() : "",
   };
 
   if (!payload.name) {
@@ -42,15 +45,20 @@ function normalizeCustomer(customer) {
     (customer.status === "vip" ? "VIP" : customer.status === "new" ? "New" : "Regular");
   const lastPurchaseDate =
     customer.lastPurchaseDate || customer.lastOrder || customer.createdAt || new Date();
+  const lastPaymentDate =
+    customer.lastPaymentDate || null;
 
   return {
     ...customer,
     totalPurchases,
     totalSpent,
     lastPurchaseDate,
+    lastPaymentDate,
     favoriteProduct: customer.favoriteProduct || "N/A",
     pendingAmount,
     address: customer.address || "",
+    gstNumber: customer.gstNumber || "",
+    notes: customer.notes || "",
     customerType,
     orders: customer.orders ?? totalPurchases,
     spent: customer.spent ?? totalSpent,
@@ -63,6 +71,7 @@ function normalizeCustomer(customer) {
 }
 
 exports.getCustomers = asyncHandler(async (req, res) => {
+  await ensureDemoData();
   const search = typeof req.query.search === "string" ? req.query.search : "";
   const status = typeof req.query.status === "string" ? req.query.status : "";
   const filters = [];

@@ -11,6 +11,7 @@ function calculateInvoiceTotals(lineItems, taxRate = env.taxRate) {
 async function buildLineItems(rawItems) {
   const Product = require("../models/Product");
   const lineItems = [];
+  const requestedByProduct = new Map();
 
   for (const item of rawItems) {
     const product = await Product.findById(item.product);
@@ -21,11 +22,21 @@ async function buildLineItems(rawItems) {
     }
 
     const quantity = item.quantity || 1;
-    if (product.stock < quantity) {
-      const error = new Error(`Insufficient stock for ${product.name} (${product.stock} available)`);
+    const alreadyRequested = requestedByProduct.get(String(product._id)) || 0;
+    const cumulativeRequested = alreadyRequested + quantity;
+    if (product.stock < cumulativeRequested) {
+      const error = new Error(`Only ${product.stock} units available for ${product.name}`);
       error.statusCode = 400;
+      error.code = "INSUFFICIENT_STOCK";
+      error.details = {
+        requested: Number(cumulativeRequested),
+        available: Number(product.stock),
+        productId: String(product._id),
+        productName: product.name,
+      };
       throw error;
     }
+    requestedByProduct.set(String(product._id), cumulativeRequested);
 
     const unitPrice = item.unitPrice ?? product.price;
     const lineTotal = parseFloat((quantity * unitPrice).toFixed(2));
@@ -36,6 +47,7 @@ async function buildLineItems(rawItems) {
       sku: product.sku,
       quantity,
       unitPrice,
+      costPrice: Number(product.costPrice ?? unitPrice * 0.7),
       lineTotal,
     });
   }
@@ -45,8 +57,15 @@ async function buildLineItems(rawItems) {
 
 async function generateInvoiceNumber() {
   const Invoice = require("../models/Invoice");
-  const count = await Invoice.countDocuments();
-  return `INV-${String(10000 + count + 1)}`;
+  const year = new Date().getFullYear();
+  const latest = await Invoice.findOne({ invoiceNumber: new RegExp(`^SP-${year}-`) })
+    .sort({ invoiceNumber: -1 })
+    .select("invoiceNumber")
+    .lean();
+  const latestSequence = latest?.invoiceNumber
+    ? Number(latest.invoiceNumber.split("-").at(-1))
+    : 0;
+  return `SP-${year}-${String(latestSequence + 1).padStart(4, "0")}`;
 }
 
 module.exports = { calculateInvoiceTotals, buildLineItems, generateInvoiceNumber };

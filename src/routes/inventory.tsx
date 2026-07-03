@@ -11,7 +11,8 @@ import { Package, Pencil, Plus, Trash2, Search, AlertTriangle, Boxes, TrendingUp
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createProduct, deleteProduct, getProducts, type Product, updateProduct } from "@/lib/api";
+import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct } from "@/lib/api";
+import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
 
 export const Route = createFileRoute("/inventory")({
@@ -32,13 +33,15 @@ function InventoryPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [lowStockThreshold, setLowStockThreshold] = useState(10);
 
   const loadProducts = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await getProducts();
+      const [data, settings] = await Promise.all([getProducts(), getSettings()]);
       setItems(data);
+      setLowStockThreshold(settings.lowStockThreshold);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     } finally {
@@ -48,14 +51,26 @@ function InventoryPage() {
 
   useEffect(() => {
     let active = true;
+
     const load = async () => {
       if (!active) return;
       await loadProducts();
     };
 
-    load();
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") {
+        void loadProducts();
+      }
+    };
+
+    void load();
+    window.addEventListener("focus", refreshOnFocus);
+    document.addEventListener("visibilitychange", refreshOnFocus);
+
     return () => {
       active = false;
+      window.removeEventListener("focus", refreshOnFocus);
+      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, []);
 
@@ -71,7 +86,12 @@ function InventoryPage() {
     });
   }, [items, q, category]);
 
-  const low = items.filter((i) => i.stock < 10).length;
+  const low = items.filter((i) => i.stock <= lowStockThreshold).length;
+
+  const bestSeller = useMemo(
+    () => [...items].sort((a, b) => b.sold - a.sold)[0],
+    [items],
+  );
 
   const resetForm = () => {
     setForm({ name: "", sku: "", category: "", stock: "", price: "" });
@@ -171,9 +191,9 @@ function InventoryPage() {
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard label="Total Products" value={String(items.length)} icon={Boxes} accent="primary" />
-          <StatCard label="Low Stock" value={String(low)} change={12} icon={AlertTriangle} accent="destructive" />
+          <StatCard label="Low Stock" value={String(low)} icon={AlertTriangle} accent="destructive" />
           <StatCard label="Out of Stock" value={String(items.filter((i) => i.stock === 0).length)} icon={Package} accent="warning" />
-          <StatCard label="Best Seller" value="Cold Brew" change={22} icon={TrendingUp} accent="emerald" />
+          <StatCard label="Best Seller" value={bestSeller?.sold ? bestSeller.name : "No sales"} icon={TrendingUp} accent="emerald" />
         </div>
 
         {low > 0 && (
@@ -257,17 +277,17 @@ function InventoryPage() {
                     <td className={cn(
                       "px-5 py-4 text-right font-semibold",
                       i.stock === 0 && "text-destructive",
-                      i.stock > 0 && i.stock < 10 && "text-destructive"
+                      i.stock > 0 && i.stock <= lowStockThreshold && "text-destructive"
                     )}>
                       {i.stock === 0 ? (
                         <StatusBadge status="overdue" label="Out of stock" />
-                      ) : i.stock < 10 ? (
+                      ) : i.stock <= lowStockThreshold ? (
                         <span>{i.stock} · <StatusBadge status="pending" label="Low" /></span>
                       ) : (
                         i.stock
                       )}
                     </td>
-                    <td className="px-5 py-4 text-right">${i.price.toFixed(2)}</td>
+                    <td className="px-5 py-4 text-right">{formatCurrency(i.price)}</td>
                     <td className="px-5 py-4 text-right text-muted-foreground hidden lg:table-cell">{i.sold}</td>
                     <td className="px-5 py-4 text-right">
                       <div className="flex justify-end items-center gap-2">

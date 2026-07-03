@@ -12,6 +12,7 @@ const invoiceRoutes = require("./routes/invoiceRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 const aiRoutes = require("./routes/aiRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+const notificationRoutes = require("./routes/notificationRoutes");
 
 const app = express();
 
@@ -24,7 +25,7 @@ if (env.nodeEnv === "development") {
 }
 
 app.get("/health", (req, res) => {
-  res.json({ success: true, message: "ShopPilot API is running" });
+  res.json({ success: true, message: "ShopPilot AI API is running" });
 });
 
 app.use("/products", productRoutes);
@@ -33,6 +34,7 @@ app.use("/invoices", invoiceRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/ai", aiRoutes);
 app.use("/settings", settingsRoutes);
+app.use("/notifications", notificationRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
@@ -41,7 +43,7 @@ async function startServer() {
   await connectDB();
 
   app.listen(env.port, () => {
-    console.log(`ShopPilot API running on http://localhost:${env.port} [${env.nodeEnv}]`);
+    console.log(`ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`);
   });
 }
 
