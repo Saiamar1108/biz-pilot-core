@@ -16,8 +16,10 @@ import { formatGrowthRate } from "@/lib/analytics";
 import { formatCurrency } from "@/lib/currency";
 import { buildLast7DaysRevenue } from "@/lib/sales-chart";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Dashboard — ShopPilot AI" }] }),
   component: DashboardPage,
 });

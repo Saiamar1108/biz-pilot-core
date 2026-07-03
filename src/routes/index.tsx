@@ -59,7 +59,9 @@ function LandingPage() {
             <a href="#pricing" className="hover:text-foreground">Pricing</a>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" className="hidden sm:inline-flex">Sign in</Button>
+            <Link to="/login">
+              <Button variant="ghost" size="sm" className="hidden sm:inline-flex">Sign in</Button>
+            </Link>
             <Link to="/dashboard">
               <Button size="sm" className="gradient-primary text-primary-foreground shadow-glow">
                 Get Started

@@ -239,18 +239,21 @@ async function seedDemoData() {
   await recalculateAllCustomerMetrics();
 }
 
-async function ensureDemoData() {
+async function ensureDemoData(shopId) {
   if (seedPromise) return seedPromise;
 
   seedPromise = (async () => {
+    const scope = shopId ? { shopId } : {};
     const [productCount, customerCount, invoiceCount] = await Promise.all([
-      Product.countDocuments(),
-      Customer.countDocuments(),
-      Invoice.countDocuments(),
+      Product.countDocuments(scope),
+      Customer.countDocuments(scope),
+      Invoice.countDocuments(scope),
     ]);
 
     if (productCount === 0 || customerCount === 0 || invoiceCount === 0) {
-      await seedDemoData();
+      if (!shopId) {
+        await seedDemoData();
+      }
     }
     await normalizeInvoiceFinancials();
     await recalculateAllCustomerMetrics();

@@ -44,12 +44,15 @@ const businessSchema = new mongoose.Schema(
 
 const settingSchema = new mongoose.Schema(
   {
-    key: { type: String, required: true, unique: true, default: "default" },
+    key: { type: String, required: true, default: "default" },
+    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
     profile: { type: profileSchema, default: () => ({}) },
     business: { type: businessSchema, default: () => ({}) },
     notifications: { type: notificationSchema, default: () => ({}) },
   },
   { timestamps: true },
 );
+
+settingSchema.index({ shopId: 1, key: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Setting", settingSchema);

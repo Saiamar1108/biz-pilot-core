@@ -29,7 +29,7 @@ const mapProfitTrends = (series) =>
 exports.getAnalytics = asyncHandler(async (req, res) => {
   const { range, startDate, endDate } = req.query;
 
-  const ctx = await buildAnalytics({ range, startDate, endDate });
+  const ctx = await buildAnalytics({ range, startDate, endDate }, req);
 
   const analytics = {
     dateRange: ctx.dateRange,

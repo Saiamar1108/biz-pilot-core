@@ -20,6 +20,7 @@ const productSchema = new mongoose.Schema(
     costPrice: { type: Number, min: 0, default: 0 },
     sold: { type: Number, default: 0, min: 0 },
     stockMovements: { type: [movementSchema], default: [] },
+    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
   },
   { timestamps: true }
 );

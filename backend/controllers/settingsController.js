@@ -5,10 +5,15 @@ const env = require("../config/env");
 const SETTINGS_KEY = "default";
 const IMAGE_DATA_URL_REGEX = /^data:image\/(png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+/=]+$/;
 
-async function getSettingsDocument() {
+async function getSettingsDocument(req) {
+  const shopId = req?.shopId;
+  const filter = shopId
+    ? { shopId, key: SETTINGS_KEY }
+    : { key: SETTINGS_KEY };
+
   return Setting.findOneAndUpdate(
-    { key: SETTINGS_KEY },
-    { $setOnInsert: { key: SETTINGS_KEY } },
+    filter,
+    { $setOnInsert: { key: SETTINGS_KEY, shopId } },
     { new: true, upsert: true, runValidators: true },
   ).lean();
 }
@@ -125,7 +130,7 @@ function sanitizeNotifications(notifications = {}) {
 }
 
 exports.getSettings = asyncHandler(async (req, res) => {
-  const settings = await getSettingsDocument();
+  const settings = await getSettingsDocument(req);
   res.json({ success: true, data: normalizeSettings(settings) });
 });
 

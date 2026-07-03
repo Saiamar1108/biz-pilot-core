@@ -3,24 +3,30 @@ const asyncHandler = require("../middlewares/asyncHandler");
 const { ensureDemoData } = require("../utils/demoData");
 const env = require("../config/env");
 const { createNotification } = require("../services/notificationService");
+const {
+  buildShopReadFilter,
+  getShopIdForCreate,
+  mergeWithShopFilter,
+} = require("../utils/tenantScope");
 
 exports.getProducts = asyncHandler(async (req, res) => {
-  await ensureDemoData();
+  await ensureDemoData(req.shopId);
   const { category, search, lowStock } = req.query;
-  const filter = {};
+  const extraFilter = {};
 
-  if (category) filter.category = category;
+  if (category) extraFilter.category = category;
   if (search) {
-    filter.$or = [
+    extraFilter.$or = [
       { name: { $regex: search, $options: "i" } },
       { sku: { $regex: search, $options: "i" } },
     ];
   }
   if (lowStock === "true") {
-    const env = require("../config/env");
-    filter.stock = { $lte: env.lowStockThreshold };
+    extraFilter.stock = { $lte: env.lowStockThreshold };
   }
 
+  const shopFilter = await buildShopReadFilter(req);
+  const filter = mergeWithShopFilter(shopFilter, extraFilter);
   const products = await Product.find(filter).sort({ createdAt: -1 });
   res.json({ success: true, count: products.length, data: products });
 });
@@ -31,6 +37,7 @@ exports.createProduct = asyncHandler(async (req, res) => {
     req.body.costPrice == null ? Number((price * 0.7).toFixed(2)) : Number(req.body.costPrice);
   const product = await Product.create({
     ...req.body,
+    shopId: getShopIdForCreate(req),
     costPrice,
     stockMovements: [
       {
@@ -45,7 +52,11 @@ exports.createProduct = asyncHandler(async (req, res) => {
 });
 
 exports.updateProduct = asyncHandler(async (req, res) => {
-  const existing = await Product.findById(req.params.id);
+  const shopFilter = await buildShopReadFilter(req);
+  const existing = await Product.findOne(
+    mergeWithShopFilter(shopFilter, { _id: req.params.id }),
+  );
+
   if (!existing) {
     res.status(404);
     throw new Error("Product not found");
@@ -70,7 +81,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     };
   }
 
-  const product = await Product.findByIdAndUpdate(req.params.id, update, {
+  const product = await Product.findByIdAndUpdate(existing._id, update, {
     new: true,
     runValidators: true,
   });
@@ -80,7 +91,8 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       type: "low_stock",
       message: `Low stock: ${product.name} only ${product.stock} left`,
       relatedId: String(product._id),
-      key: `low-stock:${String(product._id)}`,
+      key: `low-stock-${String(product._id)}`,
+      shopId: product.shopId,
     });
   }
 
@@ -88,7 +100,10 @@ exports.updateProduct = asyncHandler(async (req, res) => {
 });
 
 exports.deleteProduct = asyncHandler(async (req, res) => {
-  const product = await Product.findByIdAndDelete(req.params.id);
+  const shopFilter = await buildShopReadFilter(req);
+  const product = await Product.findOneAndDelete(
+    mergeWithShopFilter(shopFilter, { _id: req.params.id }),
+  );
 
   if (!product) {
     res.status(404);

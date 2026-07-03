@@ -7,6 +7,7 @@ const notificationSchema = new mongoose.Schema(
     relatedId: { type: String, trim: true, default: "" },
     key: { type: String, trim: true, default: "" },
     read: { type: Boolean, default: false },
+    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
   },
   { timestamps: true },
 );

@@ -16,8 +16,10 @@ import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
 import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText, formatExpiryDate } from "@/lib/inventory";
 import { PurchaseOrderGenerator } from "@/components/inventory/PurchaseOrderGenerator";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/inventory")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
   component: InventoryPage,
 });

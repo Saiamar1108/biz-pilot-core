@@ -4,10 +4,68 @@ const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+let refreshInFlight: Promise<string | null> | null = null;
+
+api.interceptors.request.use((config) => {
+  const token =
+    typeof window !== "undefined" ? localStorage.getItem("sp_access_token") : null;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (!original || original._retry || error.response?.status !== 401) {
+      return Promise.reject(error);
+    }
+
+    if (original.url?.includes("/auth/login") || original.url?.includes("/auth/register")) {
+      return Promise.reject(error);
+    }
+
+    original._retry = true;
+
+    if (!refreshInFlight) {
+      refreshInFlight = (async () => {
+        try {
+          const response = await axios.post(
+            `${apiBaseUrl}/auth/refresh`,
+            {},
+            { withCredentials: true },
+          );
+          const token = response.data?.data?.accessToken as string | undefined;
+          if (token && typeof window !== "undefined") {
+            localStorage.setItem("sp_access_token", token);
+          }
+          return token || null;
+        } catch {
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("sp_access_token");
+          }
+          return null;
+        } finally {
+          refreshInFlight = null;
+        }
+      })();
+    }
+
+    const token = await refreshInFlight;
+    if (!token) return Promise.reject(error);
+
+    original.headers.Authorization = `Bearer ${token}`;
+    return api(original);
+  },
+);
 
 export type ApiResponse<T> = {
   success: boolean;

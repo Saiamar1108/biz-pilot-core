@@ -18,8 +18,10 @@ import {
   type NotificationSettings,
   type SettingsProfile,
 } from "@/lib/api";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/settings")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Settings — ShopPilot AI" }] }),
   component: SettingsPage,
 });

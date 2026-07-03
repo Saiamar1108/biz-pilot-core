@@ -54,8 +54,10 @@ import {
   type ParsedVoiceInvoice,
 } from "@/lib/voice-invoice";
 import { emitDataRefresh } from "@/lib/live-refresh";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/billing")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Billing — ShopPilot AI" }] }),
   component: BillingPage,
 });

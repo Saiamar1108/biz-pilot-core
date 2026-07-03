@@ -21,6 +21,9 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem } from "@/lib/api";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "@tanstack/react-router";
+import { LogOut } from "lucide-react";
 
 const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -35,6 +38,8 @@ const navItems = [
 
 export function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const navigate = useNavigate();
+  const { user, shop, logout } = useAuth();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -129,8 +134,21 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
             })}
           </nav>
 
-          <div className="p-3 border-t border-sidebar-border text-xs text-muted-foreground">
-            Built for Indian retailers
+          <div className="p-3 border-t border-sidebar-border space-y-2">
+            <div className="text-xs text-muted-foreground truncate">
+              {shop?.name || "ShopPilot Store"}
+            </div>
+            <div className="text-xs font-medium truncate">{user?.name || "User"}</div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                void logout().then(() => navigate({ to: "/login" }));
+              }}
+            >
+              <LogOut className="h-4 w-4 mr-1" /> Logout
+            </Button>
           </div>
         </div>
       </aside>
@@ -201,7 +219,14 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                 </PopoverContent>
               </Popover>
               <Avatar className="h-9 w-9 ring-2 ring-primary/20">
-                <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-sm">SA</AvatarFallback>
+                <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-sm">
+                  {(user?.name || "SP")
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </AvatarFallback>
               </Avatar>
             </div>
           </div>

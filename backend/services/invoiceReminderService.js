@@ -40,13 +40,18 @@ async function createReminderNotification({
   );
 }
 
-async function syncInvoiceReminders() {
+async function syncInvoiceReminders(shopId) {
   const business = await getBusinessProfile();
   const now = Date.now();
 
-  const pendingInvoices = await Invoice.find({
-    status: { $in: [...PENDING_BUCKET_STATUSES] },
-  })
+  const invoiceQuery = shopId
+    ? {
+        status: { $in: [...PENDING_BUCKET_STATUSES] },
+        $or: [{ shopId }, { shopId: { $exists: false } }, { shopId: null }],
+      }
+    : { status: { $in: [...PENDING_BUCKET_STATUSES] } };
+
+  const pendingInvoices = await Invoice.find(invoiceQuery)
     .populate("customer", "name phone email")
     .lean();
 

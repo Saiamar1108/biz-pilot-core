@@ -47,7 +47,11 @@ import { exportAnalyticsCsv, exportAnalyticsPdf } from "@/lib/analytics-export";
 import { formatCurrency } from "@/lib/currency";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 
+import { toast } from "sonner";
+import { requireAuth } from "@/lib/auth-guard";
+
 export const Route = createFileRoute("/analytics")({
+  beforeLoad: requireAuth,
   head: () => ({
     meta: [{ title: "Analytics — ShopPilot AI" }],
   }),

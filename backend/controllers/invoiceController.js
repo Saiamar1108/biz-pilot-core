@@ -15,6 +15,11 @@ const { recalculateCustomerMetrics } = require("../services/customerMetrics");
 const { ensureDemoData } = require("../utils/demoData");
 const { createNotification } = require("../services/notificationService");
 const { calculateFinancialSummary } = require("../services/financialSummary");
+const {
+  buildShopReadFilter,
+  getShopIdForCreate,
+  mergeWithShopFilter,
+} = require("../utils/tenantScope");
 
 async function refreshOverdueInvoices() {
   await Invoice.updateMany(
@@ -29,14 +34,17 @@ async function refreshOverdueInvoices() {
 }
 
 exports.getInvoices = asyncHandler(async (req, res) => {
-  await ensureDemoData();
+  await ensureDemoData(req.shopId);
   await refreshOverdueInvoices();
 
   const { status, customer } = req.query;
-  const filter = {};
+  const extraFilter = {};
 
-  if (status) filter.status = status;
-  if (customer) filter.customer = customer;
+  if (status) extraFilter.status = status;
+  if (customer) extraFilter.customer = customer;
+
+  const shopFilter = await buildShopReadFilter(req);
+  const filter = mergeWithShopFilter(shopFilter, extraFilter);
 
   const invoices = await Invoice.find(filter)
     .populate("customer", "name email phone address gstNumber")
@@ -50,10 +58,12 @@ exports.getInvoices = asyncHandler(async (req, res) => {
 });
 
 exports.getInvoiceSummary = asyncHandler(async (req, res) => {
-  await ensureDemoData();
+  await ensureDemoData(req.shopId);
 
   const { status } = req.query;
-  const filter = status ? { status } : {};
+  const shopFilter = await buildShopReadFilter(req);
+  const extraFilter = status ? { status } : {};
+  const filter = mergeWithShopFilter(shopFilter, extraFilter);
 
   const summary = await calculateFinancialSummary(filter);
 
@@ -102,6 +112,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     taxRate: rate,
     tax,
     total,
+    shopId: getShopIdForCreate(req),
     paidAmount: status === "paid" ? total : 0,
     pendingAmount: status === "paid" ? 0 : total,
     paidAt: status === "paid" ? new Date() : null,

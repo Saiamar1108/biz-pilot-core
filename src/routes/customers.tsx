@@ -45,8 +45,10 @@ import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
 import { DATA_REFRESH_EVENT, emitDataRefresh } from "@/lib/live-refresh";
 import { generateReminderMessage, getInvoiceOutstanding, openWhatsApp } from "@/lib/invoice";
 import { toast } from "sonner";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/customers")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Customers — ShopPilot AI" }] }),
   component: CustomersPage,
 });

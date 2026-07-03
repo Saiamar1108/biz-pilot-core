@@ -45,8 +45,10 @@ import {
   downloadInvoicePDF,
 } from "@/lib/invoice";
 import { toast } from "sonner";
+import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/invoices")({
+  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Invoices — ShopPilot AI" }] }),
   component: InvoicesPage,
 });

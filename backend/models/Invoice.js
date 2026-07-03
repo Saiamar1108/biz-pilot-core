@@ -51,6 +51,7 @@ const invoiceSchema = new mongoose.Schema(
     paymentHistory: { type: [paymentHistorySchema], default: [] },
     remindersSent: { type: [reminderSentSchema], default: [] },
     dueDate: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
   },
   { timestamps: true }
 );

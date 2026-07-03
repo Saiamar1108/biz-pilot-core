@@ -23,6 +23,7 @@ const customerSchema = new mongoose.Schema(
     orderHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "Invoice" }],
     status: { type: String, enum: ["vip", "regular", "new"], default: "new" },
     lastOrder: { type: Date, default: Date.now },
+    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
   },
   { timestamps: true },
 );

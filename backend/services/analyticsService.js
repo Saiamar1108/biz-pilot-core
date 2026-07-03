@@ -9,6 +9,10 @@ const {
   numberOrZero,
   PENDING_BUCKET_STATUSES,
 } = require("../utils/invoiceAmounts");
+const {
+  buildShopReadFilter,
+  mergeWithShopFilter,
+} = require("../utils/tenantScope");
 
 const round2 = (value) => Number(numberOrZero(value).toFixed(2));
 
@@ -385,15 +389,17 @@ function buildRecommendations({ lowStockItems, pendingAgingAlerts, topProducts }
   ];
 }
 
-async function buildAnalytics(options = {}) {
-  await ensureDemoData();
+async function buildAnalytics(options = {}, req = {}) {
+  await ensureDemoData(req.shopId);
+
+  const shopFilter = await buildShopReadFilter(req);
 
   await Invoice.updateMany(
-    {
+    mergeWithShopFilter(shopFilter, {
       status: { $in: ["pending", "sent"] },
       dueDate: { $lt: new Date() },
-    },
-    { $set: { status: "overdue" } }
+    }),
+    { $set: { status: "overdue" } },
   );
 
   const { startDate, endDate, label } = resolveDateRange(
@@ -401,11 +407,14 @@ async function buildAnalytics(options = {}) {
     options.startDate,
     options.endDate
   );
-  const invoiceFilter = buildInvoiceFilter(startDate, endDate);
+  const invoiceFilter = mergeWithShopFilter(
+    shopFilter,
+    buildInvoiceFilter(startDate, endDate),
+  );
 
   const [rawProducts, rawCustomers, financialSummary] = await Promise.all([
-    Product.find().lean(),
-    Customer.find().lean(),
+    Product.find(shopFilter).lean(),
+    Customer.find(shopFilter).lean(),
     calculateFinancialSummary(invoiceFilter),
   ]);
 
