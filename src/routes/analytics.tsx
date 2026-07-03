@@ -83,14 +83,16 @@ function mergeMonthlySeries(
     .filter(Boolean)
     .sort();
 
-  return monthKeys.map((month) => ({
-    m: formatMonthLabel(month),
-    collected:
-      (monthlyRevenue || []).find((entry) => entry.month === month)?.revenue ?? 0,
-    pending:
-      (monthlyPendingRevenue || []).find((entry) => entry.month === month)
-        ?.revenue ?? 0,
-  }));
+  return monthKeys.map((month) => {
+    const collectedEntry = (monthlyRevenue || []).find((entry) => entry.month === month);
+    const pendingEntry = (monthlyPendingRevenue || []).find((entry) => entry.month === month);
+    
+    return {
+      m: formatMonthLabel(month),
+      collected: collectedEntry?.revenue ?? 0,
+      pending: pendingEntry?.revenue ?? 0,
+    };
+  });
 }
 
 function ProductTable({ rows, valueKey }: { rows: ProductAnalyticsRow[]; valueKey: "revenue" | "profit" | "units" }) {
@@ -231,14 +233,14 @@ function AnalyticsPage() {
         analytics.monthlyRevenue || [],
         analytics.monthlyPendingRevenue || [],
       ),
-    [analytics],
+    [analytics.monthlyRevenue, analytics.monthlyPendingRevenue],
   );
 
   const receivables = useMemo(
     () =>
       (analytics.monthlyPendingRevenue || []).map((entry) => ({
         m: formatMonthLabel(entry.month),
-        v: entry.revenue,
+        v: entry.revenue || 0,
       })),
     [analytics],
   );

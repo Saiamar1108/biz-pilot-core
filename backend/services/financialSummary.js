@@ -65,6 +65,7 @@ async function calculateFinancialSummary(filter = {}) {
 
     const monthKey = getDateKey(invoice.createdAt);
 
+    // Collected revenue includes all partial and full payments
     if (paidAmount > 0) {
       collectedRevenue += paidAmount;
 
@@ -74,6 +75,7 @@ async function calculateFinancialSummary(filter = {}) {
       }
     }
 
+    // Pending revenue includes overdue invoices and outstanding amounts
     if (PENDING_BUCKET_STATUSES.has(String(invoice.status)) && outstanding > 0) {
       pendingRevenue += outstanding;
       pendingInvoices += 1;
@@ -105,8 +107,12 @@ async function calculateFinancialSummary(filter = {}) {
     }
   }
 
+  // Ensure consistency: Total Billed = Collected + Pending
+  const calculatedTotal = Number((collectedRevenue + pendingRevenue).toFixed(2));
+  const finalTotalBilled = Math.abs(totalBilled - calculatedTotal) < 0.01 ? calculatedTotal : totalBilled;
+
   return {
-    totalBilled: Number(totalBilled.toFixed(2)),
+    totalBilled: Number(finalTotalBilled.toFixed(2)),
     collectedRevenue: Number(collectedRevenue.toFixed(2)),
     pendingRevenue: Number(pendingRevenue.toFixed(2)),
     profit: Number(profit.toFixed(2)),
