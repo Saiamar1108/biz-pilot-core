@@ -2,11 +2,7 @@ import type { BusinessProfile, Customer, Invoice } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 
 export const STORE_POLICIES = [
-  "No return after 7 days",
-  "Exchange only within 7 days",
-  "Original bill required for exchange",
-  "Opened/used products cannot be returned",
-  "Damaged products must be reported within 24 hours",
+  "No return. Exchange only within 7 days.",
 ];
 
 export type InvoiceMessageContext = {
@@ -119,8 +115,8 @@ export function generateInvoiceWhatsAppMessage({
 
   for (const item of invoice.lineItems) {
     lines.push(
-      item.productName,
-      `Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.lineTotal)}`,
+      `• ${item.productName}`,
+      `  Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.lineTotal)}`,
       "",
     );
   }
@@ -144,11 +140,8 @@ export function generateInvoiceWhatsAppMessage({
     "━━━━━━━━━━━━━━━━━━",
     "📌 STORE POLICY",
     "━━━━━━━━━━━━━━━━━━",
+    "No return. Exchange only within 7 days.",
   );
-
-  for (const policy of STORE_POLICIES) {
-    lines.push(`• ${policy}`);
-  }
 
   if (paymentLink) {
     lines.push("", "💳 Payment Link:", paymentLink);
@@ -182,24 +175,59 @@ export function generateReminderMessage({
   });
 
   const lines = [
+    `🏪 ${shopName}`,
+    business.address ? `📍 ${business.address}` : "",
+    business.phone ? `📞 ${business.phone}` : "",
+    "",
+    "━━━━━━━━━━━━━━━━━━",
+    "💳 PAYMENT REMINDER",
+    "━━━━━━━━━━━━━━━━━━",
+    "",
     `Hello ${customer?.name || invoice.customer},`,
     "",
     `This is a gentle reminder from ${shopName}.`,
     "",
-    `Your invoice #${invoice.id} of ${formatCurrency(pending)} is still pending.`,
+    `Your invoice #${invoice.id} has ₹${formatCurrency(pending)} pending.`,
     "",
     `Invoice Date: ${formatDate(invoice.createdAt || invoice.date)}`,
+    `Time: ${formatTime(invoice.createdAt)}`,
     `Due Date: ${formatDate(invoice.dueDate)}`,
     "",
-    "Kindly clear the payment at your earliest convenience.",
+    "━━━━━━━━━━━━━━━━━━",
+    "ITEMS",
+    "━━━━━━━━━━━━━━━━━━",
     "",
   ];
 
-  if (paymentLink) {
-    lines.push("Payment Link:", paymentLink, "");
+  for (const item of invoice.lineItems) {
+    lines.push(
+      `• ${item.productName}`,
+      `  Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.lineTotal)}`,
+      "",
+    );
   }
 
   lines.push(
+    "━━━━━━━━━━━━━━━━━━",
+    "",
+    `Total: ${formatCurrency(invoice.amount)}`,
+    `Paid: ${formatCurrency(invoice.paidAmount)}`,
+    `Pending: ${formatCurrency(pending)}`,
+    "",
+    "━━━━━━━━━━━━━━━━━━",
+    "📌 STORE POLICY",
+    "━━━━━━━━━━━━━━━━━━",
+    "No return. Exchange only within 7 days.",
+    "",
+    "Kindly clear the payment at your earliest convenience.",
+  );
+
+  if (paymentLink) {
+    lines.push("", "💳 Payment Link:", paymentLink);
+  }
+
+  lines.push(
+    "",
     "For any queries contact:",
     business.phone || "Store support",
     "",
