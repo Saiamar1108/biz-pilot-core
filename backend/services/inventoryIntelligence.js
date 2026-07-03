@@ -86,26 +86,29 @@ function classifyMovement(salesCount, daysSinceLastSale, threshold) {
 
 async function getRestockPredictions(products) {
   const now = new Date();
-  const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
   const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
   const recentInvoices = await Invoice.find({
     createdAt: { $gte: last30Days }
   }).lean();
 
-  const productSales7Days = new Map();
   const productSales30Days = new Map();
+  const productSalesByDay = new Map(); // Track daily sales for consistency
 
   for (const invoice of recentInvoices) {
     for (const item of invoice.lineItems || []) {
       const productId = String(item.product);
       const quantity = numberOrZero(item.quantity);
-      const invoiceDate = new Date(invoice.createdAt);
+      const invoiceDate = new Date(invoice.createdAt).toDateString();
 
-      if (invoiceDate >= last7Days) {
-        productSales7Days.set(productId, (productSales7Days.get(productId) || 0) + quantity);
-      }
       productSales30Days.set(productId, (productSales30Days.get(productId) || 0) + quantity);
+
+      // Track daily sales for consistency calculation
+      if (!productSalesByDay.has(productId)) {
+        productSalesByDay.set(productId, new Map());
+      }
+      const daySales = productSalesByDay.get(productId);
+      daySales.set(invoiceDate, (daySales.get(invoiceDate) || 0) + quantity);
     }
   }
 
@@ -113,18 +116,58 @@ async function getRestockPredictions(products) {
     .filter(product => product.stock <= env.lowStockThreshold * 2)
     .map(product => {
       const productId = String(product._id);
-      const sales7Days = productSales7Days.get(productId) || 0;
       const sales30Days = productSales30Days.get(productId) || 0;
 
-      const avgDailySales7Days = sales7Days / 7;
-      const avgDailySales30Days = sales30Days / 30;
-      const avgDailySales = Math.max(avgDailySales7Days, avgDailySales30Days);
+      // Calculate average daily sales over 30 days
+      const avgDailySales = sales30Days / 30;
 
+      // Calculate days until stockout
       const daysUntilStockout = avgDailySales > 0 
         ? Math.floor(product.stock / avgDailySales)
         : Infinity;
 
-      const recommendedReorder = Math.ceil(avgDailySales * 30); // 30 days supply
+      // Recommended quantity: (avgDailySales * 10) - currentStock
+      // 7 days base stock + 3 days buffer = 10 days total
+      let recommendedReorder = Math.ceil((avgDailySales * 10) - product.stock);
+
+      // Safety caps
+      recommendedReorder = Math.max(0, recommendedReorder); // Minimum 0
+      const maxStock = Math.ceil(avgDailySales * 15); // Maximum 15 days of stock
+      if (product.stock + recommendedReorder > maxStock) {
+        recommendedReorder = Math.max(0, maxStock - product.stock);
+      }
+
+      // Calculate confidence score based on sales consistency
+      const daySales = productSalesByDay.get(productId);
+      let confidence = 0;
+      if (daySales && daySales.size > 0) {
+        const dailyValues = Array.from(daySales.values());
+        const mean = dailyValues.reduce((a, b) => a + b, 0) / dailyValues.length;
+        const variance = dailyValues.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / dailyValues.length;
+        const stdDev = Math.sqrt(variance);
+        const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
+        // Higher confidence when sales are consistent (lower coefficient of variation)
+        confidence = Math.max(0, Math.min(100, 100 - (coefficientOfVariation * 100)));
+      } else if (sales30Days > 0) {
+        confidence = 60; // Moderate confidence if we have some sales but no daily breakdown
+      } else {
+        confidence = 0; // No confidence if no sales data
+      }
+
+      // Generate explanation
+      let explanation = "";
+      if (avgDailySales > 0) {
+        const daysStockLasts = (product.stock / avgDailySales).toFixed(1);
+        if (daysStockLasts < 1) {
+          explanation = `Selling ${avgDailySales.toFixed(1)}/day, current stock lasts less than 1 day.`;
+        } else if (daysStockLasts < 2) {
+          explanation = `Selling ${avgDailySales.toFixed(1)}/day, current stock lasts ${daysStockLasts} days.`;
+        } else {
+          explanation = `Selling ${avgDailySales.toFixed(1)}/day, current stock lasts ${daysStockLasts} days.`;
+        }
+      } else {
+        explanation = "No recent sales data. Recommended based on stock level.";
+      }
 
       return {
         product,
@@ -132,7 +175,9 @@ async function getRestockPredictions(products) {
         avgDailySales: Number(avgDailySales.toFixed(2)),
         daysUntilStockout: daysUntilStockout === Infinity ? null : daysUntilStockout,
         recommendedReorder,
-        urgency: getUrgency(daysUntilStockout, product.stock)
+        urgency: getUrgency(daysUntilStockout, product.stock),
+        confidence: Math.round(confidence),
+        explanation
       };
     })
     .sort((a, b) => (a.daysUntilStockout || Infinity) - (b.daysUntilStockout || Infinity));
@@ -144,8 +189,8 @@ function getUrgency(daysUntilStockout, currentStock) {
   if (currentStock === 0) return "critical";
   if (daysUntilStockout === null) return "low";
   if (daysUntilStockout <= 2) return "critical";
-  if (daysUntilStockout <= 7) return "high";
-  if (daysUntilStockout <= 14) return "medium";
+  if (daysUntilStockout <= 5) return "high";
+  if (daysUntilStockout <= 10) return "medium";
   return "low";
 }
 
@@ -177,7 +222,7 @@ async function getExpiryAlerts(products) {
 
 async function generatePurchaseOrder(lowStockProducts) {
   const predictions = await getRestockPredictions(lowStockProducts);
-  
+
   const purchaseOrder = predictions
     .filter(item => item.urgency !== "low")
     .map(item => ({
@@ -187,6 +232,8 @@ async function generatePurchaseOrder(lowStockProducts) {
       currentStock: item.currentStock,
       recommendedQuantity: item.recommendedReorder,
       urgency: item.urgency,
+      confidence: item.confidence,
+      explanation: item.explanation,
       estimatedCost: item.recommendedReorder * (item.product.costPrice || item.product.price * 0.7)
     }));
 

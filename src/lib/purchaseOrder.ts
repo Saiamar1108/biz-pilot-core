@@ -26,6 +26,8 @@ export function generatePurchaseOrderMessage(purchaseOrder: PurchaseOrder, busin
       `  Current Stock: ${item.currentStock}`,
       `  Order Qty: ${item.recommendedQuantity}`,
       `  Est. Cost: ${formatCurrency(item.estimatedCost)}`,
+      `  Confidence: ${item.confidence}%`,
+      `  Reason: ${item.explanation}`,
       ""
     );
   }

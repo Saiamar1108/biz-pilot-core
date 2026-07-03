@@ -297,6 +297,8 @@ export type InventoryInsights = {
     daysUntilStockout: number | null;
     recommendedReorder: number;
     urgency: "critical" | "high" | "medium" | "low";
+    confidence: number;
+    explanation: string;
   }>;
   expiryAlerts: {
     expired: Array<{
@@ -350,6 +352,8 @@ export type PurchaseOrder = {
     currentStock: number;
     recommendedQuantity: number;
     urgency: "critical" | "high" | "medium" | "low";
+    confidence: number;
+    explanation: string;
     estimatedCost: number;
   }>;
   totalEstimatedCost: number;

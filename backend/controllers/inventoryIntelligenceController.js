@@ -69,7 +69,9 @@ exports.getInventoryInsights = asyncHandler(async (req, res) => {
       avgDailySales: item.avgDailySales,
       daysUntilStockout: item.daysUntilStockout,
       recommendedReorder: item.recommendedReorder,
-      urgency: item.urgency
+      urgency: item.urgency,
+      confidence: item.confidence,
+      explanation: item.explanation
     })),
     expiryAlerts: {
       expired: expiryAlerts.expired.map(item => ({
