@@ -129,6 +129,24 @@ export type MonthlyProfitPoint = {
   profit: number;
 };
 
+export type PurchaseOrderUrgency = "Critical" | "High" | "Medium" | "Low";
+
+export type PurchaseOrderItem = {
+  id: string;
+  name: string;
+  sku: string;
+  category: string;
+  currentStock: number;
+  avgDailySales: number;
+  totalSoldLast30Days: number;
+  daysOfStock: number | null;
+  recommendedQty: number;
+  urgency: PurchaseOrderUrgency;
+  confidence: number;
+  confidenceLabel: "High" | "Medium" | "Low";
+  reason: string;
+};
+
 export type AnalyticsDateRange = {
   label: string;
   startDate: string | null;
@@ -182,6 +200,7 @@ export type AnalyticsSummary = {
   topCustomers: Array<{ id: string; name: string; totalSpent: number; pendingAmount: number }>;
   activityFeed: Array<{ type: string; text: string; date: string }>;
   recommendations: string[];
+  purchaseOrder: PurchaseOrderItem[];
   monthlyProfitTrends: MonthlyProfitPoint[];
   productAnalytics: {
     byCategory: ProductAnalyticsRow[];
@@ -231,6 +250,7 @@ export const EMPTY_ANALYTICS: AnalyticsSummary = {
   topCustomers: [],
   activityFeed: [],
   recommendations: [],
+  purchaseOrder: [],
   monthlyProfitTrends: [],
   productAnalytics: {
     byCategory: [],
@@ -271,6 +291,39 @@ const normalizeProductAnalyticsRow = (entry: unknown): ProductAnalyticsRow => {
     units: asNumber(row.units),
     revenue: asNumber(row.revenue),
     profit: asNumber(row.profit),
+  };
+};
+
+const normalizePurchaseOrderUrgency = (value: unknown): PurchaseOrderUrgency => {
+  if (value === "Critical" || value === "High" || value === "Medium" || value === "Low") {
+    return value;
+  }
+  return "Low";
+};
+
+const normalizeConfidenceLabel = (
+  value: unknown,
+): PurchaseOrderItem["confidenceLabel"] => {
+  if (value === "High" || value === "Medium" || value === "Low") return value;
+  return "Low";
+};
+
+const normalizePurchaseOrderItem = (entry: unknown): PurchaseOrderItem => {
+  const row = asRecord(entry);
+  return {
+    id: asString(row.id ?? row._id),
+    name: asString(row.name, "N/A"),
+    sku: asString(row.sku),
+    category: asString(row.category, "General"),
+    currentStock: asNumber(row.currentStock),
+    avgDailySales: asNumber(row.avgDailySales),
+    totalSoldLast30Days: asNumber(row.totalSoldLast30Days),
+    daysOfStock: row.daysOfStock == null ? null : asNumber(row.daysOfStock),
+    recommendedQty: asNumber(row.recommendedQty),
+    urgency: normalizePurchaseOrderUrgency(row.urgency),
+    confidence: asNumber(row.confidence),
+    confidenceLabel: normalizeConfidenceLabel(row.confidenceLabel),
+    reason: asString(row.reason),
   };
 };
 
@@ -385,6 +438,9 @@ const normalizeAnalytics = (value: unknown): AnalyticsSummary => {
       : [],
     recommendations: Array.isArray(item.recommendations)
       ? item.recommendations.map((entry) => asString(entry))
+      : [],
+    purchaseOrder: Array.isArray(item.purchaseOrder)
+      ? item.purchaseOrder.map(normalizePurchaseOrderItem)
       : [],
     monthlyProfitTrends: Array.isArray(item.monthlyProfitTrends)
       ? item.monthlyProfitTrends.map((entry) => {

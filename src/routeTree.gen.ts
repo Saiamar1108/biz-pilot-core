@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as PurchaseOrdersRouteImport } from './routes/purchase-orders'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as InventoryRouteImport } from './routes/inventory'
 import { Route as DashboardRouteImport } from './routes/dashboard'
@@ -23,6 +24,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseOrdersRoute = PurchaseOrdersRouteImport.update({
+  id: '/purchase-orders',
+  path: '/purchase-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvoicesRoute = InvoicesRouteImport.update({
@@ -81,6 +87,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesByTo {
@@ -93,6 +100,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRoutesById {
@@ -106,6 +114,7 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
@@ -120,6 +129,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inventory'
     | '/invoices'
+    | '/purchase-orders'
     | '/settings'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -132,6 +142,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inventory'
     | '/invoices'
+    | '/purchase-orders'
     | '/settings'
   id:
     | '__root__'
@@ -144,6 +155,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/inventory'
     | '/invoices'
+    | '/purchase-orders'
     | '/settings'
   fileRoutesById: FileRoutesById
 }
@@ -157,6 +169,7 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
+  PurchaseOrdersRoute: typeof PurchaseOrdersRoute
   SettingsRoute: typeof SettingsRoute
 }
 
@@ -167,6 +180,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-orders': {
+      id: '/purchase-orders'
+      path: '/purchase-orders'
+      fullPath: '/purchase-orders'
+      preLoaderRoute: typeof PurchaseOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/invoices': {
@@ -245,6 +265,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
+  PurchaseOrdersRoute: PurchaseOrdersRoute,
   SettingsRoute: SettingsRoute,
 }
 export const routeTree = rootRouteImport
