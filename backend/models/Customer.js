@@ -24,6 +24,7 @@ const customerSchema = new mongoose.Schema(
     status: { type: String, enum: ["vip", "regular", "new"], default: "new" },
     lastOrder: { type: Date, default: Date.now },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
+    isDemoData: { type: Boolean, default: false, index: true },
   },
   { timestamps: true },
 );

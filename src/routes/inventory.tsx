@@ -17,7 +17,6 @@ import { Toaster } from "@/components/ui/sonner";
 import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText, formatExpiryDate } from "@/lib/inventory";
 import { PurchaseOrderGenerator } from "@/components/inventory/PurchaseOrderGenerator";
 import { requireAuth } from "@/lib/auth-guard";
-import { onboardingTargetIds } from "@/lib/onboarding-tour";
 
 export const Route = createFileRoute("/inventory")({
   beforeLoad: requireAuth,
@@ -119,7 +118,7 @@ function InventoryPage() {
   );
 
   const resetForm = () => {
-    setForm({ name: "", sku: "", category: "", stock: "", price: "" });
+    setForm({ name: "", sku: "", category: "", stock: "", price: "", barcode: "", expiryDate: "" });
     setEditingProductId(null);
   };
 
@@ -289,7 +288,6 @@ function InventoryPage() {
               }}>
                 <DialogTrigger asChild>
                   <Button
-                    id={onboardingTargetIds.createProduct}
                     className="gradient-primary text-primary-foreground shrink-0"
                   >
                     <Plus className="h-4 w-4 mr-1" /> Add Product

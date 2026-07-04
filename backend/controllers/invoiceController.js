@@ -12,7 +12,6 @@ const {
 } = require("../utils/calculateInvoice");
 
 const { recalculateCustomerMetrics } = require("../services/customerMetrics");
-const { ensureDemoData } = require("../utils/demoData");
 const { createNotification } = require("../services/notificationService");
 const { calculateFinancialSummary } = require("../services/financialSummary");
 const {
@@ -20,6 +19,8 @@ const {
   getShopIdForCreate,
   mergeWithShopFilter,
 } = require("../utils/tenantScope");
+
+const { getSettingsDocument } = require("../controllers/settingsController");
 
 async function refreshOverdueInvoices() {
   await Invoice.updateMany(
@@ -34,7 +35,6 @@ async function refreshOverdueInvoices() {
 }
 
 exports.getInvoices = asyncHandler(async (req, res) => {
-  await ensureDemoData(req.shopId);
   await refreshOverdueInvoices();
 
   const { status, customer } = req.query;
@@ -58,8 +58,6 @@ exports.getInvoices = asyncHandler(async (req, res) => {
 });
 
 exports.getInvoiceSummary = asyncHandler(async (req, res) => {
-  await ensureDemoData(req.shopId);
-
   const { status } = req.query;
   const shopFilter = await buildShopReadFilter(req);
   const extraFilter = status ? { status } : {};
@@ -79,6 +77,11 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     lineItems: rawItems,
     status,
     taxRate,
+    taxMode,
+    taxEnabled,
+    discount: invoiceDiscount,
+    discountType: invoiceDiscountType,
+    dueDate,
   } = req.body;
 
   if (!customerId || !rawItems?.length) {
@@ -94,11 +97,20 @@ exports.createInvoice = asyncHandler(async (req, res) => {
   }
 
   const lineItems = await buildLineItems(rawItems);
+  const shopSettings = await getSettingsDocument(req);
 
-  const rate = taxRate ?? env.taxRate;
-  const { subtotal, tax, total } = calculateInvoiceTotals(
+  // Use shop settings if not provided in request
+  const calculatedTaxEnabled = taxEnabled ?? shopSettings.taxEnabled ?? true;
+  const calculatedTaxRate = taxRate ?? shopSettings.taxRate ?? env.taxRate;
+  const calculatedTaxMode = taxMode ?? shopSettings.taxMode ?? "cgst-sgst";
+
+  const { subtotal, tax, total, totalDiscount, taxMode: finalTaxMode, cgst, sgst, igst, taxEnabled: finalTaxEnabled } = calculateInvoiceTotals(
     lineItems,
-    rate
+    calculatedTaxRate,
+    invoiceDiscount ?? 0,
+    invoiceDiscountType ?? "flat",
+    calculatedTaxMode,
+    calculatedTaxEnabled
   );
 
   const invoiceNumber = await generateInvoiceNumber();
@@ -109,16 +121,23 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     customerName: customer.name,
     lineItems,
     subtotal,
-    taxRate: rate,
+    taxRate: calculatedTaxRate,
     tax,
+    taxEnabled: finalTaxEnabled,
+    taxMode: finalTaxMode,
+    cgst,
+    sgst,
+    igst,
+    discount: invoiceDiscount ?? 0,
+    discountType: invoiceDiscountType ?? "flat",
     total,
     shopId: getShopIdForCreate(req),
     paidAmount: status === "paid" ? total : 0,
     pendingAmount: status === "paid" ? 0 : total,
     paidAt: status === "paid" ? new Date() : null,
     status: status || "pending",
-    dueDate: req.body.dueDate
-      ? new Date(req.body.dueDate)
+    dueDate: dueDate
+      ? new Date(dueDate)
       : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   });
 
@@ -291,6 +310,96 @@ exports.updateInvoicePayment = asyncHandler(async (req, res) => {
 
   await invoice.save();
 
+  await recalculateCustomerMetrics(invoice.customer);
+
+  if (invoice.status === "paid") {
+    await createNotification({
+      type: "payment_received",
+      message: `Payment received ₹${Math.round(total).toLocaleString(
+        "en-IN"
+      )} from ${invoice.customerName}`,
+      relatedId: invoice.invoiceNumber,
+      key: `payment-${invoice.invoiceNumber}`,
+    });
+  }
+
+  const populated = await Invoice.findById(invoice._id).populate(
+    "customer",
+    "name email phone address gstNumber"
+  );
+
+  res.json({
+    success: true,
+    data: populated,
+  });
+});
+
+exports.addInvoicePayment = asyncHandler(async (req, res) => {
+  const { amount, paymentMethod, note } = req.body;
+
+  const identifier = String(req.params.id || "").trim();
+
+  const lookup = [{ invoiceNumber: identifier }];
+
+  if (mongoose.Types.ObjectId.isValid(identifier)) {
+    lookup.unshift({ _id: identifier });
+  }
+
+  let invoice = await Invoice.findOne({
+    $or: lookup,
+  });
+
+  if (!invoice) {
+    const legacy = await Invoice.collection.findOne({
+      id: identifier,
+    });
+
+    if (legacy?._id) {
+      invoice = await Invoice.findById(legacy._id);
+    }
+  }
+
+  if (!invoice) {
+    res.status(404);
+    throw new Error("Invoice not found");
+  }
+
+  const total = Number(invoice.total ?? invoice.amount ?? 0);
+  const currentPaid = Number(invoice.paidAmount ?? 0);
+  const pending = Math.max(0, total - currentPaid);
+  const paymentAmount = Number(amount ?? 0);
+
+  if (!Number.isFinite(paymentAmount) || paymentAmount <= 0) {
+    res.status(400);
+    throw new Error("Payment amount must be greater than 0");
+  }
+
+  if (paymentAmount > pending) {
+    res.status(400);
+    throw new Error("Payment amount cannot exceed remaining balance");
+  }
+
+  const newPaidAmount = currentPaid + paymentAmount;
+  const newPendingAmount = Math.max(0, total - newPaidAmount);
+  const method = typeof paymentMethod === "string" ? paymentMethod.trim() : "";
+
+  invoice.paidAmount = newPaidAmount;
+  invoice.pendingAmount = newPendingAmount;
+  invoice.paidAt = new Date();
+  if (method) {
+    invoice.paymentMethod = method;
+  }
+  invoice.status = newPendingAmount === 0 ? "paid" : newPaidAmount > 0 ? "partial" : invoice.status;
+
+  invoice.paymentHistory = invoice.paymentHistory || [];
+  invoice.paymentHistory.push({
+    amount: paymentAmount,
+    method: method || invoice.paymentMethod || "Cash",
+    paidAt: new Date(),
+    note: note || "",
+  });
+
+  await invoice.save();
   await recalculateCustomerMetrics(invoice.customer);
 
   if (invoice.status === "paid") {

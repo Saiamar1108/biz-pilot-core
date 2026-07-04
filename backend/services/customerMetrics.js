@@ -109,8 +109,8 @@ async function recalculateCustomerMetrics(customerId) {
   );
 }
 
-async function recalculateAllCustomerMetrics() {
-  const customers = await Customer.find().select("_id").lean();
+async function recalculateAllCustomerMetrics(filter = {}) {
+  const customers = await Customer.find(filter).select("_id").lean();
   const results = await Promise.allSettled(
     customers.map((customer) => recalculateCustomerMetrics(customer._id)),
   );

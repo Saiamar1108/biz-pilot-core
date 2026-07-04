@@ -1,4 +1,5 @@
 const Setting = require("../models/Setting");
+const Shop = require("../models/Shop");
 const asyncHandler = require("../middlewares/asyncHandler");
 const env = require("../config/env");
 
@@ -17,23 +18,23 @@ async function getSettingsDocument(req) {
   ).lean();
 }
 
-function normalizeSettings(settings) {
+function normalizeSettings(settings, shop) {
   return {
     profile: {
-      fullName: settings.profile?.fullName || "A. Sai Amar Chaitanya",
-      email: settings.profile?.email || "asaiamar@shoppilot.ai",
-      phone: settings.profile?.phone || "+91 75696 81350",
+      fullName: settings.profile?.fullName || "",
+      email: settings.profile?.email || "",
+      phone: settings.profile?.phone || "",
       timezone: settings.profile?.timezone || "Asia/Kolkata",
       imageDataUrl: settings.profile?.imageDataUrl || "",
     },
     business: {
-      storeName: settings.business?.storeName || "SaiMart Retail",
-      ownerName: settings.business?.ownerName || "A. Sai Amar Chaitanya",
-      gstNumber: settings.business?.gstNumber || "37ABCDE1234F1Z5",
-      phone: settings.business?.phone || "+91 7569681350",
-      email: settings.business?.email || "support@saimart.in",
-      address: settings.business?.address || "Vijayawada, Andhra Pradesh",
-      category: settings.business?.category || "Grocery & Retail",
+      storeName: settings.business?.storeName || "",
+      ownerName: settings.business?.ownerName || "",
+      gstNumber: settings.business?.gstNumber || "",
+      phone: settings.business?.phone || "",
+      email: settings.business?.email || "",
+      address: settings.business?.address || "",
+      category: settings.business?.category || "",
       logoDataUrl: settings.business?.logoDataUrl || "",
       upiId: settings.business?.upiId || "",
     },
@@ -43,8 +44,11 @@ function normalizeSettings(settings) {
       paymentReminders: settings.notifications?.paymentReminders ?? true,
       aiInsightsAlerts: settings.notifications?.aiInsightsAlerts ?? false,
     },
-    taxRate: env.taxRate,
-    lowStockThreshold: env.lowStockThreshold,
+    taxEnabled: settings.taxEnabled ?? true,
+    taxMode: settings.taxMode || "cgst-sgst",
+    taxRate: settings.taxRate ?? env.taxRate,
+    lowStockThreshold: settings.lowStockThreshold ?? env.lowStockThreshold,
+    demoSeeded: shop?.demoSeeded === true,
   };
 }
 
@@ -128,9 +132,45 @@ function sanitizeNotifications(notifications = {}) {
   };
 }
 
+function sanitizeTaxSettings(taxSettings = {}) {
+  const validTaxModes = ["cgst-sgst", "igst", "custom", "standard", "none"];
+  
+  const taxMode = taxSettings.taxMode && validTaxModes.includes(taxSettings.taxMode) ? taxSettings.taxMode : "cgst-sgst";
+  const taxEnabled = taxMode !== "none";
+  const taxRate = typeof taxSettings.taxRate === "number" ? Math.max(0, taxSettings.taxRate) : undefined;
+  const lowStockThreshold = typeof taxSettings.lowStockThreshold === "number" ? Math.max(1, taxSettings.lowStockThreshold) : undefined;
+
+  return { taxEnabled, taxMode, taxRate, lowStockThreshold };
+}
+
+exports.updateTaxSettings = asyncHandler(async (req, res) => {
+  const taxSettings = sanitizeTaxSettings(req.body.taxSettings || req.body);
+  const updatePayload = {};
+
+  if (taxSettings.taxEnabled !== undefined) updatePayload.taxEnabled = taxSettings.taxEnabled;
+  if (taxSettings.taxMode) updatePayload.taxMode = taxSettings.taxMode;
+  if (taxSettings.taxRate !== undefined) updatePayload.taxRate = taxSettings.taxRate;
+  if (taxSettings.lowStockThreshold !== undefined) updatePayload.lowStockThreshold = taxSettings.lowStockThreshold;
+
+  const settings = await Setting.findOneAndUpdate(
+    getShopSettingsFilter(req),
+    {
+      $set: updatePayload,
+      $setOnInsert: { key: SETTINGS_KEY, shopId: req.shopId },
+    },
+    { new: true, upsert: true, runValidators: true },
+  ).lean();
+
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
+});
+
 exports.getSettings = asyncHandler(async (req, res) => {
-  const settings = await getSettingsDocument(req);
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const [settings, shop] = await Promise.all([
+    getSettingsDocument(req),
+    Shop.findById(req.shopId).select("demoSeeded").lean(),
+  ]);
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });
 
 exports.updateProfile = asyncHandler(async (req, res) => {
@@ -149,7 +189,8 @@ exports.updateProfile = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });
 
 exports.updateProfileImage = asyncHandler(async (req, res) => {
@@ -176,7 +217,8 @@ exports.updateProfileImage = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });
 
 exports.updateBusiness = asyncHandler(async (req, res) => {
@@ -190,7 +232,8 @@ exports.updateBusiness = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });
 
 exports.updateBusinessLogo = asyncHandler(async (req, res) => {
@@ -217,8 +260,11 @@ exports.updateBusinessLogo = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });
+
+exports.getSettingsDocument = getSettingsDocument;
 
 exports.updateNotifications = asyncHandler(async (req, res) => {
   const notifications = sanitizeNotifications(req.body.notifications || req.body);
@@ -231,5 +277,6 @@ exports.updateNotifications = asyncHandler(async (req, res) => {
     { new: true, upsert: true, runValidators: true },
   ).lean();
 
-  res.json({ success: true, data: normalizeSettings(settings) });
+  const shop = await Shop.findById(req.shopId).select("demoSeeded").lean();
+  res.json({ success: true, data: normalizeSettings(settings, shop) });
 });

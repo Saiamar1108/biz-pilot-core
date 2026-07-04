@@ -11,7 +11,7 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: { type: String, required: false, select: false },
     role: {
       type: String,
       enum: ["owner", "staff", "admin"],
@@ -29,6 +29,10 @@ const userSchema = new mongoose.Schema(
     lockUntil: { type: Date },
     passwordResetToken: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
+    googleId: { type: String, unique: true, sparse: true },
+    authProviders: [{ type: String, enum: ["local", "google"] }],
+    authProvider: { type: String, enum: ["local", "google"], default: "local" },
+    profilePicture: { type: String },
   },
   { timestamps: true },
 );

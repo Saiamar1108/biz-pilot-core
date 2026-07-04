@@ -46,6 +46,10 @@ const shopSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    demoSeeded: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

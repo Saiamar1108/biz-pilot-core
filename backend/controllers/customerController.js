@@ -1,7 +1,6 @@
 const Customer = require("../models/Customer");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
-const { ensureDemoData } = require("../utils/demoData");
 const {
   buildShopReadFilter,
   getShopIdForCreate,
@@ -76,12 +75,11 @@ function normalizeCustomer(customer) {
 }
 
 exports.getCustomers = asyncHandler(async (req, res) => {
-  await ensureDemoData(req.shopId);
   const search = typeof req.query.search === "string" ? req.query.search : "";
   const status = typeof req.query.status === "string" ? req.query.status : "";
   const filters = [];
 
-  await recalculateAllCustomerMetrics();
+  await recalculateAllCustomerMetrics({ shopId: req.shopId });
 
   if (status) {
     filters.push({

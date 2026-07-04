@@ -7,6 +7,7 @@ const {
   updateNotifications,
   updateProfile,
   updateProfileImage,
+  updateTaxSettings,
 } = require("../controllers/settingsController");
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.put("/profile-image", updateProfileImage);
 router.put("/business", updateBusiness);
 router.put("/business-logo", updateBusinessLogo);
 router.put("/notifications", updateNotifications);
+router.put("/tax-settings", updateTaxSettings);
 
 module.exports = router;

@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const env = require("../config/env");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -49,6 +50,10 @@ const settingSchema = new mongoose.Schema(
     profile: { type: profileSchema, default: () => ({}) },
     business: { type: businessSchema, default: () => ({}) },
     notifications: { type: notificationSchema, default: () => ({}) },
+    taxEnabled: { type: Boolean, default: true },
+    taxMode: { type: String, enum: ["cgst-sgst", "igst", "custom", "standard", "none"], default: "cgst-sgst" },
+    taxRate: { type: Number, default: () => env.taxRate, min: 0 },
+    lowStockThreshold: { type: Number, default: () => env.lowStockThreshold, min: 1 },
   },
   { timestamps: true },
 );

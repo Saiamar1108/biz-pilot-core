@@ -9,7 +9,7 @@ import {
 } from "react";
 import {
   fetchCurrentSession,
-  completeOnboarding,
+  googleLoginAccount,
   loginAccount,
   logoutAccount,
   refreshSessionToken,
@@ -30,9 +30,9 @@ type AuthContextValue = {
     shopName?: string;
     rememberMe?: boolean;
   }) => Promise<void>;
+  googleLogin: (idToken: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
-  markOnboardingComplete: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -94,15 +94,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const googleLogin = useCallback(async (idToken: string, rememberMe = false) => {
+    const session = await googleLoginAccount({ idToken, rememberMe });
+    setUser(session.user);
+    setShop(session.shop);
+  }, []);
+
   const logout = useCallback(async () => {
     await logoutAccount();
     setUser(null);
     setShop(null);
-  }, []);
-
-  const markOnboardingComplete = useCallback(async () => {
-    const updatedUser = await completeOnboarding();
-    setUser(updatedUser);
   }, []);
 
   const value = useMemo(
@@ -113,11 +114,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(user && getAccessToken()),
       login,
       register,
+      googleLogin,
       logout,
       refresh: restoreSession,
-      markOnboardingComplete,
     }),
-    [user, shop, loading, login, register, logout, restoreSession, markOnboardingComplete],
+    [user, shop, loading, login, register, googleLogin, logout, restoreSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

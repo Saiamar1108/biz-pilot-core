@@ -1,6 +1,5 @@
 const Product = require("../models/Product");
 const asyncHandler = require("../middlewares/asyncHandler");
-const { ensureDemoData } = require("../utils/demoData");
 const env = require("../config/env");
 const { createNotification } = require("../services/notificationService");
 const {
@@ -10,7 +9,6 @@ const {
 } = require("../utils/tenantScope");
 
 exports.getProducts = asyncHandler(async (req, res) => {
-  await ensureDemoData(req.shopId);
   const { category, search, lowStock } = req.query;
   const extraFilter = {};
 

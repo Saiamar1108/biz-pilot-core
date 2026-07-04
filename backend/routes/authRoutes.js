@@ -8,6 +8,7 @@ const {
   completeOnboarding,
   forgotPassword,
   resetPassword,
+  googleAuth,
 } = require("../controllers/authController");
 const {
   authMiddleware,
@@ -22,6 +23,7 @@ const router = express.Router();
 
 router.post("/register", authActionRateLimiter, register);
 router.post("/login", loginRateLimiter, login);
+router.post("/google", authActionRateLimiter, googleAuth);
 router.post("/refresh", authActionRateLimiter, refresh);
 router.post("/logout", authMiddleware, logout);
 router.get("/me", authMiddleware, shopScopeMiddleware, me);

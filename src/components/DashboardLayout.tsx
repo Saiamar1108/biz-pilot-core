@@ -14,21 +14,25 @@ import {
   Zap,
   Bell,
   CheckCheck,
+  Sun,
+  Moon,
+  Plus,
+  TrendingUp,
+  ShoppingCart,
+  AlertTriangle,
 } from "lucide-react";
+import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem } from "@/lib/api";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem, getInvoices, getProducts, getSettings, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
-import {
-  ONBOARDING_CLOSE_NAV_EVENT,
-  ONBOARDING_OPEN_NAV_EVENT,
-  onboardingTargetIds,
-} from "@/lib/onboarding-tour";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
+import { formatCurrency } from "@/lib/currency";
 
 const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
@@ -45,10 +49,13 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, shop, logout } = useAuth();
+  const { toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+  const [todaySummary, setTodaySummary] = useState({ sales: 0, invoices: 0, pending: 0, lowStock: 0 });
 
   const unreadLabel = useMemo(
     () => (unreadCount > 99 ? "99+" : String(unreadCount)),
@@ -57,40 +64,59 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
 
   useEffect(() => {
     let active = true;
-    const loadNotifications = async () => {
+    const load = async () => {
       try {
-        const data = await getNotifications();
+        const [notifData, invoiceData, productData, settings] = await Promise.all([
+          getNotifications(),
+          getInvoices(),
+          getProducts(),
+          getSettings(),
+        ]);
+        
         if (!active) return;
-        setNotifications(data.notifications);
-        setUnreadCount(data.unreadCount);
+        
+        setNotifications(notifData.notifications);
+        setUnreadCount(notifData.unreadCount);
+
+        // Calculate today's summary
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        
+        const todayInvoices = invoiceData.filter(inv => {
+          const invDate = new Date(inv.createdAt);
+          return invDate >= today && invDate < tomorrow;
+        });
+        
+        const sales = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
+        const pendingInvoices = invoiceData.filter(inv => inv.status === "pending" || inv.status === "partial").length;
+        const threshold = settings.lowStockThreshold ?? 10;
+        const lowStock = productData.filter(p => p.stock <= threshold).length;
+
+        setTodaySummary({
+          sales,
+          invoices: todayInvoices.length,
+          pending: pendingInvoices,
+          lowStock,
+        });
       } catch {
-        // keep header resilient even if notifications fail
+        // keep resilient even if data fails
+      } finally {
+        if (active) setLoadingSummary(false);
       }
     };
 
-    void loadNotifications();
+    void load();
     const interval = window.setInterval(() => {
-      void loadNotifications();
+      void load();
     }, 30000);
-    const refreshHandler = () => void loadNotifications();
+    const refreshHandler = () => void load();
     window.addEventListener(DATA_REFRESH_EVENT, refreshHandler);
     return () => {
       active = false;
       window.clearInterval(interval);
       window.removeEventListener(DATA_REFRESH_EVENT, refreshHandler);
-    };
-  }, []);
-
-  useEffect(() => {
-    const openNav = () => setMobileOpen(true);
-    const closeNav = () => setMobileOpen(false);
-
-    window.addEventListener(ONBOARDING_OPEN_NAV_EVENT, openNav);
-    window.addEventListener(ONBOARDING_CLOSE_NAV_EVENT, closeNav);
-
-    return () => {
-      window.removeEventListener(ONBOARDING_OPEN_NAV_EVENT, openNav);
-      window.removeEventListener(ONBOARDING_CLOSE_NAV_EVENT, closeNav);
     };
   }, []);
 
@@ -113,24 +139,24 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-40 h-screen w-64 shrink-0 border-r border-sidebar-border bg-sidebar transition-transform duration-300",
+          "fixed lg:sticky top-0 left-0 z-40 h-screen w-68 shrink-0 border-r border-border bg-gradient-to-br from-sidebar to-sidebar/80 backdrop-blur-md transition-transform duration-500 ease-out shadow-lg",
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}
       >
         <div className="flex h-full flex-col">
-          <div className="flex items-center justify-between px-6 h-16 border-b border-sidebar-border">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="grid h-9 w-9 place-items-center rounded-xl gradient-primary shadow-glow">
-                <Zap className="h-5 w-5 text-primary-foreground" fill="currentColor" />
+          <div className="flex items-center justify-between px-6 h-18 border-b border-border/50">
+            <Link to="/" className="flex items-center gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-xl gradient-primary shadow-glow transition-transform duration-300 hover:scale-105">
+                <Zap className="h-5.5 w-5.5 text-primary-foreground" fill="currentColor" />
               </div>
-              <span className="font-display text-lg font-bold tracking-tight">ShopPilot AI</span>
+              <span className="font-display text-xl font-bold tracking-tight">ShopPilot AI</span>
             </Link>
             <button className="lg:hidden" onClick={() => setMobileOpen(false)}>
-              <X className="h-5 w-5" />
+              <X className="h-5.5 w-5.5" />
             </button>
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+          <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
             {navItems.map((item) => {
               const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
               return (
@@ -138,35 +164,38 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                   key={item.to}
                   to={item.to}
                   onClick={() => setMobileOpen(false)}
-                  id={getNavTourTargetId(item.label)}
                   className={cn(
-                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all",
+                    "group flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 relative overflow-hidden",
                     active
-                      ? "gradient-primary text-primary-foreground shadow-glow"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                      ? "text-primary-foreground shadow-md"
+                      : "text-muted-foreground hover:text-foreground"
                   )}
                 >
-                  <item.icon className="h-4.5 w-4.5 shrink-0" size={18} />
-                  <span>{item.label}</span>
+                  {active && <div className="absolute inset-0 gradient-primary opacity-100" />}
+                  {!active && <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/50 transition-colors duration-300" />}
+                  <item.icon className="h-5 w-5 shrink-0 relative z-10" />
+                  <span className="relative z-10">{item.label}</span>
                 </Link>
               );
             })}
           </nav>
 
-          <div className="p-3 border-t border-sidebar-border space-y-2">
-            <div className="text-xs text-muted-foreground truncate">
-              {shop?.name || "ShopPilot Store"}
+          <div className="p-5 border-t border-border/50 bg-sidebar/90 space-y-3">
+            <div className="space-y-1">
+              <div className="text-sm text-muted-foreground truncate">
+                {shop?.name || "ShopPilot Store"}
+              </div>
+              <div className="text-sm font-medium truncate">{user?.name || "User"}</div>
             </div>
-            <div className="text-xs font-medium truncate">{user?.name || "User"}</div>
             <Button
               variant="outline"
               size="sm"
-              className="w-full"
+              className="w-full transition-all duration-200 hover:bg-destructive hover:text-destructive-foreground"
               onClick={() => {
                 void logout().then(() => navigate({ to: "/login" }));
               }}
             >
-              <LogOut className="h-4 w-4 mr-1" /> Logout
+              <LogOut className="h-4.5 w-4.5 mr-2" /> Logout
             </Button>
           </div>
         </div>
@@ -181,6 +210,54 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
 
       {/* Main */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Daily Summary Bar */}
+        <div className="bg-gradient-to-r from-primary/5 to-accent-brand/5 px-4 md:px-8 py-4 border-b border-border/50">
+          <div className="flex flex-wrap gap-4 md:gap-6 items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="font-display text-lg font-bold text-foreground">Today's Summary</div>
+              <div className="flex gap-4 md:gap-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="h-4.5 w-4.5 text-accent-brand" />
+                  <span className="font-semibold text-accent-brand">{loadingSummary ? "..." : formatCurrency(todaySummary.sales)}</span>
+                  <span className="text-muted-foreground text-sm">Sales</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Receipt className="h-4.5 w-4.5 text-primary" />
+                  <span className="font-semibold text-primary">{loadingSummary ? "..." : todaySummary.invoices}</span>
+                  <span className="text-muted-foreground text-sm">Invoices</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="h-4.5 w-4.5 text-warning" />
+                  <span className="font-semibold text-warning">{loadingSummary ? "..." : todaySummary.pending}</span>
+                  <span className="text-muted-foreground text-sm">Pending</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Package className="h-4.5 w-4.5 text-destructive" />
+                  <span className="font-semibold text-destructive">{loadingSummary ? "..." : todaySummary.lowStock}</span>
+                  <span className="text-muted-foreground text-sm">Low Stock</span>
+                </div>
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="gradient-primary text-primary-foreground">
+                  <Plus className="h-4.5 w-4.5 mr-2" /> Quick Actions
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuItem onClick={() => navigate({ to: '/billing' })}>
+                  <Receipt className="h-4.5 w-4.5 mr-2" /> New Invoice
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: '/inventory' })}>
+                  <ShoppingCart className="h-4.5 w-4.5 mr-2" /> Add Product
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate({ to: '/customers' })}>
+                  <Users className="h-4.5 w-4.5 mr-2" /> Add Customer
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
         <header className="sticky top-0 z-20 h-16 border-b border-border bg-background/80 backdrop-blur-xl">
           <div className="flex items-center justify-between h-full px-4 md:px-8 gap-4">
             <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -195,13 +272,21 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleTheme}
+                className="relative"
+              >
+                <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+              </Button>
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     size="icon"
                     className="relative"
-                    id={onboardingTargetIds.notifications}
                   >
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
@@ -262,20 +347,10 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
       {/* Floating AI button */}
       <Link
         to="/assistant"
-        className="fixed bottom-6 right-6 z-30 h-14 w-14 rounded-2xl gradient-primary shadow-glow grid place-items-center hover:scale-110 transition-transform group"
+        className="fixed bottom-8 right-8 z-30 h-16 w-16 rounded-2xl gradient-primary shadow-glow grid place-items-center hover:scale-110 transition-all duration-300 group"
       >
-        <Bot className="h-6 w-6 text-primary-foreground group-hover:animate-pulse" />
-        <span className="absolute inset-0 rounded-2xl bg-primary/30 animate-ping opacity-30" />
+        <Bot className="h-7 w-7 text-primary-foreground group-hover:animate-pulse" />
       </Link>
     </div>
   );
-}
-
-function getNavTourTargetId(label: string) {
-  if (label === "Inventory") return onboardingTargetIds.productsNav;
-  if (label === "Customers") return onboardingTargetIds.customersNav;
-  if (label === "Invoices") return onboardingTargetIds.invoicesNav;
-  if (label === "Analytics") return onboardingTargetIds.analyticsNav;
-  if (label === "Settings") return onboardingTargetIds.settingsNav;
-  return undefined;
 }

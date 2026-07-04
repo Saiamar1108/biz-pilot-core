@@ -2,7 +2,6 @@ const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const env = require("../config/env");
-const { ensureDemoData } = require("../utils/demoData");
 const { calculateFinancialSummary } = require("./financialSummary");
 const {
   getOutstandingAmount,
@@ -391,8 +390,6 @@ function buildRecommendations({ lowStockItems, pendingAgingAlerts, topProducts }
 }
 
 async function buildAnalytics(options = {}, req = {}) {
-  await ensureDemoData(req.shopId);
-
   const shopFilter = buildShopFilter(req.shopId);
 
   await Invoice.updateMany(

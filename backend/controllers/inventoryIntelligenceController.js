@@ -11,8 +11,9 @@ const {
 } = require("../services/inventoryIntelligence");
 
 exports.getInventoryInsights = asyncHandler(async (req, res) => {
-  const products = await Product.find().lean();
-  const invoices = await Invoice.find().lean();
+  const shopFilter = { shopId: req.shopId };
+  const products = await Product.find(shopFilter).lean();
+  const invoices = await Invoice.find(shopFilter).lean();
 
   const [movementAnalysis, restockPredictions, expiryAlerts, categoryPerformance, stockTurnover] = await Promise.all([
     getProductMovementAnalysis(products),
@@ -113,7 +114,7 @@ exports.getInventoryInsights = asyncHandler(async (req, res) => {
 });
 
 exports.getPurchaseOrder = asyncHandler(async (req, res) => {
-  const products = await Product.find().lean();
+  const products = await Product.find({ shopId: req.shopId }).lean();
   const purchaseOrder = await generatePurchaseOrder(products);
 
   res.json({
@@ -125,7 +126,7 @@ exports.getPurchaseOrder = asyncHandler(async (req, res) => {
 exports.getProductByBarcode = asyncHandler(async (req, res) => {
   const { barcode } = req.params;
 
-  const product = await Product.findOne({ barcode }).lean();
+  const product = await Product.findOne({ barcode, shopId: req.shopId }).lean();
 
   if (!product) {
     return res.json({

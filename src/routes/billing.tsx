@@ -62,9 +62,9 @@ export const Route = createFileRoute("/billing")({
   component: BillingPage,
 });
 
-type Line = { id: number; productId: string; product: string; qty: number; price: number };
+type Line = { id: number; productId: string; product: string; qty: number; price: number; discount: number; discountType: "percentage" | "flat" };
 
-const emptyLine = (): Line => ({ id: Date.now(), productId: "", product: "", qty: 1, price: 0 });
+const emptyLine = (): Line => ({ id: Date.now(), productId: "", product: "", qty: 1, price: 0, discount: 0, discountType: "flat" });
 
 function stockTone(stock: number) {
   if (stock <= 2) return "text-destructive bg-destructive/10 border-destructive/20";
@@ -87,6 +87,9 @@ function BillingPage() {
   const [taxRate, setTaxRate] = useState(0.08);
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [invoiceDiscount, setInvoiceDiscount] = useState(0);
+  const [invoiceDiscountType, setInvoiceDiscountType] = useState<"percentage" | "flat">("flat");
+  const [taxMode, setTaxMode] = useState<"cgst-sgst" | "igst" | "standard" | "custom" | "none">("standard");
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [customerForm, setCustomerForm] = useState<CustomerPayload>({
     name: "",
@@ -138,6 +141,7 @@ function BillingPage() {
         setCustomers(customerData);
         setProducts(productData);
         setTaxRate(settings.taxRate);
+        setTaxMode(settings.taxMode);
         setBusiness(settings.business);
       } catch (err) {
         if (!active) return;
@@ -212,9 +216,52 @@ function BillingPage() {
 
   const displayInvoiceNumber = completedInvoice?.id ?? "Pending";
   const taxPercentLabel = `${Math.round(taxRate * 100)}%`;
-  const subtotal = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
+
+  // Calculate totals with discounts and GST
+  let subtotal = 0;
+  let totalItemDiscount = 0;
+  for (const line of lines) {
+    const itemSubtotal = line.qty * line.price;
+    subtotal += itemSubtotal;
+    let itemDiscountAmount = 0;
+    if (line.discountType === "percentage") {
+      itemDiscountAmount = itemSubtotal * (line.discount / 100);
+    } else {
+      itemDiscountAmount = line.discount;
+    }
+    totalItemDiscount += itemDiscountAmount;
+  }
+
+  const afterItemDiscounts = subtotal - totalItemDiscount;
+  let invoiceDiscountAmount = 0;
+  if (invoiceDiscountType === "percentage") {
+    invoiceDiscountAmount = afterItemDiscounts * (invoiceDiscount / 100);
+  } else {
+    invoiceDiscountAmount = invoiceDiscount;
+  }
+  const totalDiscount = totalItemDiscount + invoiceDiscountAmount;
+  const afterAllDiscounts = Math.max(0, subtotal - totalDiscount);
+
+  let cgst = 0;
+  let sgst = 0;
+  let igst = 0;
+  let tax = 0;
+
+  if (taxMode !== "none") {
+    if (taxMode === "cgst-sgst") {
+      const halfRate = taxRate / 2;
+      cgst = afterAllDiscounts * halfRate;
+      sgst = cgst;
+      tax = cgst + sgst;
+    } else if (taxMode === "igst") {
+      igst = afterAllDiscounts * taxRate;
+      tax = igst;
+    } else {
+      tax = afterAllDiscounts * taxRate;
+    }
+  }
+
+  const total = afterAllDiscounts + tax;
 
   const selectedCustomer = useMemo(
     () => customers.find((item) => item.id === customer),
@@ -321,6 +368,8 @@ function BillingPage() {
       product: product.name,
       qty: Math.min(product.stock || 1, 1),
       price: product.price,
+      discount: 0,
+      discountType: "flat",
     });
   };
 
@@ -331,6 +380,8 @@ function BillingPage() {
         product: line.productId,
         quantity: line.qty,
         unitPrice: line.price,
+        discount: line.discount,
+        discountType: line.discountType,
       }));
 
   const toggleVoice = () => {
@@ -395,6 +446,8 @@ function BillingPage() {
           product: item.productName,
           qty: item.quantity,
           price: product?.price ?? item.unitPrice,
+          discount: item.discount,
+          discountType: item.discountType,
         };
       }),
     );
@@ -409,10 +462,10 @@ function BillingPage() {
     
     try {
       setScanningBarcode(true);
-      const response = await getProductByBarcode(barcodeInput.trim());
+      const apiResponse = await getProductByBarcode(barcodeInput.trim());
       
-      if (response.found && response.data) {
-        const product = response.data;
+      if (apiResponse.data.found && apiResponse.data.data) {
+        const product = apiResponse.data.data;
         // Check if product already in cart
         const existingLine = lines.find(line => line.productId === product.id);
         
@@ -484,10 +537,13 @@ function BillingPage() {
       setError(null);
       setMessage(null);
       const created = await createInvoice({
-        customer,
-        taxRate,
-        lineItems: buildPayloadLines(),
-      });
+          customer,
+          taxRate,
+          taxMode,
+          lineItems: buildPayloadLines(),
+          discount: invoiceDiscount,
+          discountType: invoiceDiscountType,
+        });
       finalizeInvoice(created);
       setMessage("Invoice created successfully.");
       await refreshCatalog();
@@ -530,7 +586,10 @@ function BillingPage() {
       const created = await createInvoice({
         customer,
         taxRate,
+        taxMode,
         lineItems: buildPayloadLines(),
+        discount: invoiceDiscount,
+        discountType: invoiceDiscountType,
         status: "sent",
       });
       finalizeInvoice(created);
@@ -656,8 +715,10 @@ function BillingPage() {
               id: Date.now() + Math.random(),
               productId: line.productId,
               product: line.productName,
-              qty: safeQty,
+              qty: line.qty,
               price: line.price,
+              discount: 0,
+              discountType: "flat",
             });
           }
         }
@@ -886,10 +947,47 @@ function BillingPage() {
                           className="bg-background"
                         />
                       </div>
+                      <div className="flex gap-2 items-end">
+                        <div className="min-w-[100px]">
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Discount</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            step={0.01}
+                            value={line.discount}
+                            onChange={(e) => updateLine(line.id, { discount: +e.target.value })}
+                            className="bg-background"
+                          />
+                        </div>
+                        <div className="min-w-[100px]">
+                          <Label className="text-xs text-muted-foreground mb-1.5 block">Type</Label>
+                          <Select
+                            value={line.discountType}
+                            onValueChange={(val: "percentage" | "flat") => updateLine(line.id, { discountType: val })}
+                          >
+                            <SelectTrigger className="bg-background">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="flat">Flat</SelectItem>
+                              <SelectItem value="percentage">%</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <div className="text-right">
                         <Label className="text-xs text-muted-foreground mb-1.5 block">Line Total</Label>
                         <div className="font-semibold font-display h-9 flex items-center">
-                          {formatCurrency(line.qty * line.price)}
+                          {(() => {
+                            const itemSubtotal = line.qty * line.price;
+                            let itemDiscountAmount = 0;
+                            if (line.discountType === "percentage") {
+                              itemDiscountAmount = itemSubtotal * (line.discount / 100);
+                            } else {
+                              itemDiscountAmount = line.discount;
+                            }
+                            return formatCurrency(Math.max(0, itemSubtotal - itemDiscountAmount));
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -923,10 +1021,69 @@ function BillingPage() {
                 <span className="text-muted-foreground">Subtotal</span>
                 <span className="font-medium">{formatCurrency(subtotal)}</span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">GST ({taxPercentLabel})</span>
-                <span className="font-medium">{formatCurrency(tax)}</span>
+              {totalItemDiscount > 0 && (
+                <div className="flex justify-between text-warning">
+                  <span>Item Discounts</span>
+                  <span className="font-medium">-{formatCurrency(totalItemDiscount)}</span>
+                </div>
+              )}
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 min-w-[100px]">
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Invoice Discount</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      min={0}
+                      step={0.01}
+                      value={invoiceDiscount}
+                      onChange={(e) => setInvoiceDiscount(+e.target.value)}
+                      className="bg-background"
+                    />
+                    <Select
+                      value={invoiceDiscountType}
+                      onValueChange={(val: "percentage" | "flat") => setInvoiceDiscountType(val)}
+                    >
+                      <SelectTrigger className="w-[100px] bg-background">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="flat">Flat</SelectItem>
+                        <SelectItem value="percentage">%</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
               </div>
+              {invoiceDiscountAmount > 0 && (
+                <div className="flex justify-between text-warning">
+                  <span>Invoice Discount</span>
+                  <span className="font-medium">-{formatCurrency(invoiceDiscountAmount)}</span>
+                </div>
+              )}
+              {taxMode !== "none" && (
+                taxMode === "cgst-sgst" ? (
+                  <>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">CGST ({Math.round((taxRate / 2) * 100)}%)</span>
+                      <span className="font-medium">{formatCurrency(cgst)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">SGST ({Math.round((taxRate / 2) * 100)}%)</span>
+                      <span className="font-medium">{formatCurrency(sgst)}</span>
+                    </div>
+                  </>
+                ) : taxMode === "igst" ? (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">IGST ({taxPercentLabel})</span>
+                    <span className="font-medium">{formatCurrency(igst)}</span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Tax ({taxPercentLabel})</span>
+                    <span className="font-medium">{formatCurrency(tax)}</span>
+                  </div>
+                )
+              )}
               <div className="flex justify-between pt-2 border-t border-border text-base">
                 <span className="font-semibold">Total</span>
                 <span className="font-bold font-display">{formatCurrency(total)}</span>
@@ -977,20 +1134,35 @@ function BillingPage() {
             <div className="space-y-2 mb-6 max-h-56 overflow-y-auto">
               {lines
                 .filter((line) => line.product)
-                .map((line) => (
-                  <div
-                    key={line.id}
-                    className="flex justify-between text-sm py-2 border-b border-border/60 last:border-0"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium truncate">{line.product}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {line.qty} × {formatCurrency(line.price)}
+                .map((line) => {
+                  const itemSubtotal = line.qty * line.price;
+                  let itemDiscountAmount = 0;
+                  if (line.discountType === "percentage") {
+                    itemDiscountAmount = itemSubtotal * (line.discount / 100);
+                  } else {
+                    itemDiscountAmount = line.discount;
+                  }
+                  const lineTotal = Math.max(0, itemSubtotal - itemDiscountAmount);
+                  return (
+                    <div
+                      key={line.id}
+                      className="flex justify-between text-sm py-2 border-b border-border/60 last:border-0"
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="font-medium truncate">{line.product}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {line.qty} × {formatCurrency(line.price)}
+                          {itemDiscountAmount > 0 && (
+                            <span className="ml-2 text-warning">
+                              (-{line.discountType === "percentage" ? `${line.discount}%` : formatCurrency(line.discount)})
+                            </span>
+                          )}
+                        </div>
                       </div>
+                      <div className="font-semibold shrink-0 ml-3">{formatCurrency(lineTotal)}</div>
                     </div>
-                    <div className="font-semibold shrink-0 ml-3">{formatCurrency(line.qty * line.price)}</div>
-                  </div>
-                ))}
+                  );
+                })}
             </div>
 
             <div className="rounded-xl gradient-primary text-primary-foreground p-4 flex justify-between items-center">

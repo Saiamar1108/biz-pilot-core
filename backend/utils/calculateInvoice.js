@@ -1,11 +1,63 @@
 const env = require("../config/env");
 
-function calculateInvoiceTotals(lineItems, taxRate = env.taxRate) {
-  const subtotal = lineItems.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = parseFloat((subtotal * taxRate).toFixed(2));
-  const total = parseFloat((subtotal + tax).toFixed(2));
+function calculateInvoiceTotals(lineItems, taxRate = env.taxRate, invoiceDiscount = 0, invoiceDiscountType = "flat", taxMode = "standard", taxEnabled = true) {
+  let subtotal = 0;
+  let totalItemDiscount = 0;
 
-  return { subtotal, taxRate, tax, total };
+  // Calculate subtotal and total item discounts
+  for (const item of lineItems) {
+    const itemSubtotal = item.quantity * item.unitPrice;
+    subtotal += itemSubtotal;
+
+    let itemDiscountAmount = 0;
+    if (item.discountType === "percentage") {
+      itemDiscountAmount = itemSubtotal * (item.discount / 100);
+    } else {
+      itemDiscountAmount = item.discount;
+    }
+    totalItemDiscount += parseFloat(itemDiscountAmount.toFixed(2));
+  }
+
+  const afterItemDiscounts = subtotal - totalItemDiscount;
+
+  // Calculate invoice discount
+  let invoiceDiscountAmount = 0;
+  if (invoiceDiscountType === "percentage") {
+    invoiceDiscountAmount = afterItemDiscounts * (invoiceDiscount / 100);
+  } else {
+    invoiceDiscountAmount = invoiceDiscount;
+  }
+  const totalDiscount = parseFloat((totalItemDiscount + invoiceDiscountAmount).toFixed(2));
+
+  const afterAllDiscounts = Math.max(0, subtotal - totalDiscount);
+
+  // Calculate GST components
+  let cgst = 0, sgst = 0, igst = 0;
+  let tax = 0;
+  
+  // Adjust taxEnabled based on taxMode
+  const effectiveTaxEnabled = taxMode !== "none" && taxEnabled;
+  
+  if (effectiveTaxEnabled) {
+    if (taxMode === "cgst-sgst") {
+      // CGST and SGST are each half the total tax rate
+      const halfRate = taxRate / 2;
+      cgst = parseFloat((afterAllDiscounts * halfRate).toFixed(2));
+      sgst = cgst;
+      tax = parseFloat((cgst + sgst).toFixed(2));
+    } else if (taxMode === "igst") {
+      // IGST is full tax rate
+      igst = parseFloat((afterAllDiscounts * taxRate).toFixed(2));
+      tax = igst;
+    } else {
+      // Standard or Custom mode
+      tax = parseFloat((afterAllDiscounts * taxRate).toFixed(2));
+    }
+  }
+
+  const total = parseFloat((afterAllDiscounts + tax).toFixed(2));
+
+  return { subtotal, taxRate, tax, total, totalItemDiscount, totalDiscount, taxMode, cgst, sgst, igst, taxEnabled: effectiveTaxEnabled };
 }
 
 async function buildLineItems(rawItems) {
@@ -39,7 +91,16 @@ async function buildLineItems(rawItems) {
     requestedByProduct.set(String(product._id), cumulativeRequested);
 
     const unitPrice = item.unitPrice ?? product.price;
-    const lineTotal = parseFloat((quantity * unitPrice).toFixed(2));
+    const itemSubtotal = quantity * unitPrice;
+    const itemDiscount = item.discount ?? 0;
+    const itemDiscountType = item.discountType ?? "flat";
+    let itemDiscountAmount = 0;
+    if (itemDiscountType === "percentage") {
+      itemDiscountAmount = itemSubtotal * (itemDiscount / 100);
+    } else {
+      itemDiscountAmount = itemDiscount;
+    }
+    const lineTotal = parseFloat((itemSubtotal - itemDiscountAmount).toFixed(2));
 
     lineItems.push({
       product: product._id,
@@ -49,6 +110,8 @@ async function buildLineItems(rawItems) {
       unitPrice,
       costPrice: Number(product.costPrice ?? unitPrice * 0.7),
       lineTotal,
+      discount: itemDiscount,
+      discountType: itemDiscountType,
     });
   }
 

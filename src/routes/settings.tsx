@@ -5,21 +5,26 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { type ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   getSettings,
+  resetDemoData,
   updateBusiness,
   updateBusinessLogo,
   updateNotifications,
   updateProfile,
   updateProfileImage,
+  updateTaxSettings,
   type BusinessProfile,
   type NotificationSettings,
   type SettingsProfile,
 } from "@/lib/api";
 import { requireAuth } from "@/lib/auth-guard";
-import { useOnboarding } from "@/contexts/OnboardingContext";
+import { emitDataRefresh } from "@/lib/live-refresh";
+import { useTheme } from "@/contexts/ThemeContext";
+import { Moon, Sun } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: requireAuth,
@@ -28,7 +33,7 @@ export const Route = createFileRoute("/settings")({
 });
 
 function SettingsPage() {
-  const { replayTutorial } = useOnboarding();
+  const { theme, toggleTheme } = useTheme();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const [profile, setProfile] = useState<SettingsProfile>({
@@ -55,11 +60,17 @@ function SettingsPage() {
     logoDataUrl: "",
     upiId: "",
   });
+  const [taxEnabled, setTaxEnabled] = useState(true);
+  const [taxMode, setTaxMode] = useState<"cgst-sgst" | "igst" | "custom" | "standard" | "none">("cgst-sgst");
+  const [taxRate, setTaxRate] = useState<number>(0);
+  const [lowStockThreshold, setLowStockThreshold] = useState<number>(10);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingImage, setSavingImage] = useState(false);
   const [savingBusiness, setSavingBusiness] = useState(false);
   const [savingLogo, setSavingLogo] = useState(false);
   const [savingNotifications, setSavingNotifications] = useState(false);
+  const [resettingDemo, setResettingDemo] = useState(false);
+  const [demoSeeded, setDemoSeeded] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -72,6 +83,11 @@ function SettingsPage() {
         setProfile(settings.profile);
         setBusiness(settings.business);
         setNotifications(settings.notifications);
+        setTaxEnabled(settings.taxEnabled);
+        setTaxMode(settings.taxMode);
+        setTaxRate(settings.taxRate);
+        setLowStockThreshold(settings.lowStockThreshold);
+        setDemoSeeded(settings.demoSeeded);
       })
       .catch((err) => {
         if (!active) return;
@@ -235,12 +251,53 @@ function SettingsPage() {
     }
   };
 
+  const saveTaxSettings = async () => {
+    setSavingBusiness(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const settings = await updateTaxSettings({ taxMode, taxRate, lowStockThreshold, taxEnabled: taxMode !== "none" });
+      setTaxMode(settings.taxMode);
+      setTaxRate(settings.taxRate);
+      setTaxEnabled(settings.taxEnabled);
+      setLowStockThreshold(settings.lowStockThreshold);
+      setMessage("Tax settings saved");
+    } catch (err) {
+      setError(getErrorMessage(err, "Unable to save tax settings"));
+    } finally {
+      setSavingBusiness(false);
+    }
+  };
+
+  const resetDemo = async () => {
+    setResettingDemo(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await resetDemoData();
+      const totalDeleted = Object.values(result.deleted).reduce((sum, count) => sum + count, 0);
+      setDemoSeeded(false);
+      setMessage(totalDeleted > 0 ? "Demo data reset" : "No demo data to reset");
+      emitDataRefresh();
+    } catch (err) {
+      setError(getErrorMessage(err, "Unable to reset demo data"));
+    } finally {
+      setResettingDemo(false);
+    }
+  };
+
   return (
     <DashboardLayout title="Settings">
       <div className="max-w-4xl">
         <div className="mb-4 flex justify-end">
-          <Button variant="outline" onClick={replayTutorial}>
-            Replay Tutorial
+          <Button
+            variant="outline"
+            onClick={() => void resetDemo()}
+            disabled={resettingDemo || !demoSeeded}
+          >
+            {resettingDemo ? "Resetting..." : "Reset Demo Data"}
           </Button>
         </div>
 
@@ -248,7 +305,9 @@ function SettingsPage() {
           <TabsList className="mb-6 bg-secondary/60 p-1 h-11">
             <TabsTrigger value="profile">Profile</TabsTrigger>
             <TabsTrigger value="business">Business</TabsTrigger>
+            <TabsTrigger value="tax">Tax</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            <TabsTrigger value="appearance">Appearance</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -394,6 +453,59 @@ function SettingsPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="tax">
+            <div className="glass-card rounded-2xl p-6 space-y-6">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div>
+                  <Label className="mb-2 block">Tax Mode</Label>
+                  <Select
+                    value={taxMode}
+                    onValueChange={(value) => setTaxMode(value as "cgst-sgst" | "igst" | "custom" | "standard" | "none")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No Tax</SelectItem>
+                      <SelectItem value="cgst-sgst">CGST + SGST (Intra-state)</SelectItem>
+                      <SelectItem value="igst">IGST (Inter-state)</SelectItem>
+                      <SelectItem value="standard">Standard (Single Tax)</SelectItem>
+                      <SelectItem value="custom">Custom Tax</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {taxMode !== "none" && (
+                  <div>
+                    <Label className="mb-2 block">Tax Rate</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={taxRate}
+                      onChange={(event) => setTaxRate(Number(event.target.value))}
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label className="mb-2 block">Low Stock Threshold</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={lowStockThreshold}
+                    onChange={(event) => setLowStockThreshold(Number(event.target.value))}
+                  />
+                </div>
+              </div>
+              {(message || error) && (
+                <div className={error ? "text-sm text-destructive" : "text-sm text-accent-brand"}>
+                  {error || message}
+                </div>
+              )}
+              <Button className="gradient-primary text-primary-foreground" onClick={saveTaxSettings} disabled={savingBusiness}>
+                {savingBusiness ? "Saving..." : "Save Tax Settings"}
+              </Button>
+            </div>
+          </TabsContent>
+
           <TabsContent value="notifications">
             <div className="glass-card rounded-2xl p-6 space-y-1">
               {[
@@ -435,6 +547,25 @@ function SettingsPage() {
                   />
                 </div>
               ))}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="appearance">
+            <div className="glass-card rounded-2xl p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="block mb-1">Theme</Label>
+                  <p className="text-sm text-muted-foreground">Switch between light and dark mode</p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={toggleTheme}
+                >
+                  <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                  <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                </Button>
+              </div>
             </div>
           </TabsContent>
         </Tabs>

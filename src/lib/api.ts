@@ -82,6 +82,8 @@ export type Product = {
   stock: number;
   price: number;
   sold: number;
+  barcode?: string;
+  expiryDate?: string;
   stockMovements: Array<{
     type: "added" | "sold" | "adjusted";
     quantity: number;
@@ -123,6 +125,8 @@ export type InvoiceLineItem = {
   unitPrice: number;
   costPrice: number;
   lineTotal: number;
+  discount: number;
+  discountType: "percentage" | "flat";
 };
 
 export type PaymentHistoryEntry = {
@@ -143,7 +147,13 @@ export type Invoice = {
   subtotal: number;
   tax: number;
   taxRate: number;
+  taxEnabled: boolean;
+  taxMode: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
+  cgst: number;
+  sgst: number;
+  igst: number;
   discount: number;
+  discountType: "percentage" | "flat";
   paidAmount: number;
   status: "paid" | "pending" | "partial" | "overdue" | "sent";
   date: string;
@@ -679,7 +689,10 @@ export type AppSettings = {
   business: BusinessProfile;
   notifications: NotificationSettings;
   taxRate: number;
+  taxEnabled: boolean;
+  taxMode: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
   lowStockThreshold: number;
+  demoSeeded: boolean;
 };
 
 type ApiRecord = Record<string, unknown>;
@@ -792,6 +805,12 @@ const normalizeInvoice = (value: unknown): Invoice => {
   const createdAtRaw = item.createdAt ?? item.date;
   const lineItemsRaw = Array.isArray(item.lineItems) ? item.lineItems.map(asRecord) : [];
 
+  const validTaxModes = ["cgst-sgst", "igst", "custom", "standard", "none"] as const;
+  const taxMode = asString(item.taxMode, "cgst-sgst");
+  const validatedTaxMode = validTaxModes.includes(taxMode as any) ? taxMode as Invoice["taxMode"] : "cgst-sgst";
+
+  const taxEnabled = validatedTaxMode !== "none";
+  
   return {
     id: asString(item.invoiceNumber ?? item._id ?? item.id),
     customerId: asString(customer._id ?? customer.id ?? item.customer),
@@ -806,7 +825,13 @@ const normalizeInvoice = (value: unknown): Invoice => {
     subtotal: asNumber(item.subtotal),
     tax: asNumber(item.tax),
     taxRate: asNumber(item.taxRate),
+    taxEnabled,
+    taxMode: validatedTaxMode,
+    cgst: asNumber(item.cgst, 0),
+    sgst: asNumber(item.sgst, 0),
+    igst: asNumber(item.igst, 0),
     discount: asNumber(item.discount),
+    discountType: (item.discountType === "percentage" || item.discountType === "flat" ? item.discountType : "flat") as "percentage" | "flat",
     paidAmount: asNumber(item.paidAmount),
     status: normalizeInvoiceStatus(item.status),
     date: normalizeDate(asString(createdAtRaw)),
@@ -825,6 +850,8 @@ const normalizeInvoice = (value: unknown): Invoice => {
         unitPrice: asNumber(line.unitPrice),
         costPrice: asNumber(line.costPrice),
         lineTotal: asNumber(line.lineTotal),
+        discount: asNumber(line.discount),
+        discountType: (line.discountType === "percentage" || line.discountType === "flat" ? line.discountType : "flat") as "percentage" | "flat",
       };
     }),
     paymentHistory: Array.isArray(item.paymentHistory)
@@ -847,6 +874,12 @@ const normalizeSettings = (value: unknown): AppSettings => {
   const business = asRecord(item.business);
   const notifications = asRecord(item.notifications);
 
+  const validTaxModes = ["cgst-sgst", "igst", "custom", "standard", "none"] as const;
+  const taxMode = asString(item.taxMode, "cgst-sgst");
+  const validatedTaxMode = validTaxModes.includes(taxMode as any) ? taxMode as AppSettings["taxMode"] : "cgst-sgst";
+
+  const taxEnabled = validatedTaxMode !== "none";
+  
   return {
     profile: {
       fullName: asString(profile.fullName),
@@ -872,8 +905,11 @@ const normalizeSettings = (value: unknown): AppSettings => {
       paymentReminders: notifications.paymentReminders !== false,
       aiInsightsAlerts: notifications.aiInsightsAlerts === true,
     },
-    taxRate: asNumber(item.taxRate, 0.08),
+    taxRate: asNumber(item.taxRate, 0.18),
+    taxEnabled,
+    taxMode: validatedTaxMode,
     lowStockThreshold: asNumber(item.lowStockThreshold, 10),
+    demoSeeded: item.demoSeeded === true,
   };
 };
 
@@ -939,11 +975,23 @@ export async function updateInvoicePayment(
   return normalizeInvoice(response.data.data);
 }
 
+export async function addInvoicePayment(
+  invoiceId: string,
+  payload: { amount: number; paymentMethod?: string; note?: string },
+) {
+  const response = await api.post<ApiResponse<unknown>>(`/invoices/${invoiceId}/add-payment`, payload);
+  return normalizeInvoice(response.data.data);
+}
+
 export async function createInvoice(payload: {
   customer: string;
-  lineItems: Array<{ product: string; quantity: number; unitPrice: number }>;
+  lineItems: Array<{ product: string; quantity: number; unitPrice: number; discount?: number; discountType?: "percentage" | "flat" }>;
   status?: string;
   taxRate?: number;
+  taxMode?: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
+  taxEnabled?: boolean;
+  discount?: number;
+  discountType?: "percentage" | "flat";
 }) {
   const response = await api.post<ApiResponse<unknown>>("/invoices", payload);
   return normalizeInvoice(response.data.data);
@@ -1015,11 +1063,35 @@ export async function updateBusinessLogo(logoDataUrl: string) {
   return normalizeSettings(response.data.data);
 }
 
+export async function updateTaxSettings(taxSettings: {
+  taxEnabled?: boolean;
+  taxMode?: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
+  taxRate?: number;
+  lowStockThreshold?: number;
+}) {
+  const response = await api.put<ApiResponse<unknown>>("/settings/tax-settings", { taxSettings });
+  return normalizeSettings(response.data.data);
+}
+
 export async function updateNotifications(notifications: NotificationSettings) {
   const response = await api.put<ApiResponse<unknown>>("/settings/notifications", {
     notifications,
   });
   return normalizeSettings(response.data.data);
+}
+
+export async function seedDemoData() {
+  const response = await api.post<ApiResponse<{ seeded: boolean; counts?: Record<string, number>; message?: string }>>(
+    "/onboarding/seed-demo",
+  );
+  return response.data.data;
+}
+
+export async function resetDemoData() {
+  const response = await api.delete<ApiResponse<{ deleted: Record<string, number> }>>(
+    "/onboarding/demo-data",
+  );
+  return response.data.data;
 }
 
 export async function postAiChat(message: string) {

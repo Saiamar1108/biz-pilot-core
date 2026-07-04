@@ -77,3 +77,12 @@ export async function refreshSessionToken() {
   setAccessToken(response.data.data.accessToken);
   return response.data.data;
 }
+
+export async function googleLoginAccount(payload: {
+  idToken: string;
+  rememberMe?: boolean;
+}) {
+  const response = await api.post<ApiResponse<AuthSession>>("/auth/google", payload);
+  setAccessToken(response.data.data.accessToken);
+  return response.data.data;
+}

@@ -21,7 +21,7 @@ function ForgotPasswordPage() {
     try {
       setLoading(true);
       const result = await requestPasswordReset(email);
-      setDevToken(result.devResetToken || null);
+      setDevToken(result.data.devResetToken || null);
       toast.success(result.message || "Reset instructions sent");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Request failed");

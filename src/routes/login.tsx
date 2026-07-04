@@ -1,7 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useMemo, useState } from "react";
+import { AuthLayout } from "@/components/auth/AuthLayout";
+import { AuthFormField } from "@/components/auth/AuthFormField";
+import {
+  AuthDivider,
+  AuthSubmitButton,
+  GoogleSignInButton,
+} from "@/components/auth/AuthFormExtras";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,7 +15,7 @@ import { toast } from "sonner";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => redirectIfAuthenticated(),
-  head: () => ({ meta: [{ title: "Login — ShopPilot AI" }] }),
+  head: () => ({ meta: [{ title: "Sign in — ShopPilot AI" }] }),
   component: LoginPage,
 });
 
@@ -20,13 +26,30 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [touched, setTouched] = useState({ email: false, password: false });
+
+  const errors = useMemo(() => {
+    const next: { email?: string; password?: string } = {};
+    if (touched.email && !email.trim()) next.email = "Email is required";
+    else if (touched.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      next.email = "Enter a valid email address";
+    }
+    if (touched.password && !password) next.password = "Password is required";
+    return next;
+  }, [email, password, touched]);
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setTouched({ email: true, password: true });
+
+    if (!email.trim() || !password || errors.email) return;
+
     try {
       setLoading(true);
-      await login(email, password, rememberMe);
-      toast.success("Welcome back");
+      await login(email.trim(), password, rememberMe);
+      toast.success("Welcome back", {
+        description: "You are signed in to your shop dashboard.",
+      });
       void navigate({ to: "/dashboard" });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Login failed");
@@ -36,73 +59,88 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
-      <div className="hidden lg:flex flex-col justify-between p-10 bg-primary text-primary-foreground">
-        <div>
-          <div className="text-2xl font-display font-bold">ShopPilot AI</div>
-          <p className="mt-2 text-sm opacity-80">Secure business operations for modern retail.</p>
+    <AuthLayout
+      title="Operate your shop with clarity and control"
+      subtitle="Sign in to manage billing, inventory, customers, and analytics from one secure workspace built for business owners."
+    >
+      <div className="rounded-2xl border border-border/80 bg-card p-6 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.18)] sm:p-8 dark:shadow-[0_16px_40px_-24px_rgba(0,0,0,0.45)]">
+        <div className="mb-6 lg:hidden">
+          <div className="flex items-center gap-2.5">
+            <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
+              <span className="font-display text-sm font-bold">SP</span>
+            </div>
+            <span className="font-display text-base font-semibold">ShopPilot AI</span>
+          </div>
         </div>
-        <div className="space-y-3 text-sm opacity-90">
-          <p>• Multi-store SaaS ready</p>
-          <p>• Billing, inventory, analytics in one place</p>
-          <p>• Enterprise-grade session security</p>
+
+        <div className="mb-6">
+          <h2 className="font-display text-2xl font-semibold tracking-tight">Sign in</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Access your dashboard securely.
+          </p>
         </div>
-      </div>
 
-      <div className="flex items-center justify-center p-6">
-        <form onSubmit={handleSubmit} className="w-full max-w-md space-y-5">
-          <div>
-            <h1 className="text-2xl font-display font-bold">Sign in</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Access your shop dashboard securely.
-            </p>
-          </div>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <AuthFormField
+            label="Email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            onBlur={() => setTouched((prev) => ({ ...prev, email: true }))}
+            error={errors.email}
+            placeholder="you@yourshop.com"
+            disabled={loading}
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+          <AuthFormField
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+            error={errors.password}
+            placeholder="Enter your password"
+            disabled={loading}
+          />
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-            Remember me for 30 days
-          </label>
-
-          <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Signing in…" : "Sign in"}
-          </Button>
-
-          <div className="flex justify-between text-sm">
-            <Link to="/forgot-password" className="text-primary hover:underline">
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="rememberMe"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+                disabled={loading}
+              />
+              <Label htmlFor="rememberMe" className="text-sm font-normal text-muted-foreground">
+                Remember me for 30 days
+              </Label>
+            </div>
+            <Link
+              to="/forgot-password"
+              className="text-sm font-medium text-primary hover:text-primary/80"
+            >
               Forgot password?
             </Link>
-            <Link to="/register" className="text-primary hover:underline">
-              Create account
-            </Link>
           </div>
+
+          <AuthSubmitButton loading={loading}>Sign in</AuthSubmitButton>
+
+          <AuthDivider />
+
+          <GoogleSignInButton disabled={loading} />
+
+          <p className="pt-1 text-center text-sm text-muted-foreground">
+            New to ShopPilot?{" "}
+            <Link to="/register" className="font-medium text-primary hover:text-primary/80">
+              Create an account
+            </Link>
+          </p>
         </form>
       </div>
-    </div>
+    </AuthLayout>
   );
 }

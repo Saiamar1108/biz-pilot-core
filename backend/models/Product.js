@@ -21,6 +21,7 @@ const productSchema = new mongoose.Schema(
     sold: { type: Number, default: 0, min: 0 },
     stockMovements: { type: [movementSchema], default: [] },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
+    isDemoData: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );

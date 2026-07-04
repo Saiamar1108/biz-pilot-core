@@ -121,13 +121,52 @@ export async function generateInvoicePDF({
   pdf.line(margin, cursorY, pageWidth - margin, cursorY);
   cursorY += 22;
 
+  // Calculate total discount
+  let totalItemDiscount = 0;
+  let afterItemDiscounts = invoice.subtotal;
+  for (const line of invoice.lineItems) {
+    const itemSubtotal = line.quantity * line.unitPrice;
+    let itemDiscountAmount = 0;
+    if (line.discountType === "percentage") {
+      itemDiscountAmount = itemSubtotal * (line.discount / 100);
+    } else {
+      itemDiscountAmount = line.discount;
+    }
+    totalItemDiscount += itemDiscountAmount;
+  }
+  afterItemDiscounts = invoice.subtotal - totalItemDiscount;
+  
+  let invoiceDiscountAmount = 0;
+  if (invoice.discountType === "percentage") {
+    invoiceDiscountAmount = afterItemDiscounts * (invoice.discount / 100);
+  } else {
+    invoiceDiscountAmount = invoice.discount;
+  }
+  const totalDiscount = totalItemDiscount + invoiceDiscountAmount;
+
   const summary = [
     ["Subtotal", formatCurrency(invoice.subtotal)],
-    [`Tax (${(invoice.taxRate * 100).toFixed(1)}%)`, formatCurrency(invoice.tax)],
   ];
 
-  if (invoice.discount > 0) {
-    summary.push(["Discount", `-${formatCurrency(invoice.discount)}`]);
+  if (totalItemDiscount > 0) {
+    summary.push(["Item Discounts", `-${formatCurrency(totalItemDiscount)}`]);
+  }
+
+  if (invoiceDiscountAmount > 0) {
+    summary.push(["Invoice Discount", `-${formatCurrency(invoiceDiscountAmount)}`]);
+  }
+
+  if (invoice.taxMode !== "none" && invoice.taxEnabled) {
+    if (invoice.taxMode === "cgst-sgst") {
+      summary.push(
+        [`CGST (${((invoice.taxRate / 2) * 100).toFixed(1)}%)`, formatCurrency(invoice.cgst)],
+        [`SGST (${((invoice.taxRate / 2) * 100).toFixed(1)}%)`, formatCurrency(invoice.sgst)],
+      );
+    } else if (invoice.taxMode === "igst") {
+      summary.push([`IGST (${(invoice.taxRate * 100).toFixed(1)}%)`, formatCurrency(invoice.igst)]);
+    } else {
+      summary.push([`Tax (${(invoice.taxRate * 100).toFixed(1)}%)`, formatCurrency(invoice.tax)]);
+    }
   }
 
   summary.push(

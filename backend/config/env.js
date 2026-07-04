@@ -26,6 +26,8 @@ const env = {
   refreshCookieName: process.env.REFRESH_COOKIE_NAME || "sp_refresh_token",
   refreshCookieMaxAgeMs: sevenDaysMs,
   refreshRememberCookieMaxAgeMs: thirtyDaysMs,
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
 };
 
 module.exports = env;

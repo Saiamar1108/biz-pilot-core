@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { StatCard } from "@/components/StatCard";
 import {
   Receipt,
@@ -20,6 +21,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Plus,
 } from "lucide-react";
 import {
   getCustomers,
@@ -27,6 +29,7 @@ import {
   getInvoiceSummary,
   getSettings,
   updateInvoicePayment,
+  addInvoicePayment,
   type BusinessProfile,
   type Customer,
   type FinancialSummary,
@@ -67,6 +70,7 @@ function InvoicesPage() {
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [newPayment, setNewPayment] = useState<{ amount: string; method: string; note: string }>({ amount: "", method: "Cash", note: "" });
 
   useEffect(() => {
     let active = true;
@@ -165,6 +169,31 @@ function InvoicesPage() {
       toast.success("Invoice marked as paid");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Unable to mark invoice as paid");
+    } finally {
+      setUpdatingInvoiceId(null);
+    }
+  };
+
+  const handleAddPayment = async (invoiceId: string) => {
+    try {
+      setError(null);
+      setUpdatingInvoiceId(invoiceId);
+      const amount = Number(newPayment.amount);
+      const updated = await addInvoicePayment(invoiceId, {
+        amount,
+        paymentMethod: newPayment.method,
+        note: newPayment.note,
+      });
+      setInvoices((current) =>
+        current.map((invoice) => (invoice.id === invoiceId ? updated : invoice)),
+      );
+      const latestSummary = await getInvoiceSummary(status === "all" ? undefined : { status });
+      setSummary(latestSummary);
+      emitDataRefresh();
+      setNewPayment({ amount: "", method: "Cash", note: "" });
+      toast.success("Payment added successfully");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Unable to add payment");
     } finally {
       setUpdatingInvoiceId(null);
     }
@@ -374,11 +403,65 @@ function InvoicesPage() {
                             <div className="space-y-2">
                               {invoice.paymentHistory.map((entry, index) => (
                                 <div key={`${entry.date}-${index}`} className="flex justify-between text-sm rounded-lg border p-2 bg-background">
-                                  <span>{entry.date} · {entry.method}</span>
+                                  <div>
+                                    <span>{entry.date} · {entry.method}</span>
+                                    {entry.note && <p className="text-xs text-muted-foreground mt-0.5">{entry.note}</p>}
+                                  </div>
                                   <span className="font-medium">{formatCurrency(entry.amount)}</span>
                                 </div>
                               ))}
                             </div>
+                          </div>
+                        )}
+
+                        {invoice.status !== "paid" && (
+                          <div className="rounded-lg border p-3 bg-background space-y-3">
+                            <h4 className="text-sm font-semibold">Add Payment</h4>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                              <div>
+                                <Label htmlFor={`payment-amount-${invoice.id}`} className="mb-1 block text-xs">Amount</Label>
+                                <Input
+                                  id={`payment-amount-${invoice.id}`}
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  value={newPayment.amount}
+                                  onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                  placeholder="Amount"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor={`payment-method-${invoice.id}`} className="mb-1 block text-xs">Method</Label>
+                                <Select value={newPayment.method} onValueChange={(v) => setNewPayment({ ...newPayment, method: v })}>
+                                  <SelectTrigger id={`payment-method-${invoice.id}`}>
+                                    <SelectValue placeholder="Payment Method" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="Cash">Cash</SelectItem>
+                                    <SelectItem value="UPI">UPI</SelectItem>
+                                    <SelectItem value="Card">Card</SelectItem>
+                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div>
+                                <Label htmlFor={`payment-note-${invoice.id}`} className="mb-1 block text-xs">Note</Label>
+                                <Input
+                                  id={`payment-note-${invoice.id}`}
+                                  value={newPayment.note}
+                                  onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })}
+                                  placeholder="Note (optional)"
+                                />
+                              </div>
+                            </div>
+                            <Button
+                              size="sm"
+                              onClick={() => handleAddPayment(invoice.id)}
+                              disabled={!newPayment.amount || Number(newPayment.amount) <= 0 || updatingInvoiceId === invoice.id}
+                            >
+                              <Plus className="h-3.5 w-3.5 mr-1" />
+                              {updatingInvoiceId === invoice.id ? "Adding..." : "Add Payment"}
+                            </Button>
                           </div>
                         )}
 

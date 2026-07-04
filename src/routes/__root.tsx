@@ -12,7 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportShopPilotError } from "../lib/error-reporting";
 import { AuthProvider } from "../contexts/AuthContext";
-import { OnboardingProvider } from "../contexts/OnboardingContext";
+import { ThemeProvider } from "../contexts/ThemeContext";
 
 function NotFoundComponent() {
   return (
@@ -117,11 +117,11 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <OnboardingProvider>
+      <ThemeProvider>
+        <AuthProvider>
           <Outlet />
-        </OnboardingProvider>
-      </AuthProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }
