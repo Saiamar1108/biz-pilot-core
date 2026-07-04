@@ -1,11 +1,12 @@
 const express = require("express");
 const { protect } = require("../middlewares/protectApi");
-const router = express.Router();
 const {
   getInventoryInsights,
   getPurchaseOrder,
   getProductByBarcode
 } = require("../controllers/inventoryIntelligenceController");
+
+const router = express.Router();
 
 router.use(protect);
 

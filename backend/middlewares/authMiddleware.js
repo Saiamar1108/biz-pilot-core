@@ -1,4 +1,3 @@
-const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { verifyAccessToken } = require("../utils/tokens");
 const { resolveShopObjectId } = require("../utils/tenantScope");
