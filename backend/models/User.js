@@ -1,64 +1,90 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const userSchema = new mongoose.Schema(
-  {
-    name: { type: String, required: true, trim: true },
-    email: {
-      type: String,
-      required: true,
-      unique: true,
-      lowercase: true,
-      trim: true,
-    },
-    passwordHash: { type: String, required: false, select: false },
-    role: {
-      type: String,
-      enum: ["owner", "staff", "admin"],
-      default: "owner",
-    },
-    shopId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Shop",
-      required: true,
-    },
-    isVerified: { type: Boolean, default: true },
-    onboardingCompleted: { type: Boolean, default: false },
-    lastLogin: { type: Date },
-    failedLoginAttempts: { type: Number, default: 0, min: 0 },
-    lockUntil: { type: Date },
-    passwordResetToken: { type: String, select: false },
-    passwordResetExpires: { type: Date, select: false },
-    googleId: { type: String, unique: true, sparse: true },
-    authProviders: [{ type: String, enum: ["local", "google"] }],
-    authProvider: { type: String, enum: ["local", "google"], default: "local" },
-    profilePicture: { type: String },
-    pinHash: { type: String, required: false, select: false },
-    pinSetAt: { type: Date },
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true,
   },
-  { timestamps: true },
-);
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+  },
+  phone: {
+    type: String,
+    trim: true,
+    default: "",
+  },
+  passwordHash: {
+    type: String,
+    required: true,
+  },
+  role: {
+    type: String,
+    enum: ["owner", "staff"],
+    default: "owner",
+  },
+  shopId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Shop",
+    required: true,
+  },
+  isActive: {
+    type: Boolean,
+    default: true,
+  },
+  isVerified: {
+    type: Boolean,
+    default: true,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+  lastLogin: {
+    type: Date,
+  },
+  failedLoginAttempts: {
+    type: Number,
+    default: 0,
+  },
+  lockUntil: {
+    type: Date,
+  },
+  passwordResetToken: {
+    type: String,
+  },
+  passwordResetExpires: {
+    type: Date,
+  },
+});
 
-userSchema.index({ shopId: 1, email: 1 });
-
-userSchema.methods.comparePassword = function comparePassword(candidate) {
-  return bcrypt.compare(candidate, this.passwordHash);
+// Static method to hash password
+userSchema.statics.hashPassword = async function (password) {
+  const salt = await bcrypt.genSalt(10);
+  return bcrypt.hash(password, salt);
 };
 
-userSchema.methods.isLocked = function isLocked() {
-  return this.lockUntil && this.lockUntil.getTime() > Date.now();
+// Method to check if account is locked
+userSchema.methods.isLocked = function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
-userSchema.methods.hasPassword = function hasPassword() {
-  return Boolean(this.passwordHash);
+// Method to compare password
+userSchema.methods.comparePassword = async function (candidatePassword) {
+  return bcrypt.compare(candidatePassword, this.passwordHash);
 };
 
-userSchema.statics.hashPassword = async function hashPassword(password) {
-  return bcrypt.hash(password, 12);
-};
-
-userSchema.statics.hashPin = async function hashPin(pin) {
-  return bcrypt.hash(pin, 10);
+// Method to generate user response without password
+userSchema.methods.toJSON = function () {
+  const user = this.toObject();
+  delete user.passwordHash;
+  delete user.passwordResetToken;
+  return user;
 };
 
 module.exports = mongoose.model("User", userSchema);

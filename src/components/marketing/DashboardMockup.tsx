@@ -1,11 +1,5 @@
 import { motion } from "framer-motion";
-import {
-  ArrowUpRight,
-  BarChart3,
-  Package,
-  Receipt,
-  TrendingUp,
-} from "lucide-react";
+import { ArrowUpRight, BarChart3, Package, Receipt, TrendingUp } from "lucide-react";
 
 const stats = [
   { label: "Today's sales", value: "₹48,250", change: "+12.4%", icon: TrendingUp },

@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Product } from "@/lib/api";
@@ -60,13 +67,20 @@ export function ProductSearchCombobox({
                     setOpen(false);
                   }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", selected?.id === product.id ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      selected?.id === product.id ? "opacity-100" : "opacity-0",
+                    )}
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm">{product.name}</div>
                     <div className="text-xs text-muted-foreground">
                       {product.sku} · {formatCurrency(product.price)}
                     </div>
-                    <div className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] ${stockBadgeClass(product.stock)}`}>
+                    <div
+                      className={`mt-1 inline-flex rounded-full border px-2 py-0.5 text-[11px] ${stockBadgeClass(product.stock)}`}
+                    >
                       {product.stock} in stock
                     </div>
                   </div>

@@ -1,11 +1,7 @@
 const Customer = require("../models/Customer");
 const asyncHandler = require("../middlewares/asyncHandler");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
-const {
-  buildShopReadFilter,
-  getShopIdForCreate,
-  mergeWithShopFilter,
-} = require("../utils/tenantScope");
+const { ensureDemoData } = require("../utils/demoData");
 
 const PHONE_REGEX = /^[6-9]\d{9}$/;
 
@@ -77,9 +73,9 @@ function normalizeCustomer(customer) {
 exports.getCustomers = asyncHandler(async (req, res) => {
   const search = typeof req.query.search === "string" ? req.query.search : "";
   const status = typeof req.query.status === "string" ? req.query.status : "";
-  const filters = [];
+  const filters = [{ shopId: req.shopId }];
 
-  await recalculateAllCustomerMetrics({ shopId: req.shopId });
+  await recalculateAllCustomerMetrics();
 
   if (status) {
     filters.push({
@@ -98,9 +94,7 @@ exports.getCustomers = asyncHandler(async (req, res) => {
     });
   }
 
-  const shopFilter = await buildShopReadFilter(req);
-  const extraFilter = filters.length ? { $and: filters } : {};
-  const filter = mergeWithShopFilter(shopFilter, extraFilter);
+  const filter = filters.length ? { $and: filters } : { shopId: req.shopId };
   const customers = await Customer.find(filter).sort({ createdAt: -1 }).lean();
   const normalizedCustomers = customers.map(normalizeCustomer);
   res.json({ success: true, count: normalizedCustomers.length, data: normalizedCustomers });
@@ -110,21 +104,20 @@ exports.createCustomer = asyncHandler(async (req, res) => {
   const payload = sanitizeCustomerPayload(req.body);
   const customer = await Customer.create({
     ...payload,
-    shopId: getShopIdForCreate(req),
+    shopId: req.shopId,
   });
   res.status(201).json({ success: true, data: normalizeCustomer(customer.toObject()) });
 });
 
 exports.updateCustomer = asyncHandler(async (req, res) => {
   const payload = sanitizeCustomerPayload(req.body);
-  const shopFilter = await buildShopReadFilter(req);
   const customer = await Customer.findOneAndUpdate(
-    mergeWithShopFilter(shopFilter, { _id: req.params.id }),
+    { _id: req.params.id, shopId: req.shopId },
     payload,
     {
       new: true,
       runValidators: true,
-    },
+    }
   ).lean();
 
   if (!customer) {

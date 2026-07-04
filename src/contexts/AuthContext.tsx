@@ -4,13 +4,12 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useNavigate,
   useState,
   type ReactNode,
 } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   fetchCurrentSession,
-  googleLoginAccount,
   loginAccount,
   logoutAccount,
   refreshSessionToken,
@@ -31,7 +30,6 @@ type AuthContextValue = {
     shopName?: string;
     rememberMe?: boolean;
   }) => Promise<void>;
-  googleLogin: (idToken: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -79,9 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = await loginAccount({ email, password, rememberMe });
     setUser(session.user);
     setShop(session.shop);
-    if (session.user && !session.user.onboardingCompleted) {
-      void navigate({ to: "/pin-setup" });
-    }
+    void navigate({ to: "/dashboard" });
   }, []);
 
   const register = useCallback(
@@ -95,15 +91,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await registerAccount(payload);
       setUser(session.user);
       setShop(session.shop);
+      void navigate({ to: "/dashboard" });
     },
     [],
   );
-
-  const googleLogin = useCallback(async (idToken: string, rememberMe = false) => {
-    const session = await googleLoginAccount({ idToken, rememberMe });
-    setUser(session.user);
-    setShop(session.shop);
-  }, []);
 
   const logout = useCallback(async () => {
     await logoutAccount();
@@ -119,11 +110,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAuthenticated: Boolean(user && getAccessToken()),
       login,
       register,
-      googleLogin,
       logout,
       refresh: restoreSession,
     }),
-    [user, shop, loading, login, register, googleLogin, logout, restoreSession],
+    [user, shop, loading, login, register, logout, restoreSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

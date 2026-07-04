@@ -60,9 +60,7 @@ export function LandingSocialProof() {
               key={stat.label}
               className="rounded-xl border border-border/80 bg-card px-5 py-4 shadow-sm"
             >
-              <p className="font-display text-2xl font-semibold text-foreground">
-                {stat.value}
-              </p>
+              <p className="font-display text-2xl font-semibold text-foreground">{stat.value}</p>
               <p className="mt-1 text-sm text-muted-foreground">{stat.label}</p>
             </div>
           ))}

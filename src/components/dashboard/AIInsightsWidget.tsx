@@ -11,7 +11,10 @@ export function AIInsightsWidget({
   loading?: boolean;
 }) {
   const displayHeadline = headline || "Insights will appear once your store has activity.";
-  const displayInsights = insights.length > 0 ? insights : ["Create invoices and track inventory to unlock AI recommendations."];
+  const displayInsights =
+    insights.length > 0
+      ? insights
+      : ["Create invoices and track inventory to unlock AI recommendations."];
   const [collapsed, setCollapsed] = useState(false);
 
   const getPriorityIcon = (index: number) => {
@@ -43,7 +46,7 @@ export function AIInsightsWidget({
             </div>
             <div className="text-base font-semibold">AI Insights</div>
           </div>
-          <button 
+          <button
             onClick={() => setCollapsed(!collapsed)}
             className="text-white/70 hover:text-white transition-colors"
           >
@@ -58,10 +61,15 @@ export function AIInsightsWidget({
             {!collapsed && (
               <div className="mt-6 space-y-3">
                 {displayInsights.map((s, i) => (
-                  <div key={s} className={`flex items-start gap-3 text-sm bg-white/10 backdrop-blur rounded-xl px-4 py-3 border ${getPriorityClass(i)}`}>
+                  <div
+                    key={s}
+                    className={`flex items-start gap-3 text-sm bg-white/10 backdrop-blur rounded-xl px-4 py-3 border ${getPriorityClass(i)}`}
+                  >
                     {getPriorityIcon(i)}
                     <div className="flex-1">
-                      <div className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">{getPriorityLabel(i)}</div>
+                      <div className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">
+                        {getPriorityLabel(i)}
+                      </div>
                       <div className="text-sm leading-relaxed">{s}</div>
                     </div>
                   </div>

@@ -400,7 +400,9 @@ function CustomersPage() {
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Total pending</div>
-                      <div className="font-semibold text-warning">{currency(customer.pendingAmount)}</div>
+                      <div className="font-semibold text-warning">
+                        {currency(customer.pendingAmount)}
+                      </div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Total billed</div>

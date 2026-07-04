@@ -1,6 +1,13 @@
 const env = require("../config/env");
 
-function calculateInvoiceTotals(lineItems, taxRate = env.taxRate, invoiceDiscount = 0, invoiceDiscountType = "flat", taxMode = "standard", taxEnabled = true) {
+function calculateInvoiceTotals(
+  lineItems,
+  taxRate = env.taxRate,
+  invoiceDiscount = 0,
+  invoiceDiscountType = "flat",
+  taxMode = "standard",
+  taxEnabled = true,
+) {
   let subtotal = 0;
   let totalItemDiscount = 0;
 
@@ -32,12 +39,14 @@ function calculateInvoiceTotals(lineItems, taxRate = env.taxRate, invoiceDiscoun
   const afterAllDiscounts = Math.max(0, subtotal - totalDiscount);
 
   // Calculate GST components
-  let cgst = 0, sgst = 0, igst = 0;
+  let cgst = 0,
+    sgst = 0,
+    igst = 0;
   let tax = 0;
-  
+
   // Adjust taxEnabled based on taxMode
   const effectiveTaxEnabled = taxMode !== "none" && taxEnabled;
-  
+
   if (effectiveTaxEnabled) {
     if (taxMode === "cgst-sgst") {
       // CGST and SGST are each half the total tax rate
@@ -57,16 +66,30 @@ function calculateInvoiceTotals(lineItems, taxRate = env.taxRate, invoiceDiscoun
 
   const total = parseFloat((afterAllDiscounts + tax).toFixed(2));
 
-  return { subtotal, taxRate, tax, total, totalItemDiscount, totalDiscount, taxMode, cgst, sgst, igst, taxEnabled: effectiveTaxEnabled };
+  return {
+    subtotal,
+    taxRate,
+    tax,
+    total,
+    totalItemDiscount,
+    totalDiscount,
+    taxMode,
+    cgst,
+    sgst,
+    igst,
+    taxEnabled: effectiveTaxEnabled,
+  };
 }
 
-async function buildLineItems(rawItems) {
+async function buildLineItems(rawItems, shopId) {
   const Product = require("../models/Product");
   const lineItems = [];
   const requestedByProduct = new Map();
 
   for (const item of rawItems) {
-    const product = await Product.findById(item.product);
+    const product = await Product.findOne(
+      shopId ? { _id: item.product, shopId } : { _id: item.product },
+    );
     if (!product) {
       const error = new Error(`Product not found: ${item.product}`);
       error.statusCode = 404;
@@ -125,9 +148,7 @@ async function generateInvoiceNumber() {
     .sort({ invoiceNumber: -1 })
     .select("invoiceNumber")
     .lean();
-  const latestSequence = latest?.invoiceNumber
-    ? Number(latest.invoiceNumber.split("-").at(-1))
-    : 0;
+  const latestSequence = latest?.invoiceNumber ? Number(latest.invoiceNumber.split("-").at(-1)) : 0;
   return `SP-${year}-${String(latestSequence + 1).padStart(4, "0")}`;
 }
 

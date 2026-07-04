@@ -67,7 +67,9 @@ function resolvePayment(status, total) {
       pendingAmount: Number((total - paidAmount).toFixed(2)),
       paidAt: new Date(),
       paymentMethod: "Cash",
-      paymentHistory: [{ amount: paidAmount, method: "Cash", paidAt: new Date(), note: "Demo partial payment" }],
+      paymentHistory: [
+        { amount: paidAmount, method: "Cash", paidAt: new Date(), note: "Demo partial payment" },
+      ],
     };
   }
 
@@ -126,13 +128,71 @@ async function seedDemoDataForShop(shopId) {
   );
 
   const invoicePlan = [
-    { customer: 0, status: "paid", days: 18, items: [[0, 1], [2, 2], [4, 4]] },
-    { customer: 1, status: "pending", days: 10, items: [[1, 2], [5, 1]] },
-    { customer: 2, status: "partial", days: 7, items: [[0, 1], [6, 2]] },
-    { customer: 3, status: "overdue", days: 24, items: [[3, 4], [7, 1]] },
-    { customer: 4, status: "paid", days: 5, items: [[8, 3], [4, 2]] },
-    { customer: 0, status: "pending", days: 2, items: [[2, 3], [5, 1]] },
-    { customer: 1, status: "paid", days: 1, items: [[1, 1], [3, 2], [6, 1]] },
+    {
+      customer: 0,
+      status: "paid",
+      days: 18,
+      items: [
+        [0, 1],
+        [2, 2],
+        [4, 4],
+      ],
+    },
+    {
+      customer: 1,
+      status: "pending",
+      days: 10,
+      items: [
+        [1, 2],
+        [5, 1],
+      ],
+    },
+    {
+      customer: 2,
+      status: "partial",
+      days: 7,
+      items: [
+        [0, 1],
+        [6, 2],
+      ],
+    },
+    {
+      customer: 3,
+      status: "overdue",
+      days: 24,
+      items: [
+        [3, 4],
+        [7, 1],
+      ],
+    },
+    {
+      customer: 4,
+      status: "paid",
+      days: 5,
+      items: [
+        [8, 3],
+        [4, 2],
+      ],
+    },
+    {
+      customer: 0,
+      status: "pending",
+      days: 2,
+      items: [
+        [2, 3],
+        [5, 1],
+      ],
+    },
+    {
+      customer: 1,
+      status: "paid",
+      days: 1,
+      items: [
+        [1, 1],
+        [3, 2],
+        [6, 1],
+      ],
+    },
   ];
 
   const invoices = [];

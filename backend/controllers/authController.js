@@ -16,7 +16,6 @@ const {
   runTenancyMigration,
 } = require("../utils/migrateTenancy");
 const env = require("../config/env");
-const { OAuth2Client } = require("google-auth-library");
 
 const LOCK_TIME_MS = 30 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -29,7 +28,6 @@ function sanitizeUser(user) {
     role: user.role,
     shopId: String(user.shopId),
     isVerified: user.isVerified,
-    onboardingCompleted: user.onboardingCompleted === true,
     lastLogin: user.lastLogin,
   };
 }
@@ -68,6 +66,7 @@ exports.register = asyncHandler(async (req, res) => {
     throw new Error("Email already registered");
   }
 
+  // Run migration to ensure existing data has shopId
   await runTenancyMigration();
 
   const userCount = await User.countDocuments();
@@ -99,8 +98,6 @@ exports.register = asyncHandler(async (req, res) => {
     role: "owner",
     shopId: shop._id,
     isVerified: true,
-    authProviders: ["local"],
-    authProvider: "local",
   });
 
   if (!shop.ownerId) {
@@ -198,22 +195,21 @@ exports.login = asyncHandler(async (req, res) => {
       action: "login_failed",
       req,
       success: false,
-      metadata: { reason: "invalid_password" },
     });
 
     res.status(401);
     throw new Error("Invalid email or password");
   }
 
+  user.failedLoginAttempts = 0;
+  user.lockUntil = undefined;
+  user.lastLogin = new Date();
+  await user.save();
+
   const { accessToken, refreshToken } = await issueAuthTokens(user, {
     rememberMe: rememberMe === true,
     req,
   });
-
-  user.lastLogin = new Date();
-  user.failedLoginAttempts = 0;
-  user.lockUntil = undefined;
-  await user.save();
 
   setRefreshCookie(res, refreshToken, rememberMe === true);
 
@@ -226,169 +222,133 @@ exports.login = asyncHandler(async (req, res) => {
     success: true,
   });
 
+  const shop = await Shop.findById(user.shopId).lean();
+
   res.json({
     success: true,
     data: {
       user: sanitizeUser(user),
-      shop: {
-        id: String(user.shopId),
-      },
+      shop: shop
+        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
+        : null,
       accessToken,
     },
   });
+});
+
+exports.refresh = asyncHandler(async (req, res) => {
+  const refreshToken = req.cookies?.[env.refreshCookieName];
+
+  if (!refreshToken) {
+    return res.status(401).json({
+      success: false,
+      message: "No active session. Please login again.",
+    });
+  }
+
+  try {
+    const { accessToken, refreshToken: newRefreshToken } =
+      await refreshSession(refreshToken, req);
+
+    const payload = require("../utils/tokens").verifyRefreshToken(refreshToken);
+    const user = await User.findById(payload.sub);
+    setRefreshCookie(
+      res,
+      newRefreshToken,
+      payload.remember === true,
+    );
+
+    res.json({
+      success: true,
+      data: {
+        accessToken,
+        user: user ? sanitizeUser(user) : null,
+      },
+    });
+  } catch (error) {
+    clearRefreshCookie(res);
+    return res.status(401).json({
+      success: false,
+      message: "Session expired. Please login again.",
+    });
+  }
 });
 
 exports.logout = asyncHandler(async (req, res) => {
-  await revokeRefreshToken(req);
+  const refreshToken = req.cookies?.[env.refreshCookieName];
+
+  if (refreshToken) {
+    await revokeRefreshToken(refreshToken);
+  }
+
+  if (req.user?._id) {
+    await logAuthEvent({
+      userId: req.user._id,
+      shopId: req.user.shopId,
+      email: req.user.email,
+      action: "logout",
+      req,
+      success: true,
+    });
+  }
+
   clearRefreshCookie(res);
 
-  await logAuthEvent({
-    userId: req.user?._id,
-    shopId: req.user?.shopId,
-    email: req.user?.email,
-    action: "logout",
-    req,
+  res.json({
     success: true,
+    message: "Logged out successfully",
   });
-
-  res.json({ success: true, message: "Logged out" });
 });
 
-exports.refreshToken = asyncHandler(async (req, res) => {
-  const { refreshToken } = req.cookies || {};
-  if (!refreshToken) {
-    res.status(401);
-    throw new Error("No refresh token");
-  }
-
-  const session = await refreshSession(refreshToken, req);
-  if (!session) {
-    res.status(401);
-    throw new Error("Invalid refresh token");
-  }
+exports.me = asyncHandler(async (req, res) => {
+  const shop = await Shop.findById(req.user.shopId).lean();
 
   res.json({
     success: true,
     data: {
-      accessToken: session.accessToken,
-      user: session.user ? sanitizeUser(session.user) : null,
-    },
-  });
-});
-
-exports.googleLogin = asyncHandler(async (req, res) => {
-  const { idToken, rememberMe } = req.body;
-
-  if (!idToken) {
-    res.status(400);
-    throw new Error("Google ID token is required");
-  }
-
-  const client = new OAuth2Client(env.googleClientId);
-  const ticket = await client.verifyIdToken({
-    idToken,
-    audience: env.googleClientId,
-  });
-
-  const payload = ticket.getPayload();
-  const googleId = payload?.sub;
-  const email = payload?.email;
-  const name = payload?.name;
-  const profilePicture = payload?.picture;
-
-  if (!googleId || !email) {
-    res.status(400);
-    throw new Error("Invalid Google token");
-  }
-
-  let user = await User.findOne({ googleId });
-
-  if (!user) {
-    const existingEmail = await User.findOne({ email: email.toLowerCase() });
-    if (existingEmail) {
-      existingEmail.googleId = googleId;
-      existingEmail.authProviders = [...new Set([...(existingEmail.authProviders || []), "google"])];
-      existingEmail.authProvider = "google";
-      if (profilePicture) existingEmail.profilePicture = profilePicture;
-      await existingEmail.save();
-      user = existingEmail;
-    } else {
-      await runTenancyMigration();
-      const shop = await createShopForUser({ name: `${name || email}'s Store` });
-      user = await User.create({
-        name: name || email.split("@")[0],
-        email: email.toLowerCase(),
-        role: "owner",
-        shopId: shop._id,
-        isVerified: true,
-        googleId,
-        authProviders: ["google"],
-        authProvider: "google",
-        profilePicture,
-      });
-      if (!shop.ownerId) {
-        shop.ownerId = user._id;
-        await shop.save();
-      }
-    }
-  }
-
-  const { accessToken, refreshToken } = await issueAuthTokens(user, {
-    rememberMe: rememberMe === true,
-    req,
-  });
-
-  user.lastLogin = new Date();
-  await user.save();
-
-  setRefreshCookie(res, refreshToken, rememberMe === true);
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "google_login",
-    req,
-    success: true,
-  });
-
-  res.json({
-    success: true,
-    data: {
-      user: sanitizeUser(user),
-      shop: {
-        id: String(user.shopId),
-      },
-      accessToken,
+      user: sanitizeUser(req.user),
+      shop: shop
+        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
+        : null,
     },
   });
 });
 
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const normalizedEmail = String(email).trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail });
+  const normalizedEmail = String(email || "")
+    .trim()
+    .toLowerCase();
 
-  if (!user) {
-    res.status(404);
-    throw new Error("No account found with this email");
+  let devToken;
+
+  const user = await User.findOne({ email: normalizedEmail }).select(
+    "+passwordResetToken +passwordResetExpires",
+  );
+
+  if (user) {
+    const { raw, hash } = generateResetToken();
+    user.passwordResetToken = hash;
+    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+    await user.save();
+    devToken = raw;
+
+    await logAuthEvent({
+      userId: user._id,
+      shopId: user.shopId,
+      email: user.email,
+      action: "password_reset_requested",
+      req,
+      success: true,
+    });
   }
 
-  const { token } = generateResetToken();
-  user.passwordResetToken = token;
-  user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-  await user.save();
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "forgot_password",
-    req,
+  res.json({
     success: true,
+    message:
+      "If an account exists for that email, password reset instructions were sent.",
+    ...(env.nodeEnv === "development" && devToken ? { devResetToken: devToken } : {}),
   });
-
-  res.json({ success: true, message: "Password reset link sent to your email", devResetToken: token });
 });
 
 exports.resetPassword = asyncHandler(async (req, res) => {
@@ -399,10 +359,16 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     throw new Error("Token and new password are required");
   }
 
+  if (String(password).length < 8) {
+    res.status(400);
+    throw new Error("Password must be at least 8 characters");
+  }
+
+  const tokenHash = require("../utils/tokens").hashToken(token);
   const user = await User.findOne({
-    passwordResetToken: token,
+    passwordResetToken: tokenHash,
     passwordResetExpires: { $gt: new Date() },
-  }).select("+passwordHash");
+  }).select("+passwordResetToken +passwordResetExpires");
 
   if (!user) {
     res.status(400);
@@ -416,96 +382,25 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   user.lockUntil = undefined;
   await user.save();
 
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "password_reset",
-    req,
-    success: true,
-  });
-
-  res.json({ success: true, message: "Password reset successful" });
-});
-
-exports.setPin = asyncHandler(async (req, res) => {
-  const { pin } = req.body;
-  const user = req.user;
-
-  if (!pin || !/^\d{4}$/.test(String(pin))) {
-    res.status(400);
-    throw new Error("PIN must be exactly 4 digits");
-  }
-
-  user.pinHash = await User.hashPin(String(pin));
-  user.pinSetAt = new Date();
-  await user.save();
+  await revokeAllUserTokens(user._id);
 
   await logAuthEvent({
     userId: user._id,
     shopId: user.shopId,
     email: user.email,
-    action: "pin_set",
+    action: "password_reset_completed",
     req,
     success: true,
   });
 
-  res.json({ success: true, message: "PIN set successfully" });
-});
-
-exports.verifyPin = asyncHandler(async (req, res) => {
-  const { pin } = req.body;
-  const user = await User.findById(req.user._id).select("+pinHash");
-
-  if (!user || !user.pinHash) {
-    res.status(400);
-    throw new Error("PIN not set for this account");
-  }
-
-  const valid = await user.comparePassword(String(pin));
-  if (!valid) {
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "pin_verify_failed",
-      req,
-      success: false,
-    });
-    res.status(401);
-    throw new Error("Incorrect PIN");
-  }
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "pin_verified",
-    req,
+  res.json({
     success: true,
+    message: "Password reset successful. Please log in.",
   });
-
-  res.json({ success: true, message: "PIN verified" });
 });
 
 exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-  const user = await User.findById(req.user._id).select("+passwordHash +pinHash");
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
-
-  if (user.authProvider === "google" && !user.hasPassword()) {
-    res.status(400);
-    throw new Error("Set a password first before changing it");
-  }
-
-  if (user.authProvider === "google" && !user.passwordHash) {
-    res.status(400);
-    throw new Error("Set a password first before changing it");
-  }
 
   if (!currentPassword || !newPassword) {
     res.status(400);
@@ -514,25 +409,24 @@ exports.changePassword = asyncHandler(async (req, res) => {
 
   if (String(newPassword).length < 8) {
     res.status(400);
-    throw new Error("New password must be at least 8 characters");
+    throw new Error("Password must be at least 8 characters");
   }
 
-  const valid = await user.comparePassword(String(currentPassword));
+  const user = await User.findById(req.user._id).select("+passwordHash");
+
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const valid = await user.comparePassword(currentPassword);
+
   if (!valid) {
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "password_change_failed",
-      req,
-      success: false,
-      metadata: { reason: "invalid_current_password" },
-    });
     res.status(401);
     throw new Error("Current password is incorrect");
   }
 
-  user.passwordHash = await User.hashPassword(String(newPassword));
+  user.passwordHash = await User.hashPassword(newPassword);
   await user.save();
 
   await revokeAllUserTokens(user._id);
@@ -546,40 +440,8 @@ exports.changePassword = asyncHandler(async (req, res) => {
     success: true,
   });
 
-  res.json({ success: true, message: "Password changed successfully" });
-});
-
-exports.setPassword = asyncHandler(async (req, res) => {
-  const { password } = req.body;
-  const user = await User.findById(req.user._id).select("+passwordHash +pinHash");
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
-
-  if (user.authProvider !== "google") {
-    res.status(400);
-    throw new Error("This endpoint is only for Google-authenticated users");
-  }
-
-  if (!password || String(password).length < 8) {
-    res.status(400);
-    throw new Error("Password must be at least 8 characters");
-  }
-
-  user.passwordHash = await User.hashPassword(String(password));
-  user.authProviders = [...new Set([...(user.authProviders || []), "local"])];
-  await user.save();
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "password_set",
-    req,
+  res.json({
     success: true,
+    message: "Password changed successfully. Please log in again.",
   });
-
-  res.json({ success: true, message: "Password set successfully" });
 });

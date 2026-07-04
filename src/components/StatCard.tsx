@@ -27,14 +27,19 @@ export function StatCard({
   return (
     <div className="glass-card card-hover rounded-2xl p-6">
       <div className="flex items-start justify-between mb-5">
-        <div className={cn("grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br shadow-lg", accents[accent])}>
+        <div
+          className={cn(
+            "grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br shadow-lg",
+            accents[accent],
+          )}
+        >
           <Icon className="h-7 w-7" />
         </div>
         {change !== undefined && (
           <div
             className={cn(
               "flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full",
-              up ? "text-accent-brand bg-accent-brand/10" : "text-destructive bg-destructive/10"
+              up ? "text-accent-brand bg-accent-brand/10" : "text-destructive bg-destructive/10",
             )}
           >
             {up ? <TrendingUp className="h-4.5 w-4.5" /> : <TrendingDown className="h-4.5 w-4.5" />}
@@ -46,9 +51,7 @@ export function StatCard({
       <div className="flex items-baseline gap-2 mt-2">
         <div className="text-base text-muted-foreground">{label}</div>
         {comparisonLabel && (
-          <div className="text-xs text-muted-foreground/80">
-            {comparisonLabel}
-          </div>
+          <div className="text-xs text-muted-foreground/80">{comparisonLabel}</div>
         )}
       </div>
     </div>

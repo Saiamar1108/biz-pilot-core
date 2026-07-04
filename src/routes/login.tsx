@@ -75,9 +75,7 @@ function LoginPage() {
 
         <div className="mb-6">
           <h2 className="font-display text-2xl font-semibold tracking-tight">Sign in</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Access your dashboard securely.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Access your dashboard securely.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">

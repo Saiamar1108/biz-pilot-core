@@ -28,9 +28,7 @@ function signRefreshToken(user, rememberMe = false) {
     },
     env.jwtRefreshSecret,
     {
-      expiresIn: rememberMe
-        ? env.jwtRefreshRememberExpiresIn
-        : env.jwtRefreshExpiresIn,
+      expiresIn: rememberMe ? env.jwtRefreshRememberExpiresIn : env.jwtRefreshExpiresIn,
     },
   );
 }

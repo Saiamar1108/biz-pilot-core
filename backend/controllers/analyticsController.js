@@ -46,8 +46,7 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
     repeatCustomerRate: safeNumber(ctx.repeatCustomerRate),
     growthRate: safeNumber(ctx.growthRate),
     topCategory: ctx.topCategory || "—",
-    predictionAccuracy:
-      ctx.predictionAccuracy == null ? null : safeNumber(ctx.predictionAccuracy),
+    predictionAccuracy: ctx.predictionAccuracy == null ? null : safeNumber(ctx.predictionAccuracy),
     lowStockThreshold: safeNumber(ctx.lowStockThreshold),
     monthlyRevenue: mapMonthlySeries(ctx.monthlyRevenue),
     monthlyPendingRevenue: mapMonthlySeries(ctx.monthlyPendingRevenue),
@@ -151,30 +150,28 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
         orders: safeNumber(c.orders),
         avgOrderValue: round2(c.avgOrderValue),
       })),
-      avgOrderValueByCustomer: (
-        ctx.customerIntelligence?.avgOrderValueByCustomer || []
-      ).map((c) => ({
-        id: c.id || "",
-        name: c.name || "N/A",
-        totalSpent: round2(c.totalSpent),
-        pendingAmount: round2(c.pendingAmount),
-        orders: safeNumber(c.orders),
-        avgOrderValue: round2(c.avgOrderValue),
-      })),
+      avgOrderValueByCustomer: (ctx.customerIntelligence?.avgOrderValueByCustomer || []).map(
+        (c) => ({
+          id: c.id || "",
+          name: c.name || "N/A",
+          totalSpent: round2(c.totalSpent),
+          pendingAmount: round2(c.pendingAmount),
+          orders: safeNumber(c.orders),
+          avgOrderValue: round2(c.avgOrderValue),
+        }),
+      ),
     },
     invoiceAging: (ctx.invoiceAging || []).map((bucket) => ({
       label: bucket.label,
       amount: round2(bucket.amount),
       count: safeNumber(bucket.count),
     })),
-    smartPredictions: (ctx.smartPredictions || ctx.demandPredictions || []).map(
-      (item) => ({
-        title: item.title || "N/A",
-        forecast: item.forecast ?? "—",
-        confidence: item.confidence ?? "Live",
-        detail: item.detail || "",
-      })
-    ),
+    smartPredictions: (ctx.smartPredictions || ctx.demandPredictions || []).map((item) => ({
+      title: item.title || "N/A",
+      forecast: item.forecast ?? "—",
+      confidence: item.confidence ?? "Live",
+      detail: item.detail || "",
+    })),
     activityFeed: Array.isArray(ctx.activityFeed) ? ctx.activityFeed : [],
     recommendations: Array.isArray(ctx.recommendations) ? ctx.recommendations : [],
   };

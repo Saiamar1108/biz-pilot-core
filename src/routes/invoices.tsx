@@ -7,7 +7,13 @@ import { InvoiceActions } from "@/components/billing/InvoiceActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { StatCard } from "@/components/StatCard";
 import {
@@ -70,7 +76,11 @@ function InvoicesPage() {
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [newPayment, setNewPayment] = useState<{ amount: string; method: string; note: string }>({ amount: "", method: "Cash", note: "" });
+  const [newPayment, setNewPayment] = useState<{ amount: string; method: string; note: string }>({
+    amount: "",
+    method: "Cash",
+    note: "",
+  });
 
   useEffect(() => {
     let active = true;
@@ -141,10 +151,7 @@ function InvoicesPage() {
     [invoices, customers],
   );
 
-  const topProducts = useMemo(
-    () => getMostPurchasedProducts(filtered, 5),
-    [filtered],
-  );
+  const topProducts = useMemo(() => getMostPurchasedProducts(filtered, 5), [filtered]);
 
   const totals = useMemo(
     () => ({
@@ -230,10 +237,30 @@ function InvoicesPage() {
     <DashboardLayout title="Invoices">
       <div className="space-y-6">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <StatCard label="Invoices" value={loading ? "…" : filtered.length.toLocaleString("en-IN")} icon={Receipt} accent="primary" />
-          <StatCard label="Total Billed" value={loading ? "…" : formatCurrency(totals.totalBilled)} icon={Wallet} accent="emerald" />
-          <StatCard label="Collected" value={loading ? "…" : formatCurrency(totals.totalCollected)} icon={CircleCheckBig} accent="primary" />
-          <StatCard label="Pending" value={loading ? "…" : formatCurrency(totals.totalPending)} icon={Clock3} accent="warning" />
+          <StatCard
+            label="Invoices"
+            value={loading ? "…" : filtered.length.toLocaleString("en-IN")}
+            icon={Receipt}
+            accent="primary"
+          />
+          <StatCard
+            label="Total Billed"
+            value={loading ? "…" : formatCurrency(totals.totalBilled)}
+            icon={Wallet}
+            accent="emerald"
+          />
+          <StatCard
+            label="Collected"
+            value={loading ? "…" : formatCurrency(totals.totalCollected)}
+            icon={CircleCheckBig}
+            accent="primary"
+          />
+          <StatCard
+            label="Pending"
+            value={loading ? "…" : formatCurrency(totals.totalPending)}
+            icon={Clock3}
+            accent="warning"
+          />
         </div>
 
         {error && (
@@ -266,9 +293,14 @@ function InvoicesPage() {
             ) : (
               <div className="space-y-2">
                 {topProducts.map((product) => (
-                  <div key={product.name} className="flex justify-between rounded-lg border p-3 text-sm">
+                  <div
+                    key={product.name}
+                    className="flex justify-between rounded-lg border p-3 text-sm"
+                  >
                     <span>{product.name}</span>
-                    <span className="font-medium">{product.units} units · {formatCurrency(product.revenue)}</span>
+                    <span className="font-medium">
+                      {product.units} units · {formatCurrency(product.revenue)}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -279,7 +311,9 @@ function InvoicesPage() {
         <PageSection title="Invoice History" description={`${filtered.length} invoices`}>
           <div className="grid md:grid-cols-4 gap-3 mb-5">
             <div className="md:col-span-2">
-              <Label htmlFor="invoice-search" className="mb-2 block">Search</Label>
+              <Label htmlFor="invoice-search" className="mb-2 block">
+                Search
+              </Label>
               <Input
                 id="invoice-search"
                 value={query}
@@ -290,7 +324,9 @@ function InvoicesPage() {
             <div>
               <Label className="mb-2 block">Status</Label>
               <Select value={status} onValueChange={setStatus}>
-                <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
@@ -336,7 +372,10 @@ function InvoicesPage() {
                 const isUnpaid = invoice.status !== "paid";
 
                 return (
-                  <div key={invoice.id} className="rounded-xl border border-border/60 bg-card overflow-hidden">
+                  <div
+                    key={invoice.id}
+                    className="rounded-xl border border-border/60 bg-card overflow-hidden"
+                  >
                     <div className="p-4 flex flex-col lg:flex-row lg:items-center gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
@@ -355,7 +394,8 @@ function InvoicesPage() {
                         </div>
                         <div className="text-sm font-medium mt-1">{invoice.customer}</div>
                         <div className="text-xs text-muted-foreground mt-1">
-                          Created: {invoice.date} · Due: {invoice.dueDate} · {invoice.items} item{invoice.items === 1 ? "" : "s"}
+                          Created: {invoice.date} · Due: {invoice.dueDate} · {invoice.items} item
+                          {invoice.items === 1 ? "" : "s"}
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
                           Profit: {formatCurrency(profit)} · Paid: {invoice.paidAt || "—"}
@@ -363,16 +403,36 @@ function InvoicesPage() {
                       </div>
 
                       <div className="text-right shrink-0">
-                        <div className="text-sm font-semibold">{formatCurrency(invoice.amount)}</div>
-                        <div className="text-xs text-muted-foreground">Collected: {formatCurrency(invoice.paidAmount)}</div>
-                        <div className="text-xs text-muted-foreground">Pending: {formatCurrency(outstanding)}</div>
+                        <div className="text-sm font-semibold">
+                          {formatCurrency(invoice.amount)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Collected: {formatCurrency(invoice.paidAmount)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          Pending: {formatCurrency(outstanding)}
+                        </div>
                       </div>
 
                       <div className="flex flex-wrap gap-2 shrink-0">
-                        <Button type="button" size="sm" variant="outline" onClick={() => setExpandedId(isExpanded ? null : invoice.id)}>
-                          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setExpandedId(isExpanded ? null : invoice.id)}
+                        >
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
                         </Button>
-                        <Button type="button" size="sm" variant="outline" onClick={() => handleRepeatInvoice(invoice)}>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleRepeatInvoice(invoice)}
+                        >
                           <Copy className="h-3.5 w-3.5 mr-1" /> Repeat
                         </Button>
                         {isUnpaid && (
@@ -402,12 +462,23 @@ function InvoicesPage() {
                             <h4 className="text-sm font-semibold mb-2">Payment History</h4>
                             <div className="space-y-2">
                               {invoice.paymentHistory.map((entry, index) => (
-                                <div key={`${entry.date}-${index}`} className="flex justify-between text-sm rounded-lg border p-2 bg-background">
+                                <div
+                                  key={`${entry.date}-${index}`}
+                                  className="flex justify-between text-sm rounded-lg border p-2 bg-background"
+                                >
                                   <div>
-                                    <span>{entry.date} · {entry.method}</span>
-                                    {entry.note && <p className="text-xs text-muted-foreground mt-0.5">{entry.note}</p>}
+                                    <span>
+                                      {entry.date} · {entry.method}
+                                    </span>
+                                    {entry.note && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                        {entry.note}
+                                      </p>
+                                    )}
                                   </div>
-                                  <span className="font-medium">{formatCurrency(entry.amount)}</span>
+                                  <span className="font-medium">
+                                    {formatCurrency(entry.amount)}
+                                  </span>
                                 </div>
                               ))}
                             </div>
@@ -419,20 +490,35 @@ function InvoicesPage() {
                             <h4 className="text-sm font-semibold">Add Payment</h4>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                               <div>
-                                <Label htmlFor={`payment-amount-${invoice.id}`} className="mb-1 block text-xs">Amount</Label>
+                                <Label
+                                  htmlFor={`payment-amount-${invoice.id}`}
+                                  className="mb-1 block text-xs"
+                                >
+                                  Amount
+                                </Label>
                                 <Input
                                   id={`payment-amount-${invoice.id}`}
                                   type="number"
                                   step="0.01"
                                   min="0"
                                   value={newPayment.amount}
-                                  onChange={(e) => setNewPayment({ ...newPayment, amount: e.target.value })}
+                                  onChange={(e) =>
+                                    setNewPayment({ ...newPayment, amount: e.target.value })
+                                  }
                                   placeholder="Amount"
                                 />
                               </div>
                               <div>
-                                <Label htmlFor={`payment-method-${invoice.id}`} className="mb-1 block text-xs">Method</Label>
-                                <Select value={newPayment.method} onValueChange={(v) => setNewPayment({ ...newPayment, method: v })}>
+                                <Label
+                                  htmlFor={`payment-method-${invoice.id}`}
+                                  className="mb-1 block text-xs"
+                                >
+                                  Method
+                                </Label>
+                                <Select
+                                  value={newPayment.method}
+                                  onValueChange={(v) => setNewPayment({ ...newPayment, method: v })}
+                                >
                                   <SelectTrigger id={`payment-method-${invoice.id}`}>
                                     <SelectValue placeholder="Payment Method" />
                                   </SelectTrigger>
@@ -445,11 +531,18 @@ function InvoicesPage() {
                                 </Select>
                               </div>
                               <div>
-                                <Label htmlFor={`payment-note-${invoice.id}`} className="mb-1 block text-xs">Note</Label>
+                                <Label
+                                  htmlFor={`payment-note-${invoice.id}`}
+                                  className="mb-1 block text-xs"
+                                >
+                                  Note
+                                </Label>
                                 <Input
                                   id={`payment-note-${invoice.id}`}
                                   value={newPayment.note}
-                                  onChange={(e) => setNewPayment({ ...newPayment, note: e.target.value })}
+                                  onChange={(e) =>
+                                    setNewPayment({ ...newPayment, note: e.target.value })
+                                  }
                                   placeholder="Note (optional)"
                                 />
                               </div>
@@ -457,7 +550,11 @@ function InvoicesPage() {
                             <Button
                               size="sm"
                               onClick={() => handleAddPayment(invoice.id)}
-                              disabled={!newPayment.amount || Number(newPayment.amount) <= 0 || updatingInvoiceId === invoice.id}
+                              disabled={
+                                !newPayment.amount ||
+                                Number(newPayment.amount) <= 0 ||
+                                updatingInvoiceId === invoice.id
+                              }
                             >
                               <Plus className="h-3.5 w-3.5 mr-1" />
                               {updatingInvoiceId === invoice.id ? "Adding..." : "Add Payment"}
@@ -469,8 +566,13 @@ function InvoicesPage() {
                           <h4 className="text-sm font-semibold mb-2">Line Items</h4>
                           <div className="space-y-1 text-sm">
                             {invoice.lineItems.map((item, index) => (
-                              <div key={`${item.productId}-${index}`} className="flex justify-between">
-                                <span>{item.productName} × {item.quantity}</span>
+                              <div
+                                key={`${item.productId}-${index}`}
+                                className="flex justify-between"
+                              >
+                                <span>
+                                  {item.productName} × {item.quantity}
+                                </span>
                                 <span>{formatCurrency(item.lineTotal)}</span>
                               </div>
                             ))}

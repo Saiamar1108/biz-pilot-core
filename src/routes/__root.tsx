@@ -80,7 +80,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "ShopPilot AI — Run Your Business Smarter with AI" },
-      { name: "description", content: "AI-powered business assistant for small shops and SMEs. Automate billing, inventory, customer support, analytics, and voice orders." },
+      {
+        name: "description",
+        content:
+          "AI-powered business assistant for small shops and SMEs. Automate billing, inventory, customer support, analytics, and voice orders.",
+      },
       { property: "og:title", content: "ShopPilot AI" },
       { property: "og:description", content: "Run your business smarter with AI." },
       { property: "og:type", content: "website" },
@@ -88,7 +92,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap",
+      },
       { rel: "stylesheet", href: appCss },
     ],
   }),

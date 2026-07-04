@@ -19,16 +19,20 @@ const productSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, min: 0, default: 0 },
     sold: { type: Number, default: 0, min: 0 },
-    barcode: { type: String, trim: true, default: "" },
-    expiryDate: { type: Date },
     stockMovements: { type: [movementSchema], default: [] },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
-    isDemoData: { type: Boolean, default: false, index: true },
+    shopId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Shop", 
+      required: true,
+      index: true 
+    },
+    barcode: { type: String, trim: true, default: "" },
+    expiryDate: { type: Date, default: null },
   },
   { timestamps: true }
 );
 
-productSchema.index({ shopId: 1, sku: 1 }, { unique: true });
-productSchema.index({ shopId: 1, barcode: 1 }, { sparse: true, unique: true });
+// Compound index for unique SKU per shop
+productSchema.index({ sku: 1, shopId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Product", productSchema);

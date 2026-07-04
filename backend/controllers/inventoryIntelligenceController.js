@@ -11,9 +11,8 @@ const {
 } = require("../services/inventoryIntelligence");
 
 exports.getInventoryInsights = asyncHandler(async (req, res) => {
-  const shopFilter = { shopId: req.shopId };
-  const products = await Product.find(shopFilter).lean();
-  const invoices = await Invoice.find(shopFilter).lean();
+  const products = await Product.find({ shopId: req.shopId }).lean();
+  const invoices = await Invoice.find({ shopId: req.shopId }).lean();
 
   const [movementAnalysis, restockPredictions, expiryAlerts, categoryPerformance, stockTurnover] = await Promise.all([
     getProductMovementAnalysis(products),

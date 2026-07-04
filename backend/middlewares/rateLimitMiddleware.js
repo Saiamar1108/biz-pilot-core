@@ -9,7 +9,6 @@ const loginRateLimiter = rateLimit({
     success: false,
     message: "Too many login attempts. Try again in 15 minutes.",
   },
-  keyGenerator: (req) => `${req.ip}:${String(req.body?.email || "").toLowerCase()}`,
 });
 
 const authActionRateLimiter = rateLimit({

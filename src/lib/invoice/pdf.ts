@@ -41,11 +41,7 @@ function formatPdfDate(value?: string) {
   });
 }
 
-export async function generateInvoicePDF({
-  invoice,
-  business,
-  customerName,
-}: InvoicePdfOptions) {
+export async function generateInvoicePDF({ invoice, business, customerName }: InvoicePdfOptions) {
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -62,7 +58,11 @@ export async function generateInvoicePDF({
 
   pdf.setFontSize(20);
   pdf.setFont("helvetica", "bold");
-  pdf.text(business.storeName || "ShopPilot Store", margin + (business.logoDataUrl ? 58 : 0), cursorY + 10);
+  pdf.text(
+    business.storeName || "ShopPilot Store",
+    margin + (business.logoDataUrl ? 58 : 0),
+    cursorY + 10,
+  );
   pdf.setFontSize(10);
   pdf.setFont("helvetica", "normal");
 
@@ -77,10 +77,17 @@ export async function generateInvoicePDF({
   pdf.setFontSize(10);
   pdf.setFont("helvetica", "normal");
   pdf.text(`Invoice: ${invoice.id}`, pageWidth - margin, cursorY + 28, { align: "right" });
-  pdf.text(`Date: ${formatPdfDate(invoice.createdAt || invoice.date)}`, pageWidth - margin, cursorY + 42, {
+  pdf.text(
+    `Date: ${formatPdfDate(invoice.createdAt || invoice.date)}`,
+    pageWidth - margin,
+    cursorY + 42,
+    {
+      align: "right",
+    },
+  );
+  pdf.text(`Due: ${formatPdfDate(invoice.dueDate)}`, pageWidth - margin, cursorY + 56, {
     align: "right",
   });
-  pdf.text(`Due: ${formatPdfDate(invoice.dueDate)}`, pageWidth - margin, cursorY + 56, { align: "right" });
   pdf.text(`Status: ${invoice.status}`, pageWidth - margin, cursorY + 70, { align: "right" });
 
   cursorY += business.logoDataUrl ? 90 : 78;
@@ -135,7 +142,7 @@ export async function generateInvoicePDF({
     totalItemDiscount += itemDiscountAmount;
   }
   afterItemDiscounts = invoice.subtotal - totalItemDiscount;
-  
+
   let invoiceDiscountAmount = 0;
   if (invoice.discountType === "percentage") {
     invoiceDiscountAmount = afterItemDiscounts * (invoice.discount / 100);
@@ -144,9 +151,7 @@ export async function generateInvoicePDF({
   }
   const totalDiscount = totalItemDiscount + invoiceDiscountAmount;
 
-  const summary = [
-    ["Subtotal", formatCurrency(invoice.subtotal)],
-  ];
+  const summary = [["Subtotal", formatCurrency(invoice.subtotal)]];
 
   if (totalItemDiscount > 0) {
     summary.push(["Item Discounts", `-${formatCurrency(totalItemDiscount)}`]);

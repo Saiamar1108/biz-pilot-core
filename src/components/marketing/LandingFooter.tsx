@@ -19,8 +19,8 @@ export function LandingFooter() {
                 Ready to simplify shop operations?
               </h2>
               <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-                Start with invoicing and inventory today. Add analytics and AI
-                assistance as your team grows.
+                Start with invoicing and inventory today. Add analytics and AI assistance as your
+                team grows.
               </p>
             </div>
             <Link to="/register">
@@ -41,8 +41,8 @@ export function LandingFooter() {
               <span className="font-display text-base font-semibold">ShopPilot AI</span>
             </Link>
             <p className="mt-4 max-w-xs text-sm leading-relaxed text-muted-foreground">
-              Professional business software for retail, grocery, and SME operators
-              who need reliability over hype.
+              Professional business software for retail, grocery, and SME operators who need
+              reliability over hype.
             </p>
           </div>
 

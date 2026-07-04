@@ -78,20 +78,22 @@ export function GoogleSignInButton({ disabled }: GoogleSignInButtonProps) {
       }
 
       const tokenResponse = await new Promise((resolve, reject) => {
-        window.google.accounts.oauth2.initTokenClient({
-          client_id: clientId,
-          scope: "email profile",
-          callback: (response: any) => {
-            if (response.error) {
-              reject(new Error(response.error || "Google authentication failed"));
-            } else {
-              resolve(response);
-            }
-          },
-          error_callback: (error: any) => {
-            reject(new Error(error.error || "Google authentication failed"));
-          },
-        }).requestAccessToken();
+        window.google.accounts.oauth2
+          .initTokenClient({
+            client_id: clientId,
+            scope: "email profile",
+            callback: (response: any) => {
+              if (response.error) {
+                reject(new Error(response.error || "Google authentication failed"));
+              } else {
+                resolve(response);
+              }
+            },
+            error_callback: (error: any) => {
+              reject(new Error(error.error || "Google authentication failed"));
+            },
+          })
+          .requestAccessToken();
       });
 
       const { idToken } = tokenResponse as { idToken: string };

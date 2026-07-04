@@ -55,7 +55,12 @@ function RegisterPage() {
 
     try {
       setLoading(true);
-      await register({ name: name.trim(), email: email.trim(), password, shopName: shopName.trim() });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        shopName: shopName.trim(),
+      });
       toast.success("Account created", {
         description: "Your shop workspace is ready.",
       });
@@ -165,11 +170,7 @@ function RegisterPage() {
         </form>
       </div>
 
-      <WelcomeModal
-        open={welcomeOpen}
-        onExplore={handleExplore}
-        onGotIt={handleGotIt}
-      />
+      <WelcomeModal open={welcomeOpen} onExplore={handleExplore} onGotIt={handleGotIt} />
     </AuthLayout>
   );
 }

@@ -45,18 +45,16 @@ function statusLabel(status) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function generateInvoiceWhatsAppMessage({
-  invoice,
-  business = {},
-  customer = {},
-}) {
+function generateInvoiceWhatsAppMessage({ invoice, business = {}, customer = {} }) {
   const shopName = business.storeName || "ShopPilot Store";
   const address = business.address || "";
   const phone = business.phone || "";
   const gst = business.gstNumber || "";
   const upiId =
     business.upiId ||
-    `${String(business.phone || "").replace(/\D/g, "").slice(-10)}@upi`;
+    `${String(business.phone || "")
+      .replace(/\D/g, "")
+      .slice(-10)}@upi`;
 
   const customerName = customer.name || invoice.customerName || "Customer";
   const customerPhone = customer.phone || "";
@@ -81,9 +79,7 @@ function generateInvoiceWhatsAppMessage({
     note: `Invoice ${invoiceNumber}`,
   });
 
-  const lines = [
-    `🏪 ${shopName}`,
-  ];
+  const lines = [`🏪 ${shopName}`];
 
   if (address) lines.push(`📍 ${address}`);
   if (phone) lines.push(`📞 ${phone}`);

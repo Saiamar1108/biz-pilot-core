@@ -9,8 +9,6 @@ const lineItemSchema = new mongoose.Schema(
     unitPrice: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, min: 0, default: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
-    discount: { type: Number, default: 0, min: 0 },
-    discountType: { type: String, enum: ["percentage", "flat"], default: "flat" },
   },
   { _id: false }
 );
@@ -36,20 +34,14 @@ const reminderSentSchema = new mongoose.Schema(
 
 const invoiceSchema = new mongoose.Schema(
   {
-    invoiceNumber: { type: String, required: true, unique: true },
+    invoiceNumber: { type: String, required: true, trim: true },
     customer: { type: mongoose.Schema.Types.ObjectId, ref: "Customer", required: true },
     customerName: { type: String, required: true },
     lineItems: { type: [lineItemSchema], required: true, validate: [(v) => v.length > 0, "At least one line item is required"] },
     subtotal: { type: Number, required: true, min: 0 },
     taxRate: { type: Number, required: true, min: 0 },
     tax: { type: Number, required: true, min: 0 },
-    taxEnabled: { type: Boolean, default: true },
-    taxMode: { type: String, enum: ["cgst-sgst", "igst", "custom", "standard", "none"], default: "cgst-sgst" },
-    cgst: { type: Number, default: 0, min: 0 },
-    sgst: { type: Number, default: 0, min: 0 },
-    igst: { type: Number, default: 0, min: 0 },
     discount: { type: Number, default: 0, min: 0 },
-    discountType: { type: String, enum: ["percentage", "flat"], default: "flat" },
     total: { type: Number, required: true, min: 0 },
     pendingAmount: { type: Number, default: 0, min: 0 },
     status: { type: String, enum: ["paid", "pending", "partial", "overdue", "sent"], default: "pending" },
@@ -59,10 +51,17 @@ const invoiceSchema = new mongoose.Schema(
     paymentHistory: { type: [paymentHistorySchema], default: [] },
     remindersSent: { type: [reminderSentSchema], default: [] },
     dueDate: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
-    isDemoData: { type: Boolean, default: false, index: true },
+    shopId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Shop", 
+      required: true,
+      index: true 
+    },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
+
+// Compound index for unique invoice number per shop
+invoiceSchema.index({ invoiceNumber: 1, shopId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Invoice", invoiceSchema);

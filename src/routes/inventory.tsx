@@ -16,10 +16,8 @@ import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
 import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText, formatExpiryDate } from "@/lib/inventory";
 import { PurchaseOrderGenerator } from "@/components/inventory/PurchaseOrderGenerator";
-import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/inventory")({
-  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
   component: InventoryPage,
 });
@@ -118,7 +116,7 @@ function InventoryPage() {
   );
 
   const resetForm = () => {
-    setForm({ name: "", sku: "", category: "", stock: "", price: "", barcode: "", expiryDate: "" });
+    setForm({ name: "", sku: "", category: "", stock: "", price: "" });
     setEditingProductId(null);
   };
 
@@ -287,9 +285,7 @@ function InventoryPage() {
                 setDialogOpen(open);
               }}>
                 <DialogTrigger asChild>
-                  <Button
-                    className="gradient-primary text-primary-foreground shrink-0"
-                  >
+                  <Button className="gradient-primary text-primary-foreground shrink-0">
                     <Plus className="h-4 w-4 mr-1" /> Add Product
                   </Button>
                 </DialogTrigger>

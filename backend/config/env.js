@@ -15,14 +15,11 @@ const env = {
     : ["http://localhost:5173", "http://localhost:3000"],
   taxRate: parseFloat(process.env.TAX_RATE) || 0.08,
   lowStockThreshold: parseInt(process.env.LOW_STOCK_THRESHOLD, 10) || 10,
-  jwtAccessSecret:
-    process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me",
-  jwtRefreshSecret:
-    process.env.JWT_REFRESH_SECRET || "dev-refresh-secret-change-me",
+  jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me",
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh-secret-change-me",
   jwtAccessExpiresIn: process.env.JWT_ACCESS_EXPIRES_IN || "15m",
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || "7d",
-  jwtRefreshRememberExpiresIn:
-    process.env.JWT_REFRESH_REMEMBER_EXPIRES_IN || "30d",
+  jwtRefreshRememberExpiresIn: process.env.JWT_REFRESH_REMEMBER_EXPIRES_IN || "30d",
   refreshCookieName: process.env.REFRESH_COOKIE_NAME || "sp_refresh_token",
   refreshCookieMaxAgeMs: sevenDaysMs,
   refreshRememberCookieMaxAgeMs: thirtyDaysMs,

@@ -27,15 +27,13 @@ export function LandingWorkflow() {
     <section id="workflow" className="py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium uppercase tracking-wider text-primary">
-            How it works
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wider text-primary">How it works</p>
           <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight md:text-4xl">
             Invoicing, inventory, and analytics connected by design
           </h2>
           <p className="mt-4 text-muted-foreground">
-            ShopPilot keeps your daily operations in sync so you spend less time
-            reconciling data and more time serving customers.
+            ShopPilot keeps your daily operations in sync so you spend less time reconciling data
+            and more time serving customers.
           </p>
         </div>
 
@@ -61,9 +59,7 @@ export function LandingWorkflow() {
                 </div>
               </div>
               <h3 className="font-display text-xl font-semibold">{step.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {step.desc}
-              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{step.desc}</p>
             </motion.div>
           ))}
         </div>

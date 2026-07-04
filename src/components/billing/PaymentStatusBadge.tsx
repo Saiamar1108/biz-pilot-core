@@ -10,11 +10,12 @@ const styles = {
 };
 
 export function PaymentStatusBadge({ status }: { status: Invoice["status"] }) {
-  const label =
-    status === "partial" ? "Partial" : status.charAt(0).toUpperCase() + status.slice(1);
+  const label = status === "partial" ? "Partial" : status.charAt(0).toUpperCase() + status.slice(1);
 
   return (
-    <span className={cn("text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full", styles[status])}>
+    <span
+      className={cn("text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full", styles[status])}
+    >
       {label}
     </span>
   );
