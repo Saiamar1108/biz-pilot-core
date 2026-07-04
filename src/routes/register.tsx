@@ -8,19 +8,10 @@ import {
   AuthSubmitButton,
   GoogleSignInButton,
 } from "@/components/auth/AuthFormExtras";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { seedDemoData } from "@/lib/api";
-import { emitDataRefresh } from "@/lib/live-refresh";
+import { WelcomeModal, markWelcomeSeen } from "@/components/onboarding/WelcomeModal";
 
 export const Route = createFileRoute("/register")({
   beforeLoad: () => redirectIfAuthenticated(),
@@ -36,8 +27,7 @@ function RegisterPage() {
   const [password, setPassword] = useState("");
   const [shopName, setShopName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [demoChoiceOpen, setDemoChoiceOpen] = useState(false);
-  const [seedingDemo, setSeedingDemo] = useState(false);
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [touched, setTouched] = useState({
     name: false,
     email: false,
@@ -69,12 +59,24 @@ function RegisterPage() {
       toast.success("Account created", {
         description: "Your shop workspace is ready.",
       });
-      setDemoChoiceOpen(true);
+      setWelcomeOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleExplore = () => {
+    markWelcomeSeen();
+    setWelcomeOpen(false);
+    void navigate({ to: "/dashboard" });
+  };
+
+  const handleGotIt = () => {
+    markWelcomeSeen();
+    setWelcomeOpen(false);
+    void navigate({ to: "/dashboard" });
   };
 
   return (
@@ -162,59 +164,12 @@ function RegisterPage() {
           </p>
         </form>
       </div>
-      <Dialog open={demoChoiceOpen} onOpenChange={(open) => { if (!open) setDemoChoiceOpen(false); }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Start with Demo Store Data?</DialogTitle>
-            <DialogDescription>
-              Add sample products, customers, and invoices to explore ShopPilot with real database records, or start with a clean store.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2 sm:justify-between">
-            <Button
-              type="button"
-              variant="outline"
-              disabled={seedingDemo}
-              onClick={() => {
-                setDemoChoiceOpen(false);
-                void navigate({ to: "/dashboard" });
-              }}
-            >
-              Start Fresh
-            </Button>
-            <Button
-              type="button"
-              disabled={seedingDemo}
-              onClick={async () => {
-                try {
-                  setSeedingDemo(true);
-                  const result = await seedDemoData();
-                  emitDataRefresh();
-                  toast.success(result.seeded ? "Demo data added" : "Demo data already exists");
-                  setDemoChoiceOpen(false);
-                  void navigate({ to: "/dashboard" });
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "Unable to seed demo data");
-                } finally {
-                  setSeedingDemo(false);
-                }
-              }}
-            >
-              {seedingDemo ? (
-                <span className="flex items-center gap-2">
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                  </svg>
-                  Adding Demo Data...
-                </span>
-              ) : (
-                "Start with Demo Data"
-              )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
+      <WelcomeModal
+        open={welcomeOpen}
+        onExplore={handleExplore}
+        onGotIt={handleGotIt}
+      />
     </AuthLayout>
   );
 }
