@@ -15,8 +15,10 @@ export const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
+    console.log("[api.ts] Token from store:", token ? `${token.substring(0, 20)}...` : null);
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log("[api.ts] Authorization header set:", config.headers.Authorization);
     }
     return config;
   },

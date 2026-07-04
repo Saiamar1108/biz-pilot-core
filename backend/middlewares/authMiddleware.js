@@ -12,7 +12,12 @@ function extractBearerToken(req) {
 
 const authMiddleware = async (req, res, next) => {
   try {
+    const authHeader = req.headers.authorization;
+    console.log("[authMiddleware] Authorization header:", authHeader);
+    
     const token = extractBearerToken(req);
+    console.log("[authMiddleware] Extracted token:", token ? `${token.substring(0, 20)}...` : null);
+    
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -23,7 +28,9 @@ const authMiddleware = async (req, res, next) => {
     let payload;
     try {
       payload = verifyAccessToken(token);
-    } catch {
+      console.log("[authMiddleware] Decoded payload:", payload);
+    } catch (err) {
+      console.log("[authMiddleware] Token verification error:", err.message);
       return res.status(401).json({
         success: false,
         message: "Invalid or expired access token",
@@ -33,6 +40,7 @@ const authMiddleware = async (req, res, next) => {
     const user = await User.findById(payload.sub).select(
       "name email role shopId isVerified onboardingCompleted lastLogin lockUntil",
     );
+    console.log("[authMiddleware] User found:", user ? user.email : null);
 
     if (!user) {
       return res.status(401).json({
@@ -41,7 +49,8 @@ const authMiddleware = async (req, res, next) => {
       });
     }
 
-    if (user.isLocked && user.isLocked()) {
+    // Check if account is locked (defensive: check method exists)
+    if (typeof user.isLocked === "function" && user.isLocked()) {
       return res.status(423).json({
         success: false,
         message: "Account temporarily locked",
@@ -50,8 +59,10 @@ const authMiddleware = async (req, res, next) => {
 
     req.user = user;
     req.shopId = resolveShopObjectId(user.shopId);
+    console.log("[authMiddleware] Setting req.shopId:", req.shopId);
     return next();
   } catch (error) {
+    console.log("[authMiddleware] Unexpected error:", error);
     return next(error);
   }
 };
@@ -97,8 +108,12 @@ const roleMiddleware =
   };
 
 const shopScopeMiddleware = (req, res, next) => {
+  console.log("[shopScopeMiddleware] req.shopId:", req.shopId);
+  console.log("[shopScopeMiddleware] req.user?.shopId:", req.user?.shopId);
+  
   if (!req.shopId && req.user?.shopId) {
     req.shopId = resolveShopObjectId(req.user.shopId);
+    console.log("[shopScopeMiddleware] Resolved shopId:", req.shopId);
   }
 
   if (!req.shopId) {

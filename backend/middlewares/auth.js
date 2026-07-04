@@ -6,9 +6,13 @@ const asyncHandler = require("./asyncHandler");
 
 // Protect routes - verify JWT token
 exports.protect = asyncHandler(async (req, res, next) => {
-  const token = req.headers.authorization?.startsWith("Bearer ")
-    ? req.headers.authorization.split(" ")[1]
+  const authHeader = req.headers.authorization;
+  console.log("[auth.js] Authorization header:", authHeader);
+  
+  const token = authHeader?.startsWith("Bearer ")
+    ? authHeader.split(" ")[1]
     : null;
+  console.log("[auth.js] Extracted token:", token ? `${token.substring(0, 20)}...` : null);
 
   if (!token) {
     return res.status(401).json({
@@ -19,10 +23,12 @@ exports.protect = asyncHandler(async (req, res, next) => {
 
   try {
     const payload = verifyAccessToken(token);
+    console.log("[auth.js] Decoded payload:", payload);
     
     const user = await User.findById(payload.sub).select(
       "name email role shopId isVerified onboardingCompleted lastLogin lockUntil",
     );
+    console.log("[auth.js] User found:", user ? user.email : null);
     
     if (!user) {
       return res.status(401).json({
@@ -31,7 +37,8 @@ exports.protect = asyncHandler(async (req, res, next) => {
       });
     }
 
-    if (user.isLocked && user.isLocked()) {
+    // Check if account is locked (defensive: check method exists)
+    if (typeof user.isLocked === "function" && user.isLocked()) {
       return res.status(423).json({
         success: false,
         message: "Account temporarily locked",
@@ -40,8 +47,10 @@ exports.protect = asyncHandler(async (req, res, next) => {
 
     req.user = user;
     req.shopId = resolveShopObjectId(user.shopId);
+    console.log("[auth.js] Setting req.shopId:", req.shopId);
     next();
   } catch (error) {
+    console.log("[auth.js] Token verification error:", error.message);
     return res.status(401).json({
       success: false,
       message: "Invalid or expired access token",
