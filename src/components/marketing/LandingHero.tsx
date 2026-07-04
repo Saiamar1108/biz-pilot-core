@@ -9,7 +9,11 @@ const fadeUp = {
   visible: (delay: number) => ({
     opacity: 1,
     y: 0,
-    transition: { duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] },
+    transition: {
+      duration: 0.5,
+      delay,
+      ease: [0.22, 1, 0.36, 1] as [number, number, number, number],
+    },
   }),
 };
 
@@ -47,8 +51,8 @@ export function LandingHero() {
             variants={fadeUp}
             className="mx-auto mt-5 max-w-2xl text-base leading-relaxed text-muted-foreground md:text-lg"
           >
-            ShopPilot AI helps business owners invoice faster, track stock accurately,
-            and understand cash flow without switching between spreadsheets and apps.
+            ShopPilot AI helps business owners invoice faster, track stock accurately, and
+            understand cash flow without switching between spreadsheets and apps.
           </motion.p>
 
           <motion.div
