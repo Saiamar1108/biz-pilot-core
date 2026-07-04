@@ -1094,6 +1094,26 @@ export async function resetDemoData() {
   return response.data.data;
 }
 
+export async function setPin(pin: string) {
+  const response = await api.post<ApiResponse<{ message: string }>>("/auth/pin/set", { pin });
+  return response.data.data;
+}
+
+export async function verifyPin(pin: string) {
+  const response = await api.post<ApiResponse<{ message: string }>>("/auth/pin/verify", { pin });
+  return response.data.data;
+}
+
+export async function changePassword(payload: { currentPassword: string; newPassword: string }) {
+  const response = await api.post<ApiResponse<{ message: string }>>("/auth/change-password", payload);
+  return response.data.data;
+}
+
+export async function setPassword(payload: { password: string }) {
+  const response = await api.post<ApiResponse<{ message: string }>>("/auth/set-password", payload);
+  return response.data.data;
+}
+
 export async function postAiChat(message: string) {
   const response = await api.post<ApiResponse<AiChatResponse>>("/ai/chat", { message });
   return response.data.data;

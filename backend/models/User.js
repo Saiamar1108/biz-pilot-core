@@ -33,6 +33,8 @@ const userSchema = new mongoose.Schema(
     authProviders: [{ type: String, enum: ["local", "google"] }],
     authProvider: { type: String, enum: ["local", "google"], default: "local" },
     profilePicture: { type: String },
+    pinHash: { type: String, required: false, select: false },
+    pinSetAt: { type: Date },
   },
   { timestamps: true },
 );
@@ -47,8 +49,16 @@ userSchema.methods.isLocked = function isLocked() {
   return this.lockUntil && this.lockUntil.getTime() > Date.now();
 };
 
+userSchema.methods.hasPassword = function hasPassword() {
+  return Boolean(this.passwordHash);
+};
+
 userSchema.statics.hashPassword = async function hashPassword(password) {
   return bcrypt.hash(password, 12);
+};
+
+userSchema.statics.hashPin = async function hashPin(pin) {
+  return bcrypt.hash(pin, 10);
 };
 
 module.exports = mongoose.model("User", userSchema);

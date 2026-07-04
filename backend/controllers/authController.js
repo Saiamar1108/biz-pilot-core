@@ -68,7 +68,6 @@ exports.register = asyncHandler(async (req, res) => {
     throw new Error("Email already registered");
   }
 
-  // Run migration to ensure existing data has shopId
   await runTenancyMigration();
 
   const userCount = await User.countDocuments();
@@ -199,21 +198,22 @@ exports.login = asyncHandler(async (req, res) => {
       action: "login_failed",
       req,
       success: false,
+      metadata: { reason: "invalid_password" },
     });
 
     res.status(401);
     throw new Error("Invalid email or password");
   }
 
-  user.failedLoginAttempts = 0;
-  user.lockUntil = undefined;
-  user.lastLogin = new Date();
-  await user.save();
-
   const { accessToken, refreshToken } = await issueAuthTokens(user, {
     rememberMe: rememberMe === true,
     req,
   });
+
+  user.lastLogin = new Date();
+  user.failedLoginAttempts = 0;
+  user.lockUntil = undefined;
+  await user.save();
 
   setRefreshCookie(res, refreshToken, rememberMe === true);
 
@@ -226,184 +226,123 @@ exports.login = asyncHandler(async (req, res) => {
     success: true,
   });
 
-  const shop = await Shop.findById(user.shopId).lean();
-
   res.json({
     success: true,
     data: {
       user: sanitizeUser(user),
-      shop: shop
-        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-        : null,
+      shop: {
+        id: String(user.shopId),
+      },
       accessToken,
     },
   });
 });
 
-exports.refresh = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[env.refreshCookieName];
+exports.setPin = asyncHandler(async (req, res) => {
+  const { pin } = req.body;
+  const user = req.user;
 
-  if (!refreshToken) {
-    return res.status(401).json({
-      success: false,
-      message: "Refresh token missing",
-    });
+  if (!pin || !/^\d{4}$/.test(String(pin))) {
+    res.status(400);
+    throw new Error("PIN must be exactly 4 digits");
   }
 
-  try {
-    const { accessToken, refreshToken: newRefreshToken } =
-      await refreshSession(refreshToken, req);
+  user.pinHash = await User.hashPin(String(pin));
+  user.pinSetAt = new Date();
+  await user.save();
 
-    const payload = require("../utils/tokens").verifyRefreshToken(refreshToken);
-    const user = await User.findById(payload.sub);
-    setRefreshCookie(
-      res,
-      newRefreshToken,
-      payload.remember === true,
-    );
+  await logAuthEvent({
+    userId: user._id,
+    shopId: user.shopId,
+    email: user.email,
+    action: "pin_set",
+    req,
+    success: true,
+  });
 
-    res.json({
-      success: true,
-      data: {
-        accessToken,
-        user: user ? sanitizeUser(user) : null,
-      },
-    });
-  } catch (error) {
-    clearRefreshCookie(res);
-    return res.status(401).json({
-      success: false,
-      message: "Invalid refresh token",
-    });
-  }
+  res.json({ success: true, message: "PIN set successfully" });
 });
 
-exports.logout = asyncHandler(async (req, res) => {
-  const refreshToken = req.cookies?.[env.refreshCookieName];
+exports.verifyPin = asyncHandler(async (req, res) => {
+  const { pin } = req.body;
+  const user = await User.findById(req.user._id).select("+pinHash");
 
-  if (refreshToken) {
-    await revokeRefreshToken(refreshToken);
+  if (!user || !user.pinHash) {
+    res.status(400);
+    throw new Error("PIN not set for this account");
   }
 
-  if (req.user?._id) {
+  const valid = await user.comparePassword(String(pin));
+  if (!valid) {
     await logAuthEvent({
-      userId: req.user._id,
-      shopId: req.user.shopId,
-      email: req.user.email,
-      action: "logout",
+      userId: user._id,
+      shopId: user.shopId,
+      email: user.email,
+      action: "pin_verify_failed",
       req,
-      success: true,
+      success: false,
     });
+    res.status(401);
+    throw new Error("Incorrect PIN");
   }
 
-  clearRefreshCookie(res);
-
-  res.json({
+  await logAuthEvent({
+    userId: user._id,
+    shopId: user.shopId,
+    email: user.email,
+    action: "pin_verified",
+    req,
     success: true,
-    message: "Logged out successfully",
   });
+
+  res.json({ success: true, message: "PIN verified" });
 });
 
-exports.me = asyncHandler(async (req, res) => {
-  const shop = await Shop.findById(req.user.shopId).lean();
-
-  res.json({
-    success: true,
-    data: {
-      user: sanitizeUser(req.user),
-      shop: shop
-        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-        : null,
-    },
-  });
-});
-
-exports.completeOnboarding = asyncHandler(async (req, res) => {
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    { $set: { onboardingCompleted: true } },
-    { new: true },
-  );
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  const user = await User.findById(req.user._id).select("+passwordHash +pinHash");
 
   if (!user) {
     res.status(404);
     throw new Error("User not found");
   }
 
-  res.json({
-    success: true,
-    data: {
-      user: sanitizeUser(user),
-    },
-  });
-});
+  if (user.authProvider === "google" && !user.hasPassword()) {
+    res.status(400);
+    throw new Error("Set a password first before changing it");
+  }
 
-exports.forgotPassword = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  const normalizedEmail = String(email || "")
-    .trim()
-    .toLowerCase();
+  if (user.authProvider === "google" && !user.passwordHash) {
+    res.status(400);
+    throw new Error("Set a password first before changing it");
+  }
 
-  let devToken;
+  if (!currentPassword || !newPassword) {
+    res.status(400);
+    throw new Error("Current password and new password are required");
+  }
 
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+passwordResetToken +passwordResetExpires",
-  );
+  if (String(newPassword).length < 8) {
+    res.status(400);
+    throw new Error("New password must be at least 8 characters");
+  }
 
-  if (user) {
-    const { raw, hash } = generateResetToken();
-    user.passwordResetToken = hash;
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-    await user.save();
-    devToken = raw;
-
+  const valid = await user.comparePassword(String(currentPassword));
+  if (!valid) {
     await logAuthEvent({
       userId: user._id,
       shopId: user.shopId,
       email: user.email,
-      action: "password_reset_requested",
+      action: "password_change_failed",
       req,
-      success: true,
+      success: false,
+      metadata: { reason: "invalid_current_password" },
     });
+    res.status(401);
+    throw new Error("Current password is incorrect");
   }
 
-  res.json({
-    success: true,
-    message:
-      "If an account exists for that email, password reset instructions were sent.",
-    ...(env.nodeEnv === "development" && devToken ? { devResetToken: devToken } : {}),
-  });
-});
-
-exports.resetPassword = asyncHandler(async (req, res) => {
-  const { token, password } = req.body;
-
-  if (!token || !password) {
-    res.status(400);
-    throw new Error("Token and new password are required");
-  }
-
-  if (String(password).length < 8) {
-    res.status(400);
-    throw new Error("Password must be at least 8 characters");
-  }
-
-  const tokenHash = require("../utils/tokens").hashToken(token);
-  const user = await User.findOne({
-    passwordResetToken: tokenHash,
-    passwordResetExpires: { $gt: new Date() },
-  }).select("+passwordResetToken +passwordResetExpires");
-
-  if (!user) {
-    res.status(400);
-    throw new Error("Invalid or expired reset token");
-  }
-
-  user.passwordHash = await User.hashPassword(password);
-  user.passwordResetToken = undefined;
-  user.passwordResetExpires = undefined;
-  user.failedLoginAttempts = 0;
-  user.lockUntil = undefined;
+  user.passwordHash = await User.hashPassword(String(newPassword));
   await user.save();
 
   await revokeAllUserTokens(user._id);
@@ -412,221 +351,45 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     userId: user._id,
     shopId: user.shopId,
     email: user.email,
-    action: "password_reset_completed",
+    action: "password_changed",
     req,
     success: true,
   });
 
-  res.json({
-    success: true,
-    message: "Password reset successful. Please log in.",
-  });
+  res.json({ success: true, message: "Password changed successfully" });
 });
 
-exports.googleAuth = asyncHandler(async (req, res) => {
-  const { idToken } = req.body;
+exports.setPassword = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+  const user = await User.findById(req.user._id).select("+passwordHash +pinHash");
 
-  if (!idToken) {
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  if (user.authProvider !== "google") {
     res.status(400);
-    throw new Error("Google ID token is required");
+    throw new Error("This endpoint is only for Google-authenticated users");
   }
 
-  if (!env.googleClientId) {
-    res.status(500);
-    throw new Error("Google OAuth is not configured");
-  }
-
-  const client = new OAuth2Client(env.googleClientId);
-
-  let ticket;
-  try {
-    ticket = await client.verifyIdToken({
-      idToken,
-      audience: env.googleClientId,
-    });
-  } catch (error) {
-    await logAuthEvent({
-      action: "google_auth_failed",
-      req,
-      success: false,
-      metadata: { reason: "invalid_token", error: error.message },
-    });
-    res.status(401);
-    throw new Error("Invalid Google ID token");
-  }
-
-  const payload = ticket.getPayload();
-  const { sub: googleId, email, name, picture } = payload;
-
-  if (!email) {
+  if (!password || String(password).length < 8) {
     res.status(400);
-    throw new Error("Google account does not have an email");
+    throw new Error("Password must be at least 8 characters");
   }
 
-  const normalizedEmail = email.toLowerCase();
-
-  await runTenancyMigration();
-
-  let user = await User.findOne({ googleId });
-
-  if (user) {
-    user.lastLogin = new Date();
-    await user.save();
-
-    const { accessToken, refreshToken } = await issueAuthTokens(user, {
-      rememberMe: req.body.rememberMe === true,
-      req,
-    });
-
-    setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
-
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "google_login",
-      req,
-      success: true,
-    });
-
-    const shop = await Shop.findById(user.shopId).lean();
-
-    return res.json({
-      success: true,
-      data: {
-        user: sanitizeUser(user),
-        shop: shop
-          ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-          : null,
-        accessToken,
-      },
-    });
-  }
-
-  user = await User.findOne({ email: normalizedEmail });
-
-  if (user) {
-    if (user.authProvider === "local") {
-      user.googleId = googleId;
-      if (!user.authProviders.includes("google")) {
-        user.authProviders.push("google");
-      }
-      user.authProvider = "google";
-      user.lastLogin = new Date();
-      if (picture && !user.profilePicture) {
-        user.profilePicture = picture;
-      }
-      await user.save();
-
-      await logAuthEvent({
-        userId: user._id,
-        shopId: user.shopId,
-        email: user.email,
-        action: "google_linked",
-        req,
-        success: true,
-        metadata: { previouslyLocal: true },
-      });
-    } else {
-      user.googleId = googleId;
-      user.authProvider = "google";
-      user.lastLogin = new Date();
-      if (picture && !user.profilePicture) {
-        user.profilePicture = picture;
-      }
-      if (!user.authProviders.includes("google")) {
-        user.authProviders.push("google");
-      }
-      await user.save();
-
-      await logAuthEvent({
-        userId: user._id,
-        shopId: user.shopId,
-        email: user.email,
-        action: "google_login",
-        req,
-        success: true,
-      });
-    }
-
-    const { accessToken, refreshToken } = await issueAuthTokens(user, {
-      rememberMe: req.body.rememberMe === true,
-      req,
-    });
-
-    setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
-
-    const shop = await Shop.findById(user.shopId).lean();
-
-    return res.json({
-      success: true,
-      data: {
-        user: sanitizeUser(user),
-        shop: shop
-          ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-          : null,
-        accessToken,
-      },
-    });
-  }
-
-  const userCount = await User.countDocuments();
-  let shop;
-
-  if (userCount === 0) {
-    shop = await claimDefaultShopForFirstUser(null);
-  } else {
-    shop = await createShopForUser({
-      name: `${name}'s Store`,
-    });
-  }
-
-  user = await User.create({
-    name: name || "Google User",
-    email: normalizedEmail,
-    googleId,
-    authProvider: "google",
-    authProviders: ["google"],
-    role: "owner",
-    shopId: shop._id,
-    isVerified: true,
-    profilePicture: picture,
-  });
-
-  if (!shop.ownerId) {
-    shop.ownerId = user._id;
-    await shop.save();
-  }
-
-  const { accessToken, refreshToken } = await issueAuthTokens(user, {
-    rememberMe: req.body.rememberMe === true,
-    req,
-  });
-
-  user.lastLogin = new Date();
+  user.passwordHash = await User.hashPassword(String(password));
+  user.authProviders = [...new Set([...(user.authProviders || []), "local"])];
   await user.save();
-
-  setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
 
   await logAuthEvent({
     userId: user._id,
-    shopId: shop._id,
+    shopId: user.shopId,
     email: user.email,
-    action: "google_register",
+    action: "password_set",
     req,
     success: true,
   });
 
-  res.status(201).json({
-    success: true,
-    data: {
-      user: sanitizeUser(user),
-      shop: {
-        id: String(shop._id),
-        shopName: shop.name,
-        slug: shop.slug,
-      },
-      accessToken,
-    },
-  });
+  res.json({ success: true, message: "Password set successfully" });
 });

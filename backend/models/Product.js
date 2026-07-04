@@ -12,18 +12,23 @@ const movementSchema = new mongoose.Schema(
 
 const productSchema = new mongoose.Schema(
   {
-    sku: { type: String, required: true, unique: true, trim: true },
+    sku: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
     stock: { type: Number, required: true, min: 0, default: 0 },
     price: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, min: 0, default: 0 },
     sold: { type: Number, default: 0, min: 0 },
+    barcode: { type: String, trim: true, default: "" },
+    expiryDate: { type: Date },
     stockMovements: { type: [movementSchema], default: [] },
     shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
     isDemoData: { type: Boolean, default: false, index: true },
   },
   { timestamps: true }
 );
+
+productSchema.index({ shopId: 1, sku: 1 }, { unique: true });
+productSchema.index({ shopId: 1, barcode: 1 }, { sparse: true, unique: true });
 
 module.exports = mongoose.model("Product", productSchema);

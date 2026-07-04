@@ -24,7 +24,9 @@ import {
 import { requireAuth } from "@/lib/auth-guard";
 import { emitDataRefresh } from "@/lib/live-refresh";
 import { useTheme } from "@/contexts/ThemeContext";
+import { changePassword, setPassword, setPin, verifyPin } from "@/lib/api";
 import { Moon, Sun } from "lucide-react";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: requireAuth,
@@ -73,6 +75,17 @@ function SettingsPage() {
   const [demoSeeded, setDemoSeeded] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [securityForm, setSecurityForm] = useState({
+    currentPin: "",
+    newPin: "",
+    confirmPin: "",
+    currentPassword: "",
+    newPassword: "",
+  });
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [securityMessage, setSecurityMessage] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const hasGoogleAuth = profile.email.includes("google") || false;
 
   useEffect(() => {
     let active = true;
@@ -270,6 +283,77 @@ function SettingsPage() {
     }
   };
 
+  const setSecurityField = (field: keyof typeof securityForm, value: string) => {
+    setSecurityForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const changePin = async () => {
+    setSecurityMessage("");
+    setSecurityError("");
+
+    if (!/^\d{4}$/.test(securityForm.currentPin)) {
+      setSecurityError("Enter a valid current PIN");
+      return;
+    }
+    if (!/^\d{4}$/.test(securityForm.newPin)) {
+      setSecurityError("New PIN must be exactly 4 digits");
+      return;
+    }
+    if (securityForm.newPin !== securityForm.confirmPin) {
+      setSecurityError("New PINs do not match");
+      return;
+    }
+
+    try {
+      setSavingSecurity(true);
+      await verifyPin(securityForm.currentPin);
+      await setPin(securityForm.newPin);
+      setSecurityMessage("PIN updated successfully");
+      setSecurityForm({ currentPin: "", newPin: "", confirmPin: "", currentPassword: "", newPassword: "" });
+      toast.success("PIN updated");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to update PIN";
+      setSecurityError(msg);
+      toast.error(msg);
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
+  const handlePasswordAction = async () => {
+    setSecurityMessage("");
+    setSecurityError("");
+
+    if (!securityForm.newPassword || securityForm.newPassword.length < 8) {
+      setSecurityError("New password must be at least 8 characters");
+      return;
+    }
+
+    try {
+      setSavingSecurity(true);
+      if (hasGoogleAuth) {
+        await setPassword({ password: securityForm.newPassword });
+        setSecurityMessage("Password set successfully");
+        toast.success("Password set");
+      } else {
+        if (!securityForm.currentPassword) {
+          setSecurityError("Enter your current password");
+          return;
+        }
+        await changePassword({ currentPassword: securityForm.currentPassword, newPassword: securityForm.newPassword });
+        setSecurityMessage("Password changed successfully");
+        toast.success("Password changed");
+      }
+      setSecurityForm({ currentPin: "", newPin: "", confirmPin: "", currentPassword: "", newPassword: "" });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Unable to update password";
+      setSecurityError(msg);
+      toast.error(msg);
+    } finally {
+      setSavingSecurity(false);
+    }
+  };
+
   const resetDemo = async () => {
     setResettingDemo(true);
     setError("");
@@ -308,6 +392,7 @@ function SettingsPage() {
             <TabsTrigger value="tax">Tax</TabsTrigger>
             <TabsTrigger value="notifications">Notifications</TabsTrigger>
             <TabsTrigger value="appearance">Appearance</TabsTrigger>
+          <TabsTrigger value="security">Security</TabsTrigger>
           </TabsList>
 
           <TabsContent value="profile">
@@ -566,6 +651,114 @@ function SettingsPage() {
                   <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
                 </Button>
               </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="security">
+            <div className="glass-card rounded-2xl p-6 space-y-8">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="font-display text-lg font-bold">Change Shop PIN</h3>
+                  <p className="text-sm text-muted-foreground">Update your 4-digit shop PIN</p>
+                </div>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="mb-2 block">Current PIN</Label>
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={securityForm.currentPin}
+                      onChange={(e) => setSecurityField("currentPin", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="••••"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">New PIN</Label>
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={securityForm.newPin}
+                      onChange={(e) => setSecurityField("newPin", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="••••"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-2 block">Confirm New PIN</Label>
+                    <Input
+                      type="password"
+                      inputMode="numeric"
+                      maxLength={4}
+                      value={securityForm.confirmPin}
+                      onChange={(e) => setSecurityField("confirmPin", e.target.value.replace(/\D/g, "").slice(0, 4))}
+                      placeholder="••••"
+                    />
+                  </div>
+                </div>
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  onClick={changePin}
+                  disabled={savingSecurity}
+                >
+                  {savingSecurity ? "Updating PIN..." : "Update PIN"}
+                </Button>
+              </div>
+
+              <div className="border-t border-border pt-6 space-y-4">
+                <div>
+                  <h3 className="font-display text-lg font-bold">Password</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {hasGoogleAuth ? "Set a password to enable email login" : "Change your account password"}
+                  </p>
+                </div>
+                {!hasGoogleAuth && (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <Label className="mb-2 block">Current Password</Label>
+                      <Input
+                        type="password"
+                        value={securityForm.currentPassword}
+                        onChange={(e) => setSecurityField("currentPassword", e.target.value)}
+                        placeholder="Enter current password"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-2 block">New Password</Label>
+                      <Input
+                        type="password"
+                        value={securityForm.newPassword}
+                        onChange={(e) => setSecurityField("newPassword", e.target.value)}
+                        placeholder="Min 8 characters"
+                      />
+                    </div>
+                  </div>
+                )}
+                {hasGoogleAuth && (
+                  <div>
+                    <Label className="mb-2 block">Set Password</Label>
+                    <Input
+                      type="password"
+                      value={securityForm.newPassword}
+                      onChange={(e) => setSecurityField("newPassword", e.target.value)}
+                      placeholder="Min 8 characters"
+                    />
+                  </div>
+                )}
+                <Button
+                  className="gradient-primary text-primary-foreground"
+                  onClick={handlePasswordAction}
+                  disabled={savingSecurity}
+                >
+                  {savingSecurity ? "Saving..." : hasGoogleAuth ? "Set Password" : "Change Password"}
+                </Button>
+              </div>
+
+              {(securityMessage || securityError) && (
+                <div className={securityError ? "text-sm text-destructive" : "text-sm text-accent-brand"}>
+                  {securityError || securityMessage}
+                </div>
+              )}
             </div>
           </TabsContent>
         </Tabs>

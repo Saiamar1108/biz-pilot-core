@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useNavigate,
   useState,
   type ReactNode,
 } from "react";
@@ -38,6 +39,7 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [shop, setShop] = useState<AuthShop | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = await loginAccount({ email, password, rememberMe });
     setUser(session.user);
     setShop(session.shop);
+    if (session.user && !session.user.onboardingCompleted) {
+      void navigate({ to: "/pin-setup" });
+    }
   }, []);
 
   const register = useCallback(

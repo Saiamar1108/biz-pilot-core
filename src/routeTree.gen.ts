@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as PinSetupRouteImport } from './routes/pin-setup'
+import { Route as PinLockRouteImport } from './routes/pin-lock'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as InventoryRouteImport } from './routes/inventory'
@@ -37,6 +39,16 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PinSetupRoute = PinSetupRouteImport.update({
+  id: '/pin-setup',
+  path: '/pin-setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PinLockRoute = PinLockRouteImport.update({
+  id: '/pin-lock',
+  path: '/pin-lock',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -107,6 +119,8 @@ export interface FileRoutesByFullPath {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/pin-lock': typeof PinLockRoute
+  '/pin-setup': typeof PinSetupRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -123,6 +137,8 @@ export interface FileRoutesByTo {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/pin-lock': typeof PinLockRoute
+  '/pin-setup': typeof PinSetupRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -140,6 +156,8 @@ export interface FileRoutesById {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/pin-lock': typeof PinLockRoute
+  '/pin-setup': typeof PinSetupRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -158,6 +176,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/pin-lock'
+    | '/pin-setup'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -174,6 +194,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/pin-lock'
+    | '/pin-setup'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -190,6 +212,8 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/pin-lock'
+    | '/pin-setup'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -207,6 +231,8 @@ export interface RootRouteChildren {
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
+  PinLockRoute: typeof PinLockRoute
+  PinSetupRoute: typeof PinSetupRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
@@ -233,6 +259,20 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pin-setup': {
+      id: '/pin-setup'
+      path: '/pin-setup'
+      fullPath: '/pin-setup'
+      preLoaderRoute: typeof PinSetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pin-lock': {
+      id: '/pin-lock'
+      path: '/pin-lock'
+      fullPath: '/pin-lock'
+      preLoaderRoute: typeof PinLockRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -327,6 +367,8 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
+  PinLockRoute: PinLockRoute,
+  PinSetupRoute: PinSetupRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,

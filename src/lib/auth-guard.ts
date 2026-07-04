@@ -27,3 +27,10 @@ export async function redirectIfAuthenticated() {
     throw redirect({ to: "/dashboard" });
   }
 }
+
+export function requirePin() {
+  const skipped = typeof window !== "undefined" && sessionStorage.getItem("sp_pin_skipped") === "true";
+  if (!skipped) {
+    throw redirect({ to: "/pin-lock" });
+  }
+}

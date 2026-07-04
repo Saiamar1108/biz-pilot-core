@@ -9,7 +9,7 @@ const {
 } = require("../utils/tenantScope");
 
 exports.getProducts = asyncHandler(async (req, res) => {
-  const { category, search, lowStock } = req.query;
+  const { category, search, lowStock, barcode } = req.query;
   const extraFilter = {};
 
   if (category) extraFilter.category = category;
@@ -17,7 +17,17 @@ exports.getProducts = asyncHandler(async (req, res) => {
     extraFilter.$or = [
       { name: { $regex: search, $options: "i" } },
       { sku: { $regex: search, $options: "i" } },
+      { barcode: { $regex: search, $options: "i" } },
     ];
+  }
+  if (barcode) {
+    const shopFilter = await buildShopReadFilter(req);
+    const product = await Product.findOne(mergeWithShopFilter(shopFilter, { barcode: String(barcode) }));
+    if (!product) {
+      res.status(404);
+      throw new Error("Product not found for this barcode");
+    }
+    return res.json({ success: true, count: 1, data: product });
   }
   if (lowStock === "true") {
     extraFilter.stock = { $lte: env.lowStockThreshold };
@@ -33,8 +43,21 @@ exports.createProduct = asyncHandler(async (req, res) => {
   const price = Number(req.body.price || 0);
   const costPrice =
     req.body.costPrice == null ? Number((price * 0.7).toFixed(2)) : Number(req.body.costPrice);
+  const barcode = req.body.barcode ? String(req.body.barcode).trim() : "";
+  const expiryDate = req.body.expiryDate ? new Date(req.body.expiryDate) : undefined;
+
+  if (barcode) {
+    const existing = await Product.findOne({ shopId: getShopIdForCreate(req), barcode });
+    if (existing) {
+      res.status(409);
+      throw new Error("A product with this barcode already exists in your shop");
+    }
+  }
+
   const product = await Product.create({
     ...req.body,
+    barcode,
+    expiryDate,
     shopId: getShopIdForCreate(req),
     costPrice,
     stockMovements: [
@@ -67,7 +90,9 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       ? Number(existing.costPrice || Number((nextPrice * 0.7).toFixed(2)))
       : Number(req.body.costPrice);
   const stockDelta = nextStock - existing.stock;
-  const update = { ...req.body, costPrice: nextCostPrice };
+  const barcode = req.body.barcode !== undefined ? String(req.body.barcode).trim() : existing.barcode;
+  const expiryDate = req.body.expiryDate !== undefined ? (req.body.expiryDate ? new Date(req.body.expiryDate) : undefined) : existing.expiryDate;
+  const update = { ...req.body, barcode, expiryDate, costPrice: nextCostPrice };
   if (stockDelta !== 0) {
     update.$push = {
       stockMovements: {
@@ -77,6 +102,14 @@ exports.updateProduct = asyncHandler(async (req, res) => {
         createdAt: new Date(),
       },
     };
+  }
+
+  if (barcode && barcode !== existing.barcode) {
+    const duplicate = await Product.findOne({ shopId: existing.shopId, barcode, _id: { $ne: existing._id } });
+    if (duplicate) {
+      res.status(409);
+      throw new Error("Another product with this barcode already exists");
+    }
   }
 
   const product = await Product.findByIdAndUpdate(existing._id, update, {
