@@ -7,6 +7,10 @@ const shopSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
+    name: {
+      type: String,
+      trim: true,
+    },
     slug: {
       type: String,
       unique: true,
@@ -47,7 +51,13 @@ const shopSchema = new mongoose.Schema(
       default: false,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
+
+shopSchema.pre("validate", function syncShopNames(next) {
+  if (!this.shopName && this.name) this.shopName = this.name;
+  if (!this.name && this.shopName) this.name = this.shopName;
+  next();
+});
 
 module.exports = mongoose.model("Shop", shopSchema);

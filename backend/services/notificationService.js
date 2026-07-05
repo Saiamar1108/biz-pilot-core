@@ -5,22 +5,20 @@ const env = require("../config/env");
 const { PENDING_BUCKET_STATUSES, getOutstandingAmount } = require("../utils/invoiceAmounts");
 const { syncInvoiceReminders } = require("./invoiceReminderService");
 
-async function createNotification({
-  type,
-  message,
-  relatedId = "",
-  key = null,
-}) {
+async function createNotification({ type, message, relatedId = "", key = null, shopId = null }) {
+  if (!shopId) return null;
+
   // If key exists → update existing notification (prevents duplicates)
   if (key) {
     return Notification.findOneAndUpdate(
-      { key },
+      { key, shopId },
       {
         $set: {
           type,
           message,
           relatedId,
           read: false,
+          shopId,
           updatedAt: new Date(),
         },
       },
@@ -28,7 +26,7 @@ async function createNotification({
         upsert: true,
         new: true,
         setDefaultsOnInsert: true,
-      }
+      },
     );
   }
 
@@ -39,6 +37,7 @@ async function createNotification({
       type,
       message,
       relatedId,
+      shopId,
       read: false,
       createdAt: {
         $gte: new Date(Date.now() - 5 * 60 * 1000), // Last 5 minutes
@@ -55,25 +54,31 @@ async function createNotification({
     type,
     message,
     relatedId,
+    shopId,
     read: false,
   });
 }
 
-async function syncSystemNotifications() {
+async function syncSystemNotifications(shopId) {
+  if (!shopId) return;
+
   const [lowStockProducts, pendingInvoices, expiringProducts] = await Promise.all([
     Product.find({
+      shopId,
       stock: { $lte: env.lowStockThreshold },
     })
       .select("_id name stock expiryDate")
       .lean(),
 
     Invoice.find({
+      shopId,
       status: { $in: [...PENDING_BUCKET_STATUSES] },
     })
       .select("_id invoiceNumber customerName total createdAt pendingAmount")
       .lean(),
 
     Product.find({
+      shopId,
       expiryDate: { $ne: null },
     })
       .select("_id name expiryDate stock")
@@ -87,6 +92,7 @@ async function syncSystemNotifications() {
       message: `Low stock: ${product.name} only ${product.stock} left`,
       relatedId: String(product._id),
       key: `low-stock-${String(product._id)}`,
+      shopId,
     });
   }
 
@@ -94,7 +100,7 @@ async function syncSystemNotifications() {
   const now = Date.now();
   for (const product of expiringProducts) {
     const daysUntilExpiry = Math.floor(
-      (new Date(product.expiryDate).getTime() - now) / (24 * 60 * 60 * 1000)
+      (new Date(product.expiryDate).getTime() - now) / (24 * 60 * 60 * 1000),
     );
 
     if (daysUntilExpiry < 0) {
@@ -104,6 +110,7 @@ async function syncSystemNotifications() {
         message: `${product.name} expired ${Math.abs(daysUntilExpiry)} days ago (${product.stock} units)`,
         relatedId: String(product._id),
         key: `expired-${String(product._id)}`,
+        shopId,
       });
     } else if (daysUntilExpiry <= 7) {
       // Expiring soon
@@ -112,6 +119,7 @@ async function syncSystemNotifications() {
         message: `${product.name} expires in ${daysUntilExpiry} days (${product.stock} units)`,
         relatedId: String(product._id),
         key: `expiring-soon-${String(product._id)}`,
+        shopId,
       });
     } else if (daysUntilExpiry <= 30) {
       // Expiring in 30 days
@@ -120,6 +128,7 @@ async function syncSystemNotifications() {
         message: `${product.name} expires in ${daysUntilExpiry} days (${product.stock} units)`,
         relatedId: String(product._id),
         key: `expiring-${String(product._id)}`,
+        shopId,
       });
     }
   }
@@ -127,8 +136,7 @@ async function syncSystemNotifications() {
   // PENDING PAYMENT ALERTS
   for (const invoice of pendingInvoices) {
     const daysPending = Math.floor(
-      (now - new Date(invoice.createdAt).getTime()) /
-        (24 * 60 * 60 * 1000)
+      (now - new Date(invoice.createdAt).getTime()) / (24 * 60 * 60 * 1000),
     );
 
     // Skip fresh invoices (< 7 days)
@@ -141,10 +149,11 @@ async function syncSystemNotifications() {
       ).toLocaleString("en-IN")} pending for ${daysPending} days`,
       relatedId: String(invoice.invoiceNumber || invoice._id),
       key: `pending-payment-${String(invoice._id)}`,
+      shopId,
     });
   }
 
-  await syncInvoiceReminders();
+  await syncInvoiceReminders(shopId);
 }
 
 module.exports = {

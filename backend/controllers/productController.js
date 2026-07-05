@@ -80,6 +80,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       message: `Low stock: ${product.name} only ${product.stock} left`,
       relatedId: String(product._id),
       key: `low-stock:${String(product._id)}`,
+      shopId: req.shopId,
     });
   }
 

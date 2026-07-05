@@ -12,7 +12,7 @@ const env = {
   openaiApiKey: process.env.OPENAI_API_KEY || "",
   corsOrigin: process.env.CORS_ORIGIN
     ? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
-    : ["http://localhost:5173", "http://localhost:3000"],
+    : ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
   taxRate: parseFloat(process.env.TAX_RATE) || 0.08,
   lowStockThreshold: parseInt(process.env.LOW_STOCK_THRESHOLD, 10) || 10,
   jwtAccessSecret: process.env.JWT_ACCESS_SECRET || "dev-access-secret-change-me",

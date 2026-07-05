@@ -30,21 +30,25 @@ app.use(
   helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
-  })
+  }),
 );
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  return env.corsOrigin.includes(origin);
+}
 
 // CORS
 app.use(
   cors({
-    origin: [
-      "http://localhost:5173",
-      "http://localhost:5174",
-      "https://your-frontend.onrender.com", // replace this with actual frontend URL
-    ],
+    origin(origin, callback) {
+      if (isAllowedOrigin(origin)) return callback(null, true);
+      return callback(new Error(`CORS blocked origin: ${origin}`));
+    },
     credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // cookie parser
@@ -90,9 +94,7 @@ async function startServer() {
     await runTenancyMigration();
 
     app.listen(env.port, () => {
-      console.log(
-        `ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`
-      );
+      console.log(`ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`);
     });
   } catch (err) {
     console.error("Failed to start server:", err.message);

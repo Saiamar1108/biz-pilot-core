@@ -3,8 +3,11 @@ const Notification = require("../models/Notification");
 const { syncSystemNotifications } = require("../services/notificationService");
 
 exports.getNotifications = asyncHandler(async (req, res) => {
-  await syncSystemNotifications();
-  const notifications = await Notification.find({ shopId: req.shopId }).sort({ createdAt: -1 }).limit(30).lean();
+  await syncSystemNotifications(req.shopId);
+  const notifications = await Notification.find({ shopId: req.shopId })
+    .sort({ createdAt: -1 })
+    .limit(30)
+    .lean();
   const unreadCount = await Notification.countDocuments({ read: false, shopId: req.shopId });
   res.json({ success: true, data: { notifications, unreadCount } });
 });

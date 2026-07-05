@@ -25,7 +25,7 @@ async function refreshOverdueInvoices(shopId) {
     },
     {
       $set: { status: "overdue" },
-    }
+    },
   );
 }
 
@@ -62,12 +62,7 @@ exports.getInvoiceSummary = asyncHandler(async (req, res) => {
 });
 
 exports.createInvoice = asyncHandler(async (req, res) => {
-  const {
-    customer: customerId,
-    lineItems: rawItems,
-    status,
-    taxRate,
-  } = req.body;
+  const { customer: customerId, lineItems: rawItems, status, taxRate } = req.body;
 
   if (!customerId || !rawItems?.length) {
     res.status(400);
@@ -84,10 +79,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
   const lineItems = await buildLineItems(rawItems);
 
   const rate = taxRate ?? env.taxRate;
-  const { subtotal, tax, total } = calculateInvoiceTotals(
-    lineItems,
-    rate
-  );
+  const { subtotal, tax, total } = calculateInvoiceTotals(lineItems, rate);
 
   const invoiceNumber = await generateInvoiceNumber();
 
@@ -127,13 +119,10 @@ exports.createInvoice = asyncHandler(async (req, res) => {
           },
         },
       },
-      { new: true }
+      { new: true },
     );
 
-    if (
-      updatedProduct &&
-      Number(updatedProduct.stock) <= env.lowStockThreshold
-    ) {
+    if (updatedProduct && Number(updatedProduct.stock) <= env.lowStockThreshold) {
       await createNotification({
         type: "low_stock",
         message: `Low stock: ${updatedProduct.name} only ${updatedProduct.stock} left`,
@@ -144,9 +133,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     }
   }
 
-  customer.orderHistory = Array.isArray(customer.orderHistory)
-    ? customer.orderHistory
-    : [];
+  customer.orderHistory = Array.isArray(customer.orderHistory) ? customer.orderHistory : [];
 
   customer.orderHistory.push(invoice._id);
 
@@ -155,7 +142,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
 
   const populated = await Invoice.findById(invoice._id).populate(
     "customer",
-    "name email phone address gstNumber"
+    "name email phone address gstNumber",
   );
 
   await createNotification({
@@ -163,6 +150,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     message: `Invoice ${invoice.invoiceNumber} created`,
     relatedId: invoice.invoiceNumber,
     key: `invoice-${invoice.invoiceNumber}`,
+    shopId: req.shopId,
   });
 
   res.status(201).json({
@@ -207,10 +195,7 @@ exports.updateInvoicePayment = asyncHandler(async (req, res) => {
     invoice.total = total;
   }
 
-  const method =
-    typeof paymentMethod === "string"
-      ? paymentMethod.trim()
-      : "";
+  const method = typeof paymentMethod === "string" ? paymentMethod.trim() : "";
 
   if (status === "paid") {
     const previousPaid = Number(invoice.paidAmount || 0);
@@ -237,15 +222,9 @@ exports.updateInvoicePayment = asyncHandler(async (req, res) => {
   } else if (status === "partial") {
     const amount = Number(paidAmount ?? 0);
 
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      amount >= total
-    ) {
+    if (!Number.isFinite(amount) || amount <= 0 || amount >= total) {
       res.status(400);
-      throw new Error(
-        "Partial payment must be greater than 0 and less than invoice total"
-      );
+      throw new Error("Partial payment must be greater than 0 and less than invoice total");
     }
 
     invoice.status = "partial";
@@ -286,16 +265,17 @@ exports.updateInvoicePayment = asyncHandler(async (req, res) => {
     await createNotification({
       type: "payment_received",
       message: `Payment received ₹${Math.round(total).toLocaleString(
-        "en-IN"
+        "en-IN",
       )} from ${invoice.customerName}`,
       relatedId: invoice.invoiceNumber,
       key: `payment-${invoice.invoiceNumber}`,
+      shopId: req.shopId,
     });
   }
 
   const populated = await Invoice.findById(invoice._id).populate(
     "customer",
-    "name email phone address gstNumber"
+    "name email phone address gstNumber",
   );
 
   res.json({

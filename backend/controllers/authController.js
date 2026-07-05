@@ -33,21 +33,17 @@ function sanitizeUser(user) {
 }
 
 function setRefreshCookie(res, token, rememberMe) {
-  res.cookie("refreshToken", refreshToken, {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
-  path: "/",
-});
+  res.cookie(env.refreshCookieName, token, getRefreshCookieOptions(rememberMe));
 }
 
 function clearRefreshCookie(res) {
-  res.clearCookie(env.refreshCookieName, getRefreshCookieOptions(false));
+  const options = getRefreshCookieOptions(false);
+  delete options.maxAge;
+  res.clearCookie(env.refreshCookieName, options);
 }
 
 exports.register = asyncHandler(async (req, res) => {
-  const { name, email, password, shopName, businessType, phone, address } =
-    req.body;
+  const { name, email, password, shopName, businessType, phone, address } = req.body;
 
   if (!name || !email || !password) {
     res.status(400);
@@ -131,7 +127,7 @@ exports.register = asyncHandler(async (req, res) => {
       user: sanitizeUser(user),
       shop: {
         id: String(shop._id),
-        shopName: shop.name,
+        shopName: shop.shopName || shop.name,
         slug: shop.slug,
       },
       accessToken,
@@ -148,9 +144,7 @@ exports.login = asyncHandler(async (req, res) => {
   }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+passwordHash",
-  );
+  const user = await User.findOne({ email: normalizedEmail }).select("+passwordHash");
 
   if (!user) {
     await logAuthEvent({
@@ -230,7 +224,7 @@ exports.login = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(user),
       shop: shop
-        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
+        ? { id: String(shop._id), shopName: shop.shopName || shop.name, slug: shop.slug }
         : null,
       accessToken,
     },
@@ -248,16 +242,11 @@ exports.refresh = asyncHandler(async (req, res) => {
   }
 
   try {
-    const { accessToken, refreshToken: newRefreshToken } =
-      await refreshSession(refreshToken, req);
+    const { accessToken, refreshToken: newRefreshToken } = await refreshSession(refreshToken, req);
 
     const payload = require("../utils/tokens").verifyRefreshToken(refreshToken);
     const user = await User.findById(payload.sub);
-    setRefreshCookie(
-      res,
-      newRefreshToken,
-      payload.remember === true,
-    );
+    setRefreshCookie(res, newRefreshToken, payload.remember === true);
 
     res.json({
       success: true,
@@ -309,7 +298,7 @@ exports.me = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(req.user),
       shop: shop
-        ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
+        ? { id: String(shop._id), shopName: shop.shopName || shop.name, slug: shop.slug }
         : null,
     },
   });
@@ -346,8 +335,7 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message:
-      "If an account exists for that email, password reset instructions were sent.",
+    message: "If an account exists for that email, password reset instructions were sent.",
     ...(env.nodeEnv === "development" && devToken ? { devResetToken: devToken } : {}),
   });
 });

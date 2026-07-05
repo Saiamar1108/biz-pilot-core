@@ -1,5 +1,7 @@
 import { api, type ApiResponse } from "@/lib/api";
-import { setAccessToken, type AuthShop, type AuthUser } from "@/lib/auth-store";
+import { refreshAccessToken, setAccessToken, type AuthShop, type AuthUser } from "@/lib/auth-store";
+
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
 export type AuthSession = {
   user: AuthUser;
@@ -66,13 +68,17 @@ export async function changeAccountPassword(payload: {
   currentPassword: string;
   newPassword: string;
 }) {
-  const response = await api.post<ApiResponse<{ message: string }>>("/auth/change-password", payload);
+  const response = await api.post<ApiResponse<{ message: string }>>(
+    "/auth/change-password",
+    payload,
+  );
   return response.data;
 }
 
 export async function refreshSessionToken() {
-  const response =
-    await api.post<ApiResponse<{ accessToken: string; user: AuthUser | null }>>("/auth/refresh");
-  setAccessToken(response.data.data.accessToken);
-  return response.data.data;
+  const accessToken = await refreshAccessToken(apiBaseUrl);
+  if (!accessToken) {
+    throw new Error("Session expired");
+  }
+  return { accessToken, user: null as AuthUser | null };
 }

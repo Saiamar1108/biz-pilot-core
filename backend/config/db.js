@@ -17,7 +17,18 @@ async function connectDB() {
   }
 
   try {
-    const conn = await mongoose.connect(uri);
+    mongoose.connection.on("disconnected", () => {
+      console.warn("MongoDB disconnected. Mongoose will attempt to reconnect.");
+    });
+
+    mongoose.connection.on("reconnected", () => {
+      console.log("MongoDB reconnected successfully");
+    });
+
+    const conn = await mongoose.connect(uri, {
+      serverSelectionTimeoutMS: 10000,
+      socketTimeoutMS: 45000,
+    });
     console.log(`MongoDB connected successfully: ${conn.connection.host}/${conn.connection.name}`);
   } catch (error) {
     console.error("MongoDB connection failed:", error.message);

@@ -2,6 +2,7 @@ const ACCESS_TOKEN_KEY = "sp_access_token";
 
 let accessTokenMemory: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
+let refreshBlockedUntilLogin = false;
 
 export type AuthUser = {
   id: string;
@@ -28,12 +29,14 @@ export function getAccessToken() {
 
 export function setAccessToken(token: string | null) {
   accessTokenMemory = token;
+  if (token) refreshBlockedUntilLogin = false;
   if (typeof window === "undefined") return;
   if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
   else localStorage.removeItem(ACCESS_TOKEN_KEY);
 }
 
 export async function refreshAccessToken(apiBaseUrl: string) {
+  if (refreshBlockedUntilLogin) return null;
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
@@ -46,6 +49,7 @@ export async function refreshAccessToken(apiBaseUrl: string) {
 
       if (!response.ok) {
         setAccessToken(null);
+        refreshBlockedUntilLogin = true;
         return null;
       }
 
@@ -55,9 +59,11 @@ export async function refreshAccessToken(apiBaseUrl: string) {
         setAccessToken(token);
         return token;
       }
+      refreshBlockedUntilLogin = true;
       return null;
     } catch {
       setAccessToken(null);
+      refreshBlockedUntilLogin = true;
       return null;
     } finally {
       refreshPromise = null;
