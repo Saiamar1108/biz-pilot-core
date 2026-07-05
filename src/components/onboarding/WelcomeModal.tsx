@@ -44,10 +44,11 @@ export function WelcomeModal({
         </div>
         <DialogHeader className="pt-8">
           <DialogTitle className="text-center text-2xl font-display font-bold">
-            Welcome to ShopPilot
+            Your demo store is ready
           </DialogTitle>
           <DialogDescription className="text-center text-sm leading-relaxed pt-2">
-            This workspace includes sample products, customers, and invoices for demo/testing. You can edit or delete anything.
+            Your demo store is ready - we&apos;ve added sample products, customers, and invoices so
+            you can explore everything instantly.
           </DialogDescription>
         </DialogHeader>
 
