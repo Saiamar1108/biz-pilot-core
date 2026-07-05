@@ -3,7 +3,7 @@ import { getAccessToken } from "./auth-store";
 
 const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ||
-  "https://shop-pilot-core.onrender.com/api";
+  "http://localhost:5001";
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
