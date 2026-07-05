@@ -33,11 +33,12 @@ function sanitizeUser(user) {
 }
 
 function setRefreshCookie(res, token, rememberMe) {
-  res.cookie(
-    env.refreshCookieName,
-    token,
-    getRefreshCookieOptions(rememberMe),
-  );
+  res.cookie("refreshToken", refreshToken, {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === "production",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+  path: "/",
+});
 }
 
 function clearRefreshCookie(res) {

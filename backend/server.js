@@ -22,35 +22,52 @@ const inventoryIntelligenceRoutes = require("./routes/inventoryIntelligenceRoute
 
 const app = express();
 
+// trust proxy (needed for Render / HTTPS)
 app.set("trust proxy", 1);
-app.use(helmet({
-  contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false,
-}));
-app.use(cors({ 
-  origin: env.corsOrigin, 
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-}));
-app.use(cookieParser(
-  env.nodeEnv === "production" ? {
-    secure: true,
-    httpOnly: true,
-    sameSite: "strict",
-  } : undefined
-));
+
+// security
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// CORS
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://your-frontend.onrender.com", // replace this with actual frontend URL
+    ],
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+// cookie parser
+app.use(cookieParser());
+
+// body parsers
 app.use(express.json({ limit: "3mb" }));
 app.use(express.urlencoded({ extended: true }));
 
+// logger
 if (env.nodeEnv === "development") {
   app.use(morgan("dev"));
 }
 
+// health check
 app.get("/health", (req, res) => {
-  res.json({ success: true, message: "ShopPilot AI API is running" });
+  res.json({
+    success: true,
+    message: "ShopPilot AI API is running",
+  });
 });
 
+// routes
 app.use("/auth", authRoutes);
 app.use("/products", productRoutes);
 app.use("/customers", customerRoutes);
@@ -61,20 +78,26 @@ app.use("/settings", settingsRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/inventory-intelligence", inventoryIntelligenceRoutes);
 
+// error handlers
 app.use(notFound);
 app.use(errorHandler);
 
+// start server
 async function startServer() {
-  await connectDB();
-  await Setting.syncIndexes();
-  await runTenancyMigration();
+  try {
+    await connectDB();
+    await Setting.syncIndexes();
+    await runTenancyMigration();
 
-  app.listen(env.port, () => {
-    console.log(`ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`);
-  });
+    app.listen(env.port, () => {
+      console.log(
+        `ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`
+      );
+    });
+  } catch (err) {
+    console.error("Failed to start server:", err.message);
+    process.exit(1);
+  }
 }
 
-startServer().catch((err) => {
-  console.error("Failed to start server:", err.message);
-  process.exit(1);
-});
+startServer();

@@ -7,15 +7,15 @@ const {
 } = require("../utils/tokens");
 const env = require("../config/env");
 
-function getRefreshCookieOptions(rememberMe = false) {
-  const maxAge = rememberMe ? env.refreshRememberCookieMaxAgeMs : env.refreshCookieMaxAgeMs;
-
+function getRefreshCookieOptions(rememberMe) {
   return {
     httpOnly: true,
-    secure: env.nodeEnv === "production",
-    sameSite: env.nodeEnv === "production" ? "strict" : "lax",
-    maxAge,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     path: "/",
+    maxAge: rememberMe
+      ? 1000 * 60 * 60 * 24 * 30
+      : 1000 * 60 * 60 * 24 * 7,
   };
 }
 
