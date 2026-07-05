@@ -37,7 +37,7 @@ async function createDefaultShop() {
 
   if (!shop) {
     shop = await Shop.create({
-      name: "SaiMart Retail",
+      shopName: "SaiMart Retail",
       slug: DEFAULT_SHOP_SLUG,
       businessType: "Grocery & Retail",
       phone: "+91 7569681350",

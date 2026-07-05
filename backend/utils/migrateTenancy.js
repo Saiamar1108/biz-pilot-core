@@ -58,7 +58,7 @@ async function ensureDefaultShop() {
 
   if (!shop) {
     shop = await Shop.create({
-      name: "SaiMart Retail",
+      shopName: "SaiMart Retail",
       slug: DEFAULT_SHOP_SLUG,
       businessType: "Grocery & Retail",
       phone: "+91 7569681350",
@@ -116,7 +116,7 @@ async function claimDefaultShopForFirstUser(userId) {
 async function createShopForUser({ name, businessType, phone, address, ownerId }) {
   const slug = await ensureUniqueShopSlug(name);
   return Shop.create({
-    name,
+    shopName,
     slug,
     ownerId,
     businessType: businessType || "Retail",
