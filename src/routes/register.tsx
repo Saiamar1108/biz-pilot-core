@@ -2,12 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthFormField } from "@/components/auth/AuthFormField";
-import { Button } from "@/components/ui/button";
-import {
-  AuthDivider,
-  AuthSubmitButton,
-  GoogleSignInButton,
-} from "@/components/auth/AuthFormExtras";
+import { AuthSubmitButton } from "@/components/auth/AuthFormExtras";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -156,10 +151,6 @@ function RegisterPage() {
           />
 
           <AuthSubmitButton loading={loading}>Create account</AuthSubmitButton>
-
-          <AuthDivider />
-
-          <GoogleSignInButton disabled={loading} />
 
           <p className="pt-1 text-center text-sm text-muted-foreground">
             Already have an account?{" "}

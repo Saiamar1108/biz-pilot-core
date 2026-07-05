@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 const navLinks = [
   { href: "#features", label: "Features" },
   { href: "#workflow", label: "How it works" },
-  { href: "#testimonials", label: "Customers" },
+  { href: "#overview", label: "Overview" },
 ];
 
 export function LandingNavbar() {

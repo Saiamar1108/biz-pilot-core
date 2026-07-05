@@ -1,7 +1,7 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Mic, Paperclip, Send, Sparkles, TrendingUp, Package, Users, ChevronDown, ChevronUp } from "lucide-react";
+import { Bot, Mic, Paperclip, Send, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { postAiChat } from "@/lib/api";
@@ -13,37 +13,30 @@ type Msg = {
   collapsible?: boolean;
 };
 
-const initial: Msg[] = [
-  { role: "ai", text: "Hi! I'm your ShopPilot AI, your experienced store manager. Ask me anything about your business." },
-  { role: "user", text: "What are my top selling products?" },
-  {
-    role: "ai",
-    text: "Answer: Aashirvaad Atta leads with 277 sold, followed by Britannia Good Day (146) and Fortune Sunflower Oil (129).\n\nWhy: Grocery category performs best with ₹121,460 revenue.\n\nAction: Maintain stock of top 3 grocery items.",
-    card: { title: "Top Seller", value: "Aashirvaad Atta · 277 sold", icon: TrendingUp },
-  },
-];
-
-const prompts = [
-  { icon: TrendingUp, text: "What's my total revenue?" },
-  { icon: Package, text: "Which products need restocking?" },
-  { icon: Users, text: "Who owes me money?" },
-  { icon: Sparkles, text: "Predict tomorrow's sales" },
-];
-
-const voiceCommands = [
-  "what's my total revenue",
-  "which products need restocking",
-  "who owes me money",
-  "predict tomorrow's sales",
-  "show low stock products",
-];
-
-const aiResponses: Record<string, string> = {
-  "What's my total revenue?": "Answer: ₹3,59,009 total revenue with ₹15,772 pending.\n\nWhy: Grocery category leads with ₹121,460.\n\nAction: Follow up on 11 pending invoices.",
-  "Which products need restocking?": "Answer: Aashirvaad Atta (3 units) and Haldiram's Namkeen (8 units) need urgent restocking.\n\nWhy: Both are critical low stock items.\n\nAction: Order 81 units of Atta and 3 units of Namkeen.",
-  "Who owes me money?": "Answer: Bhuvana Sri owes ₹4,086, Laxmi owes ₹4,396, and Sanjay Yadav owes ₹2,925.\n\nWhy: 11 invoices pending collection.\n\nAction: Send payment reminders to top 3 debtors.",
-  "Predict tomorrow's sales": "Answer: Tomorrow sales: ₹8,500 (+9%)\nConfidence: 82%\nTop demand: Atta, Milk, Biscuits\nAction: Restock Atta.",
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  onstart: (() => void) | null;
+  onresult: ((event: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start: () => void;
+  stop: () => void;
 };
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
+
+type SpeechRecognitionWindow = Window & {
+  SpeechRecognition?: SpeechRecognitionConstructor;
+  webkitSpeechRecognition?: SpeechRecognitionConstructor;
+};
+
+const initial: Msg[] = [{ role: "ai", text: "Ask anything about your business." }];
+
+const prompts = [{ icon: Sparkles, text: "Ask anything about your business" }];
+
+const voiceCommands = ["ask anything about your business"];
 
 export function AssistantPage() {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
@@ -57,7 +50,7 @@ export function AssistantPage() {
   const [expandedMessages, setExpandedMessages] = useState<Set<number>>(new Set());
   const fileRef = useRef<HTMLInputElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
   const toggleExpand = useCallback((index: number) => {
     setExpandedMessages((prev) => {
@@ -71,48 +64,53 @@ export function AssistantPage() {
     });
   }, []);
 
-  const send = async (text?: string) => {
-    const t = (text ?? input).trim();
-    if (!t || sending) return;
+  const send = useCallback(
+    async (text?: string) => {
+      const t = (text ?? input).trim();
+      if (!t || sending) return;
 
-    setMsgs((m) => [...m, { role: "user", text: t }, { role: "ai", text: "Thinking..." }]);
-    setInput("");
-    setSending(true);
+      setMsgs((m) => [...m, { role: "user", text: t }, { role: "ai", text: "Thinking..." }]);
+      setInput("");
+      setSending(true);
 
-    try {
-      const response = await postAiChat(t);
-      const reply = response.reply ?? response.message ?? "I couldn't generate a response right now.";
-      
-      // Check if response is too long (more than 5 lines)
-      const lineCount = reply.split('\n').length;
-      const isCollapsible = lineCount > 5;
-      
-      setMsgs((m) => {
-        const next = m.slice(0, -1);
-        return [...next, { role: "ai", text: reply, collapsible: isCollapsible }];
-      });
-    } catch (error) {
-      // Fallback to predefined responses
-      const fallbackReply = aiResponses[t] || "Answer: I need more context to answer that.\n\nWhy: Please provide specific details about your question.\n\nAction: Try asking about revenue, inventory, or customers.";
-      
-      const lineCount = fallbackReply.split('\n').length;
-      const isCollapsible = lineCount > 5;
-      
-      setMsgs((m) => {
-        const next = m.slice(0, -1);
-        return [...next, { role: "ai", text: fallbackReply, collapsible: isCollapsible }];
-      });
-    } finally {
-      setSending(false);
-    }
-  };
+      try {
+        const response = await postAiChat(t);
+        const reply =
+          response.reply ?? response.message ?? "I couldn't generate a response right now.";
+
+        // Check if response is too long (more than 5 lines)
+        const lineCount = reply.split("\n").length;
+        const isCollapsible = lineCount > 5;
+
+        setMsgs((m) => {
+          const next = m.slice(0, -1);
+          return [...next, { role: "ai", text: reply, collapsible: isCollapsible }];
+        });
+      } catch {
+        const fallbackReply = "Ask anything about your business.";
+
+        const lineCount = fallbackReply.split("\n").length;
+        const isCollapsible = lineCount > 5;
+
+        setMsgs((m) => {
+          const next = m.slice(0, -1);
+          return [...next, { role: "ai", text: fallbackReply, collapsible: isCollapsible }];
+        });
+      } finally {
+        setSending(false);
+      }
+    },
+    [input, sending],
+  );
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [msgs, sending]);
 
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const speechWindow = window as SpeechRecognitionWindow;
+    const SpeechRecognition =
+      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setRecognitionSupported(false);
       return;
@@ -129,7 +127,7 @@ export function AssistantPage() {
       setSendError(null);
     };
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = String(event.results[0][0].transcript || "").trim();
       setInput(transcript);
       setVoiceStatus("Processing...");
@@ -147,7 +145,7 @@ export function AssistantPage() {
       }
     };
 
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event) => {
       setListening(false);
       setVoiceStatus(null);
       if (event.error === "not-allowed" || event.error === "permission-denied") {
@@ -171,6 +169,7 @@ export function AssistantPage() {
       recognition.stop?.();
       recognitionRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processingVoice]);
 
   const toggleVoice = () => {
@@ -200,7 +199,8 @@ export function AssistantPage() {
             <div className="min-w-0 flex-1">
               <div className="font-display font-bold">ShopPilot Assistant</div>
               <div className="text-xs text-accent-brand flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-accent-brand animate-pulse" /> Online · GPT-powered
+                <span className="h-2 w-2 rounded-full bg-accent-brand animate-pulse" /> Online ·
+                GPT-powered
               </div>
             </div>
           </div>
@@ -213,13 +213,17 @@ export function AssistantPage() {
                     <Bot className="h-4 w-4 text-primary-foreground" />
                   </div>
                 )}
-                <div className={m.role === "user"
-                  ? "gradient-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-lg shadow-md"
-                  : "max-w-lg space-y-3"}>
+                <div
+                  className={
+                    m.role === "user"
+                      ? "gradient-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-lg shadow-md"
+                      : "max-w-lg space-y-3"
+                  }
+                >
                   <div className="text-sm leading-relaxed">
                     {m.collapsible && !expandedMessages.has(i) ? (
                       <div>
-                        {m.text.split('\n').slice(0, 5).join('\n')}
+                        {m.text.split("\n").slice(0, 5).join("\n")}
                         <button
                           onClick={() => toggleExpand(i)}
                           className="text-xs text-primary mt-2 flex items-center gap-1 hover:underline"
@@ -273,7 +277,13 @@ export function AssistantPage() {
             </div>
             <div className="flex items-center gap-2 p-2 rounded-xl border border-border bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition">
               <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
-              <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => fileRef.current?.click()} disabled={sending}>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => fileRef.current?.click()}
+                disabled={sending}
+              >
                 <Paperclip className="h-4 w-4" />
               </Button>
               <div className="relative flex items-center">
@@ -310,7 +320,12 @@ export function AssistantPage() {
                   </div>
                 )}
               </div>
-              <Button size="icon" onClick={() => send()} className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground" disabled={sending}>
+              <Button
+                size="icon"
+                onClick={() => send()}
+                className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground"
+                disabled={sending}
+              >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -319,7 +334,9 @@ export function AssistantPage() {
 
         <div className="hidden lg:block space-y-4">
           <div className="glass-card rounded-2xl p-5">
-            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">Suggested Prompts</div>
+            <div className="text-xs uppercase tracking-wider text-muted-foreground font-semibold mb-3">
+              Suggested Prompts
+            </div>
             <div className="space-y-2">
               {prompts.map((p) => (
                 <button

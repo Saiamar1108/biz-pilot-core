@@ -9,6 +9,12 @@ export type AuthSession = {
   accessToken: string;
 };
 
+function apiErrorMessage(error: unknown, fallback: string) {
+  const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data
+    ?.message;
+  return typeof message === "string" && message.trim() ? message : fallback;
+}
+
 export async function registerAccount(payload: {
   name: string;
   email: string;
@@ -19,9 +25,13 @@ export async function registerAccount(payload: {
   address?: string;
   rememberMe?: boolean;
 }) {
-  const response = await api.post<ApiResponse<AuthSession>>("/auth/register", payload);
-  setAccessToken(response.data.data.accessToken);
-  return response.data.data;
+  try {
+    const response = await api.post<ApiResponse<AuthSession>>("/auth/register", payload);
+    setAccessToken(response.data.data.accessToken);
+    return response.data.data;
+  } catch (error) {
+    throw new Error(apiErrorMessage(error, "Registration failed"));
+  }
 }
 
 export async function loginAccount(payload: {
@@ -29,9 +39,13 @@ export async function loginAccount(payload: {
   password: string;
   rememberMe?: boolean;
 }) {
-  const response = await api.post<ApiResponse<AuthSession>>("/auth/login", payload);
-  setAccessToken(response.data.data.accessToken);
-  return response.data.data;
+  try {
+    const response = await api.post<ApiResponse<AuthSession>>("/auth/login", payload);
+    setAccessToken(response.data.data.accessToken);
+    return response.data.data;
+  } catch (error) {
+    throw new Error(apiErrorMessage(error, "Login failed"));
+  }
 }
 
 export async function logoutAccount() {

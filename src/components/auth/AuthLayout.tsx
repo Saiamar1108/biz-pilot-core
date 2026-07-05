@@ -86,7 +86,7 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
           </div>
 
           <p className="relative px-10 pb-10 text-xs text-muted-foreground xl:px-12">
-            Trusted by retail and grocery operators across India.
+            Built for retail and grocery operations.
           </p>
         </motion.aside>
 

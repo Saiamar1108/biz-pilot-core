@@ -178,7 +178,7 @@ exports.login = asyncHandler(async (req, res) => {
 
   if (!user) {
     res.status(401);
-    throw new Error("Invalid email or password");
+    throw new Error("No account found. Create an account to continue.");
   }
 
   if (user.isLocked()) {
@@ -201,7 +201,7 @@ exports.login = asyncHandler(async (req, res) => {
     await user.save();
 
     res.status(401);
-    throw new Error("Invalid email or password");
+    throw new Error("Incorrect password. Please try again.");
   }
 
   user.failedLoginAttempts = 0;

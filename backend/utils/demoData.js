@@ -9,31 +9,55 @@ async function seedDemoData(shopId) {
     return;
   }
 
+  const suffix = String(shopId).slice(-6).toUpperCase();
   const products = [
-    { name: "Rice Bag", price: 1200, stock: 20, category: "Groceries", shopId },
-    { name: "Cooking Oil", price: 180, stock: 35, category: "Groceries", shopId },
-    { name: "Sugar", price: 45, stock: 40, category: "Groceries", shopId },
-    { name: "Milk Pack", price: 30, stock: 50, category: "Dairy", shopId },
-    { name: "Bread", price: 40, stock: 25, category: "Bakery", shopId },
-    { name: "Egg Tray", price: 90, stock: 15, category: "Dairy", shopId },
-    { name: "Soap", price: 25, stock: 60, category: "Personal Care", shopId },
-    { name: "Shampoo", price: 120, stock: 30, category: "Personal Care", shopId },
-    { name: "Biscuits", price: 20, stock: 80, category: "Snacks", shopId },
-    { name: "Soft Drink", price: 50, stock: 45, category: "Beverages", shopId },
-  ];
+    ["GROCERY-RICE-5KG", "Sona Masoori Rice 5kg", 420, 34, "Groceries"],
+    ["GROCERY-DAL-1KG", "Toor Dal 1kg", 165, 28, "Groceries"],
+    ["GROCERY-SUGAR-1KG", "Refined Sugar 1kg", 48, 42, "Groceries"],
+    ["OIL-GROUNDNUT-1L", "Groundnut Oil 1L", 190, 24, "Groceries"],
+    ["DAIRY-MILK-1L", "Toned Milk 1L", 62, 36, "Dairy"],
+    ["BAKERY-BREAD", "Whole Wheat Bread", 45, 22, "Bakery"],
+    ["SNACKS-BISCUITS", "Family Biscuits Pack", 35, 50, "Snacks"],
+    ["BEV-TEA-500G", "Premium Tea 500g", 220, 18, "Beverages"],
+    ["CARE-SOAP-4PK", "Bath Soap 4 Pack", 135, 30, "Personal Care"],
+    ["CLEAN-FLOOR-1L", "Floor Cleaner 1L", 175, 16, "Cleaning"],
+  ].map(([sku, name, price, stock, category]) => ({
+    sku: `${sku}-${suffix}`,
+    name,
+    price,
+    stock,
+    category,
+    costPrice: Number((price * 0.7).toFixed(2)),
+    sold: 0,
+    shopId,
+    stockMovements: [
+      {
+        type: "added",
+        quantity: stock,
+        note: "Opening stock",
+        createdAt: new Date(),
+      },
+    ],
+  }));
 
   const customers = [
-    { name: "Ravi Kumar", phone: "9876543210", email: "ravi@test.com", shopId },
-    { name: "Priya Sharma", phone: "9876543211", email: "priya@test.com", shopId },
-    { name: "Arjun Reddy", phone: "9876543212", email: "arjun@test.com", shopId },
-    { name: "Sneha Patel", phone: "9876543213", email: "sneha@test.com", shopId },
-    { name: "Vikram Singh", phone: "9876543214", email: "vikram@test.com", shopId },
-    { name: "Meera Joshi", phone: "9876543215", email: "meera@test.com", shopId },
-    { name: "Kiran Rao", phone: "9876543216", email: "kiran@test.com", shopId },
-    { name: "Anjali Devi", phone: "9876543217", email: "anjali@test.com", shopId },
-    { name: "Suresh Babu", phone: "9876543218", email: "suresh@test.com", shopId },
-    { name: "Pooja Nair", phone: "9876543219", email: "pooja@test.com", shopId },
-  ];
+    ["Ravi Kumar", "9876543210", "ravi.kumar", "MG Road"],
+    ["Priya Sharma", "9876543211", "priya.sharma", "Market Street"],
+    ["Arjun Reddy", "9876543212", "arjun.reddy", "Station Road"],
+    ["Sneha Patel", "9876543213", "sneha.patel", "Main Bazaar"],
+    ["Vikram Singh", "9876543214", "vikram.singh", "Temple Road"],
+    ["Meera Joshi", "9876543215", "meera.joshi", "Lake View Colony"],
+    ["Kiran Rao", "9876543216", "kiran.rao", "Gandhi Nagar"],
+    ["Anjali Devi", "9876543217", "anjali.devi", "Krishna Layout"],
+    ["Suresh Babu", "9876543218", "suresh.babu", "Ring Road"],
+    ["Pooja Nair", "9876543219", "pooja.nair", "Green Park"],
+  ].map(([name, phone, emailName, address]) => ({
+    name,
+    phone,
+    email: `${emailName}.${suffix.toLowerCase()}@example.com`,
+    address,
+    shopId,
+  }));
 
   await Product.insertMany(products);
   await Customer.insertMany(customers);

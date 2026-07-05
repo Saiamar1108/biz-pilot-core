@@ -2,11 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthFormField } from "@/components/auth/AuthFormField";
-import {
-  AuthDivider,
-  AuthSubmitButton,
-  GoogleSignInButton,
-} from "@/components/auth/AuthFormExtras";
+import { AuthSubmitButton } from "@/components/auth/AuthFormExtras";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
@@ -52,7 +48,17 @@ function LoginPage() {
       });
       void navigate({ to: "/dashboard" });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Login failed");
+      const message = error instanceof Error ? error.message : "Login failed";
+      if (message === "No account found. Create an account to continue.") {
+        toast.error(message, {
+          action: {
+            label: "Create Account",
+            onClick: () => void navigate({ to: "/register" }),
+          },
+        });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setLoading(false);
     }
@@ -126,10 +132,6 @@ function LoginPage() {
           </div>
 
           <AuthSubmitButton loading={loading}>Sign in</AuthSubmitButton>
-
-          <AuthDivider />
-
-          <GoogleSignInButton disabled={loading} />
 
           <p className="pt-1 text-center text-sm text-muted-foreground">
             New to ShopPilot?{" "}

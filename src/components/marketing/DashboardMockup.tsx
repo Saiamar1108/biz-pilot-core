@@ -2,9 +2,9 @@ import { motion } from "framer-motion";
 import { ArrowUpRight, BarChart3, Package, Receipt, TrendingUp } from "lucide-react";
 
 const stats = [
-  { label: "Today's sales", value: "₹48,250", change: "+12.4%", icon: TrendingUp },
-  { label: "Pending dues", value: "₹9,800", change: "3 invoices", icon: Receipt },
-  { label: "Low stock items", value: "7", change: "Restock soon", icon: Package },
+  { label: "Sales overview", value: "Ready", change: "Updated", icon: TrendingUp },
+  { label: "Pending dues", value: "Ready", change: "Review anytime", icon: Receipt },
+  { label: "Stock status", value: "Ready", change: "Track inventory", icon: Package },
 ];
 
 export function DashboardMockup() {
@@ -39,7 +39,7 @@ export function DashboardMockup() {
                   Overview
                 </p>
                 <h3 className="mt-1 font-display text-lg font-semibold text-foreground">
-                  SaiMart Retail
+                  Your Business
                 </h3>
               </div>
               <div className="grid gap-3">
@@ -66,8 +66,8 @@ export function DashboardMockup() {
             <div className="rounded-lg border border-border/70 bg-card p-4">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground">Revenue trend</p>
-                  <p className="font-display text-sm font-semibold">Last 7 days</p>
+                  <p className="text-xs font-medium text-muted-foreground">Business trend</p>
+                  <p className="font-display text-sm font-semibold">Overview</p>
                 </div>
                 <span className="inline-flex items-center gap-1 text-xs font-medium text-primary">
                   View analytics
@@ -75,7 +75,7 @@ export function DashboardMockup() {
                 </span>
               </div>
               <div className="flex h-36 items-end gap-2">
-                {[38, 52, 44, 61, 55, 72, 68].map((height, index) => (
+                {[48, 58, 44, 64, 52, 68, 60].map((height, index) => (
                   <div
                     key={index}
                     className="flex-1 rounded-sm bg-primary/15"
