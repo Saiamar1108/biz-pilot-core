@@ -1,5 +1,10 @@
 const env = require("../config/env");
 
+const numberOrZero = (value) => {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 function calculateInvoiceTotals(
   lineItems,
   taxRate = env.taxRate,
@@ -9,34 +14,16 @@ function calculateInvoiceTotals(
   taxEnabled = true,
 ) {
   let subtotal = 0;
-  let totalItemDiscount = 0;
+  const rate = numberOrZero(taxRate);
 
-  // Calculate subtotal and total item discounts
   for (const item of lineItems) {
-    const itemSubtotal = item.quantity * item.unitPrice;
+    const itemSubtotal = numberOrZero(item.quantity) * numberOrZero(item.unitPrice);
     subtotal += itemSubtotal;
-
-    let itemDiscountAmount = 0;
-    if (item.discountType === "percentage") {
-      itemDiscountAmount = itemSubtotal * (item.discount / 100);
-    } else {
-      itemDiscountAmount = item.discount;
-    }
-    totalItemDiscount += parseFloat(itemDiscountAmount.toFixed(2));
   }
 
-  const afterItemDiscounts = subtotal - totalItemDiscount;
-
-  // Calculate invoice discount
-  let invoiceDiscountAmount = 0;
-  if (invoiceDiscountType === "percentage") {
-    invoiceDiscountAmount = afterItemDiscounts * (invoiceDiscount / 100);
-  } else {
-    invoiceDiscountAmount = invoiceDiscount;
-  }
-  const totalDiscount = parseFloat((totalItemDiscount + invoiceDiscountAmount).toFixed(2));
-
-  const afterAllDiscounts = Math.max(0, subtotal - totalDiscount);
+  subtotal = parseFloat(subtotal.toFixed(2));
+  const totalItemDiscount = 0;
+  const totalDiscount = 0;
 
   // Calculate GST components
   let cgst = 0,
@@ -50,25 +37,25 @@ function calculateInvoiceTotals(
   if (effectiveTaxEnabled) {
     if (taxMode === "cgst-sgst") {
       // CGST and SGST are each half the total tax rate
-      const halfRate = taxRate / 2;
-      cgst = parseFloat((afterAllDiscounts * halfRate).toFixed(2));
+      const halfRate = rate / 2;
+      cgst = parseFloat((subtotal * halfRate).toFixed(2));
       sgst = cgst;
       tax = parseFloat((cgst + sgst).toFixed(2));
     } else if (taxMode === "igst") {
       // IGST is full tax rate
-      igst = parseFloat((afterAllDiscounts * taxRate).toFixed(2));
+      igst = parseFloat((subtotal * rate).toFixed(2));
       tax = igst;
     } else {
       // Standard or Custom mode
-      tax = parseFloat((afterAllDiscounts * taxRate).toFixed(2));
+      tax = parseFloat((subtotal * rate).toFixed(2));
     }
   }
 
-  const total = parseFloat((afterAllDiscounts + tax).toFixed(2));
+  const total = parseFloat((subtotal + tax).toFixed(2));
 
   return {
     subtotal,
-    taxRate,
+    taxRate: rate,
     tax,
     total,
     totalItemDiscount,
@@ -96,7 +83,7 @@ async function buildLineItems(rawItems, shopId) {
       throw error;
     }
 
-    const quantity = item.quantity || 1;
+    const quantity = Math.max(1, numberOrZero(item.quantity) || 1);
     const alreadyRequested = requestedByProduct.get(String(product._id)) || 0;
     const cumulativeRequested = alreadyRequested + quantity;
     if (product.stock < cumulativeRequested) {
@@ -113,17 +100,11 @@ async function buildLineItems(rawItems, shopId) {
     }
     requestedByProduct.set(String(product._id), cumulativeRequested);
 
-    const unitPrice = item.unitPrice ?? product.price;
+    const unitPrice = numberOrZero(item.unitPrice ?? product.price);
     const itemSubtotal = quantity * unitPrice;
     const itemDiscount = item.discount ?? 0;
     const itemDiscountType = item.discountType ?? "flat";
-    let itemDiscountAmount = 0;
-    if (itemDiscountType === "percentage") {
-      itemDiscountAmount = itemSubtotal * (itemDiscount / 100);
-    } else {
-      itemDiscountAmount = itemDiscount;
-    }
-    const lineTotal = parseFloat((itemSubtotal - itemDiscountAmount).toFixed(2));
+    const lineTotal = parseFloat(itemSubtotal.toFixed(2));
 
     lineItems.push({
       product: product._id,

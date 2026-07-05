@@ -84,7 +84,7 @@ export function generateInvoiceWhatsAppMessage({
   const paymentLink = buildUpiPaymentUrl({
     upiId: resolveUpiId(business),
     payeeName: shopName,
-    amount: pendingAmount > 0 ? pendingAmount : invoice.amount,
+    amount: invoice.amount,
     note: `Invoice ${invoice.id}`,
   });
 

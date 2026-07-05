@@ -63,6 +63,7 @@ export const Route = createFileRoute("/billing")({
 type Line = { id: number; productId: string; product: string; qty: number; price: number };
 
 const emptyLine = (): Line => ({ id: Date.now(), productId: "", product: "", qty: 1, price: 0 });
+const moneyAmount = (value: number) => (Number.isFinite(value) ? Number(value.toFixed(2)) : 0);
 
 function stockTone(stock: number) {
   if (stock <= 2) return "text-destructive bg-destructive/10 border-destructive/20";
@@ -135,7 +136,7 @@ function BillingPage() {
         if (!active) return;
         setCustomers(customerData);
         setProducts(productData);
-        setTaxRate(settings.taxRate);
+        setTaxRate(Number.isFinite(Number(settings.taxRate)) ? Number(settings.taxRate) : 0);
         setBusiness(settings.business);
       } catch (err) {
         if (!active) return;
@@ -209,10 +210,11 @@ function BillingPage() {
   }, [customer, completedInvoice]);
 
   const displayInvoiceNumber = completedInvoice?.id ?? "Pending";
-  const taxPercentLabel = `${Math.round(taxRate * 100)}%`;
-  const subtotal = lines.reduce((sum, line) => sum + line.qty * line.price, 0);
-  const tax = subtotal * taxRate;
-  const total = subtotal + tax;
+  const effectiveTaxRate = Number.isFinite(taxRate) ? taxRate : 0;
+  const taxPercentLabel = `${Math.round(effectiveTaxRate * 100)}%`;
+  const subtotal = moneyAmount(lines.reduce((sum, line) => sum + line.qty * line.price, 0));
+  const tax = moneyAmount(subtotal * effectiveTaxRate);
+  const total = moneyAmount(subtotal + tax);
 
   const selectedCustomer = useMemo(
     () => customers.find((item) => item.id === customer),
@@ -259,7 +261,7 @@ function BillingPage() {
 
   const paidAmount = completedInvoice?.paidAmount ?? 0;
   const remainingAmount = completedInvoice
-    ? Math.max(0, completedInvoice.amount - paidAmount)
+    ? Math.max(0, completedInvoice.total - paidAmount)
     : total;
 
   const refreshCatalog = async () => {
@@ -328,7 +330,7 @@ function BillingPage() {
       .map((line) => ({
         product: line.productId,
         quantity: line.qty,
-        unitPrice: line.price,
+        unitPrice: moneyAmount(line.price),
       }));
 
   const toggleVoice = () => {
@@ -483,7 +485,7 @@ function BillingPage() {
       setMessage(null);
       const created = await createInvoice({
         customer,
-        taxRate,
+        taxRate: effectiveTaxRate,
         lineItems: buildPayloadLines(),
       });
       finalizeInvoice(created);
@@ -527,7 +529,7 @@ function BillingPage() {
       setError(null);
       const created = await createInvoice({
         customer,
-        taxRate,
+        taxRate: effectiveTaxRate,
         lineItems: buildPayloadLines(),
         status: "sent",
       });
@@ -880,7 +882,9 @@ function BillingPage() {
                           min={0}
                           step={0.01}
                           value={line.price}
-                          onChange={(e) => updateLine(line.id, { price: +e.target.value })}
+                          onChange={(e) =>
+                            updateLine(line.id, { price: Number(e.target.value) || 0 })
+                          }
                           className="bg-background"
                         />
                       </div>
@@ -1003,7 +1007,7 @@ function BillingPage() {
                 </div>
                 <div className="flex justify-between">
                   <span>Total billed</span>
-                  <span className="font-medium">{formatCurrency(completedInvoice.amount)}</span>
+                  <span className="font-medium">{formatCurrency(completedInvoice.total)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Paid amount</span>

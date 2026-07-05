@@ -187,11 +187,10 @@ export async function generateInvoicePDF({ invoice, business, customerName }: In
     cursorY += 16;
   }
 
-  const outstanding = getInvoiceOutstanding(invoice);
   const paymentUrl = buildUpiPaymentUrl({
     upiId: resolveUpiId(business),
     payeeName: business.storeName,
-    amount: outstanding > 0 ? outstanding : invoice.amount,
+    amount: invoice.amount,
     note: invoice.id,
   });
 

@@ -10,6 +10,7 @@ const {
   buildLineItems,
   generateInvoiceNumber,
 } = require("../utils/calculateInvoice");
+const { numberOrZero } = require("../utils/invoiceAmounts");
 
 const { recalculateCustomerMetrics } = require("../services/customerMetrics");
 const { ensureDemoData } = require("../utils/demoData");
@@ -78,7 +79,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
 
   const lineItems = await buildLineItems(rawItems);
 
-  const rate = taxRate ?? env.taxRate;
+  const rate = numberOrZero(taxRate ?? env.taxRate);
   const { subtotal, tax, total } = calculateInvoiceTotals(lineItems, rate);
 
   const invoiceNumber = await generateInvoiceNumber();
@@ -189,16 +190,20 @@ exports.updateInvoicePayment = asyncHandler(async (req, res) => {
     throw new Error("Invoice not found");
   }
 
-  const total = Number(invoice.total ?? invoice.amount ?? 0);
+  const recalculated = calculateInvoiceTotals(
+    invoice.lineItems || [],
+    numberOrZero(invoice.taxRate),
+  );
+  const total = recalculated.total;
 
-  if (!Number(invoice.total)) {
-    invoice.total = total;
-  }
+  invoice.subtotal = recalculated.subtotal;
+  invoice.tax = recalculated.tax;
+  invoice.total = total;
 
   const method = typeof paymentMethod === "string" ? paymentMethod.trim() : "";
 
   if (status === "paid") {
-    const previousPaid = Number(invoice.paidAmount || 0);
+    const previousPaid = numberOrZero(invoice.paidAmount);
     const paymentDelta = Math.max(0, total - previousPaid);
 
     invoice.status = "paid";

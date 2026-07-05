@@ -12,7 +12,7 @@ function getInvoiceDocumentMeta({ invoice, business, customer }) {
   const qr = generatePaymentQRCode({
     upiId: business?.upiId,
     payeeName: business?.storeName,
-    amount: invoice.pendingAmount || invoice.total,
+    amount: invoice.total,
     note: invoice.invoiceNumber,
   });
 

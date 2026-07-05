@@ -130,9 +130,41 @@ function normalizeInvoice(invoice: any): Invoice {
   const customerId = customerObject
     ? documentId(customerObject)
     : String(invoice?.customer || invoice?.customerId || "");
-  const total = Number(invoice?.total ?? invoice?.amount ?? 0);
-  const paidAmount = Number(invoice?.paidAmount || 0);
-  const pendingAmount = Number(invoice?.pendingAmount ?? Math.max(0, total - paidAmount));
+  const lineItems = (invoice?.lineItems || []).map((item: any) => {
+    const quantity = Number(item?.quantity ?? 0);
+    const unitPrice = Number(item?.unitPrice ?? item?.price ?? 0);
+    return {
+      ...item,
+      productId: item?.productId || String(item?.product || ""),
+      productName: item?.productName || item?.name || "",
+      quantity: Number.isFinite(quantity) ? quantity : 0,
+      unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
+      costPrice: Number(item?.costPrice ?? 0),
+      lineTotal: Number(
+        (Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(unitPrice) ? unitPrice : 0),
+      ),
+    };
+  });
+  const calculatedSubtotal = Number(
+    lineItems.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0).toFixed(2),
+  );
+  const subtotal = calculatedSubtotal;
+  const taxRateValue = Number(invoice?.taxRate ?? 0);
+  const taxRate = Number.isFinite(taxRateValue) ? taxRateValue : 0;
+  const storedTax = Number(invoice?.tax);
+  const tax = storedTax > 0 ? storedTax : Number((subtotal * taxRate).toFixed(2));
+  const calculatedTotal = Number((subtotal + tax).toFixed(2));
+  const total = calculatedTotal;
+  const paidAmountValue = Number(invoice?.paidAmount ?? 0);
+  const paidAmount = Number.isFinite(paidAmountValue) ? paidAmountValue : 0;
+  const storedPending = Number(invoice?.pendingAmount);
+  const calculatedPending = Math.max(0, total - paidAmount);
+  const pendingAmount =
+    invoice?.status === "paid"
+      ? 0
+      : invoice?.status === "partial" && Number.isFinite(storedPending) && storedPending > 0
+        ? storedPending
+        : calculatedPending;
 
   return {
     ...invoice,
@@ -144,24 +176,16 @@ function normalizeInvoice(invoice: any): Invoice {
     customerName: invoice?.customerName || customerObject?.name || "",
     amount: total,
     total,
-    subtotal: Number(invoice?.subtotal || 0),
-    tax: Number(invoice?.tax || 0),
-    taxRate: Number(invoice?.taxRate || 0),
+    subtotal,
+    tax,
+    taxRate,
     paidAmount,
     pendingAmount,
     status: invoice?.status || "pending",
     items: Array.isArray(invoice?.lineItems)
       ? invoice.lineItems.length
       : Number(invoice?.items || 0),
-    lineItems: (invoice?.lineItems || []).map((item: any) => ({
-      ...item,
-      productId: item?.productId || String(item?.product || ""),
-      productName: item?.productName || item?.name || "",
-      quantity: Number(item?.quantity || 0),
-      unitPrice: Number(item?.unitPrice ?? item?.price ?? 0),
-      costPrice: Number(item?.costPrice || 0),
-      lineTotal: Number(item?.lineTotal || 0),
-    })),
+    lineItems,
     paymentHistory: invoice?.paymentHistory || [],
     createdAt: invoice?.createdAt || "",
     dueDate: invoice?.dueDate || null,
