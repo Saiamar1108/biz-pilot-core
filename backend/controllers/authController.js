@@ -15,6 +15,7 @@ const {
   createShopForUser,
   runTenancyMigration,
 } = require("../utils/migrateTenancy");
+const { seedDemoData } = require("../utils/demoData");
 const env = require("../config/env");
 
 const LOCK_TIME_MS = 30 * 60 * 1000;
@@ -33,17 +34,29 @@ function sanitizeUser(user) {
 }
 
 function setRefreshCookie(res, token, rememberMe) {
-  res.cookie(env.refreshCookieName, token, getRefreshCookieOptions(rememberMe));
+  res.cookie(
+    env.refreshCookieName,
+    token,
+    getRefreshCookieOptions(rememberMe),
+  );
 }
 
 function clearRefreshCookie(res) {
-  const options = getRefreshCookieOptions(false);
-  delete options.maxAge;
-  res.clearCookie(env.refreshCookieName, options);
+  res.clearCookie(env.refreshCookieName, getRefreshCookieOptions(false));
 }
 
+/* ========================= REGISTER ========================= */
+
 exports.register = asyncHandler(async (req, res) => {
-  const { name, email, password, shopName, businessType, phone, address } = req.body;
+  const {
+    name,
+    email,
+    password,
+    shopName,
+    businessType,
+    phone,
+    address,
+  } = req.body;
 
   if (!name || !email || !password) {
     res.status(400);
@@ -56,14 +69,16 @@ exports.register = asyncHandler(async (req, res) => {
   }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const existingUser = await User.findOne({ email: normalizedEmail });
+
+  const existingUser = await User.findOne({
+    email: normalizedEmail,
+  });
 
   if (existingUser) {
     res.status(409);
     throw new Error("Email already registered");
   }
 
-  // Run migration to ensure existing data has shopId
   await runTenancyMigration();
 
   const userCount = await User.countDocuments();
@@ -71,6 +86,7 @@ exports.register = asyncHandler(async (req, res) => {
 
   if (userCount === 0) {
     shop = await claimDefaultShopForFirstUser(null);
+
     if (shopName && shop.name !== shopName) {
       shop.name = shopName;
       if (phone) shop.phone = phone;
@@ -88,6 +104,7 @@ exports.register = asyncHandler(async (req, res) => {
   }
 
   const passwordHash = await User.hashPassword(password);
+
   const user = await User.create({
     name: String(name).trim(),
     email: normalizedEmail,
@@ -100,6 +117,14 @@ exports.register = asyncHandler(async (req, res) => {
   if (!shop.ownerId) {
     shop.ownerId = user._id;
     await shop.save();
+  }
+
+  // Seed demo data (10 products + 10 customers)
+  try {
+    await seedDemoData(shop._id);
+    console.log("Demo data seeded successfully");
+  } catch (error) {
+    console.error("Demo data seed failed:", error.message);
   }
 
   const { accessToken, refreshToken } = await issueAuthTokens(user, {
@@ -127,13 +152,15 @@ exports.register = asyncHandler(async (req, res) => {
       user: sanitizeUser(user),
       shop: {
         id: String(shop._id),
-        shopName: shop.shopName || shop.name,
+        shopName: shop.name,
         slug: shop.slug,
       },
       accessToken,
     },
   });
 });
+
+/* ========================= LOGIN ========================= */
 
 exports.login = asyncHandler(async (req, res) => {
   const { email, password, rememberMe } = req.body;
@@ -144,31 +171,21 @@ exports.login = asyncHandler(async (req, res) => {
   }
 
   const normalizedEmail = String(email).trim().toLowerCase();
-  const user = await User.findOne({ email: normalizedEmail }).select("+passwordHash");
+
+  const user = await User.findOne({
+    email: normalizedEmail,
+  }).select("+passwordHash");
 
   if (!user) {
-    await logAuthEvent({
-      email: normalizedEmail,
-      action: "login_failed",
-      req,
-      success: false,
-      metadata: { reason: "user_not_found" },
-    });
     res.status(401);
     throw new Error("Invalid email or password");
   }
 
   if (user.isLocked()) {
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "login_locked",
-      req,
-      success: false,
-    });
     res.status(423);
-    throw new Error("Account locked due to failed attempts. Try again later.");
+    throw new Error(
+      "Account locked due to failed attempts. Try again later.",
+    );
   }
 
   const valid = await user.comparePassword(password);
@@ -182,15 +199,6 @@ exports.login = asyncHandler(async (req, res) => {
     }
 
     await user.save();
-
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "login_failed",
-      req,
-      success: false,
-    });
 
     res.status(401);
     throw new Error("Invalid email or password");
@@ -208,15 +216,6 @@ exports.login = asyncHandler(async (req, res) => {
 
   setRefreshCookie(res, refreshToken, rememberMe === true);
 
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "login",
-    req,
-    success: true,
-  });
-
   const shop = await Shop.findById(user.shopId).lean();
 
   res.json({
@@ -224,12 +223,18 @@ exports.login = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(user),
       shop: shop
-        ? { id: String(shop._id), shopName: shop.shopName || shop.name, slug: shop.slug }
+        ? {
+            id: String(shop._id),
+            shopName: shop.name,
+            slug: shop.slug,
+          }
         : null,
       accessToken,
     },
   });
 });
+
+/* ========================= REFRESH ========================= */
 
 exports.refresh = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.[env.refreshCookieName];
@@ -242,10 +247,15 @@ exports.refresh = asyncHandler(async (req, res) => {
   }
 
   try {
-    const { accessToken, refreshToken: newRefreshToken } = await refreshSession(refreshToken, req);
+    const { accessToken, refreshToken: newRefreshToken } =
+      await refreshSession(refreshToken, req);
 
-    const payload = require("../utils/tokens").verifyRefreshToken(refreshToken);
+    const payload = require("../utils/tokens").verifyRefreshToken(
+      refreshToken,
+    );
+
     const user = await User.findById(payload.sub);
+
     setRefreshCookie(res, newRefreshToken, payload.remember === true);
 
     res.json({
@@ -255,31 +265,23 @@ exports.refresh = asyncHandler(async (req, res) => {
         user: user ? sanitizeUser(user) : null,
       },
     });
-  } catch (error) {
+  } catch {
     clearRefreshCookie(res);
-    return res.status(401).json({
+
+    res.status(401).json({
       success: false,
       message: "Session expired. Please login again.",
     });
   }
 });
 
+/* ========================= LOGOUT ========================= */
+
 exports.logout = asyncHandler(async (req, res) => {
   const refreshToken = req.cookies?.[env.refreshCookieName];
 
   if (refreshToken) {
     await revokeRefreshToken(refreshToken);
-  }
-
-  if (req.user?._id) {
-    await logAuthEvent({
-      userId: req.user._id,
-      shopId: req.user.shopId,
-      email: req.user.email,
-      action: "logout",
-      req,
-      success: true,
-    });
   }
 
   clearRefreshCookie(res);
@@ -290,6 +292,8 @@ exports.logout = asyncHandler(async (req, res) => {
   });
 });
 
+/* ========================= ME ========================= */
+
 exports.me = asyncHandler(async (req, res) => {
   const shop = await Shop.findById(req.user.shopId).lean();
 
@@ -298,47 +302,51 @@ exports.me = asyncHandler(async (req, res) => {
     data: {
       user: sanitizeUser(req.user),
       shop: shop
-        ? { id: String(shop._id), shopName: shop.shopName || shop.name, slug: shop.slug }
+        ? {
+            id: String(shop._id),
+            shopName: shop.name,
+            slug: shop.slug,
+          }
         : null,
     },
   });
 });
 
+/* ========================= FORGOT PASSWORD ========================= */
+
 exports.forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const normalizedEmail = String(email || "")
-    .trim()
-    .toLowerCase();
+
+  const normalizedEmail = String(email || "").trim().toLowerCase();
 
   let devToken;
 
-  const user = await User.findOne({ email: normalizedEmail }).select(
-    "+passwordResetToken +passwordResetExpires",
-  );
+  const user = await User.findOne({
+    email: normalizedEmail,
+  }).select("+passwordResetToken +passwordResetExpires");
 
   if (user) {
     const { raw, hash } = generateResetToken();
+
     user.passwordResetToken = hash;
     user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
-    await user.save();
-    devToken = raw;
 
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "password_reset_requested",
-      req,
-      success: true,
-    });
+    await user.save();
+
+    devToken = raw;
   }
 
   res.json({
     success: true,
-    message: "If an account exists for that email, password reset instructions were sent.",
-    ...(env.nodeEnv === "development" && devToken ? { devResetToken: devToken } : {}),
+    message:
+      "If an account exists for that email, password reset instructions were sent.",
+    ...(env.nodeEnv === "development" && devToken
+      ? { devResetToken: devToken }
+      : {}),
   });
 });
+
+/* ========================= RESET PASSWORD ========================= */
 
 exports.resetPassword = asyncHandler(async (req, res) => {
   const { token, password } = req.body;
@@ -348,12 +356,8 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     throw new Error("Token and new password are required");
   }
 
-  if (String(password).length < 8) {
-    res.status(400);
-    throw new Error("Password must be at least 8 characters");
-  }
-
   const tokenHash = require("../utils/tokens").hashToken(token);
+
   const user = await User.findOne({
     passwordResetToken: tokenHash,
     passwordResetExpires: { $gt: new Date() },
@@ -369,18 +373,10 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   user.passwordResetExpires = undefined;
   user.failedLoginAttempts = 0;
   user.lockUntil = undefined;
+
   await user.save();
 
   await revokeAllUserTokens(user._id);
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "password_reset_completed",
-    req,
-    success: true,
-  });
 
   res.json({
     success: true,
@@ -388,18 +384,10 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   });
 });
 
+/* ========================= CHANGE PASSWORD ========================= */
+
 exports.changePassword = asyncHandler(async (req, res) => {
   const { currentPassword, newPassword } = req.body;
-
-  if (!currentPassword || !newPassword) {
-    res.status(400);
-    throw new Error("Current password and new password are required");
-  }
-
-  if (String(newPassword).length < 8) {
-    res.status(400);
-    throw new Error("Password must be at least 8 characters");
-  }
 
   const user = await User.findById(req.user._id).select("+passwordHash");
 
@@ -416,18 +404,10 @@ exports.changePassword = asyncHandler(async (req, res) => {
   }
 
   user.passwordHash = await User.hashPassword(newPassword);
+
   await user.save();
 
   await revokeAllUserTokens(user._id);
-
-  await logAuthEvent({
-    userId: user._id,
-    shopId: user.shopId,
-    email: user.email,
-    action: "password_changed",
-    req,
-    success: true,
-  });
 
   res.json({
     success: true,
