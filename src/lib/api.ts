@@ -1,7 +1,9 @@
 import axios from "axios";
 import { getAccessToken } from "./auth-store";
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+const apiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://shop-pilot-core.onrender.com/api";
 
 export const api = axios.create({
   baseURL: apiBaseUrl,
@@ -11,18 +13,60 @@ export const api = axios.create({
   },
 });
 
-// Request interceptor to add Authorization header
+// Request interceptor
 api.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
-    console.log("[api.ts] Token from store:", token ? `${token.substring(0, 20)}...` : null);
+
+    console.log(
+      "[api.ts] Token from store:",
+      token ? `${token.substring(0, 20)}...` : null
+    );
+
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
-      console.log("[api.ts] Authorization header set:", config.headers.Authorization);
     }
+
     return config;
   },
-  (error) => {
+  (error) => Promise.reject(error)
+);
+
+// Response interceptor
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry
+    ) {
+      originalRequest._retry = true;
+
+      try {
+        const refreshResponse = await axios.post(
+          `${apiBaseUrl}/auth/refresh`,
+          {},
+          {
+            withCredentials: true,
+          }
+        );
+
+        const newToken = refreshResponse.data?.data?.accessToken;
+
+        if (newToken) {
+          localStorage.setItem("accessToken", newToken);
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+
+          return api(originalRequest);
+        }
+      } catch (refreshError) {
+        localStorage.removeItem("accessToken");
+        window.location.href = "/login";
+      }
+    }
+
     return Promise.reject(error);
   }
 );
