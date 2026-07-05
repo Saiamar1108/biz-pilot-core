@@ -1,13 +1,7 @@
 import type { Customer, Product } from "@/lib/api";
 
 export type VoiceAction =
-  | "download"
-  | "send"
-  | "generate_invoice"
-  | "mark_paid"
-  | "next_customer"
-  | "clear"
-  | null;
+  "download" | "send" | "generate_invoice" | "mark_paid" | "next_customer" | "clear" | null;
 
 export type ParsedVoiceLine = {
   productId: string;
@@ -38,7 +32,11 @@ const NUMBER_WORDS: Record<string, number> = {
 };
 
 function normalizeText(value: string) {
-  return value.toLowerCase().replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseQuantity(token: string) {
@@ -122,7 +120,11 @@ function scoreProductMatch(segment: string, product: Product) {
   const segmentTokens = segmentNorm.split(" ").filter((word) => word.length > 2);
 
   for (const token of segmentTokens) {
-    if (productTokens.some((productToken) => productToken.includes(token) || token.includes(productToken))) {
+    if (
+      productTokens.some(
+        (productToken) => productToken.includes(token) || token.includes(productToken),
+      )
+    ) {
       score += 25;
     }
   }
@@ -157,7 +159,8 @@ function extractQuantityProductPairs(text: string) {
   const normalized = normalizeText(text);
   const pairs: Array<{ qty: number; segment: string }> = [];
 
-  const addPattern = /\badd\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(.+?)(?=\s+and\s+|\s+for\s+|$)/gi;
+  const addPattern =
+    /\badd\s+(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(.+?)(?=\s+and\s+|\s+for\s+|$)/gi;
   let match = addPattern.exec(normalized);
   while (match) {
     const qty = parseQuantity(match[1]) ?? 1;
@@ -167,7 +170,8 @@ function extractQuantityProductPairs(text: string) {
   }
 
   if (!pairs.length) {
-    const qtyPattern = /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(.+?)(?=\s+and\s+|$)/gi;
+    const qtyPattern =
+      /\b(\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(.+?)(?=\s+and\s+|$)/gi;
     match = qtyPattern.exec(normalized);
     while (match) {
       const qty = parseQuantity(match[1]) ?? 1;
@@ -181,9 +185,11 @@ function extractQuantityProductPairs(text: string) {
     const afterBought = normalized.split(/\b(?:bought|purchased|ordered)\b/)[1];
     if (afterBought) {
       afterBought.split(/\band\b/).forEach((part) => {
-        const match = part.trim().match(/^(\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(.+)$/);
+        const match = part
+          .trim()
+          .match(/^(\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\s*(.+)$/);
         if (!match) return;
-        const qty = match[1] ? parseQuantity(match[1]) ?? 1 : 1;
+        const qty = match[1] ? (parseQuantity(match[1]) ?? 1) : 1;
         pairs.push({ qty, segment: match[2].trim() });
       });
     }
@@ -225,9 +231,11 @@ function parseLines(text: string, products: Product[]) {
       if (!hit || used.has(product.id)) continue;
 
       const qtyMatch = normalized.match(
-        new RegExp(`(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s+(?:\\w+\\s+)*?${keywords[0]}`),
+        new RegExp(
+          `(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)\\s+(?:\\w+\\s+)*?${keywords[0]}`,
+        ),
       );
-      const qty = qtyMatch ? parseQuantity(qtyMatch[1]) ?? 1 : 1;
+      const qty = qtyMatch ? (parseQuantity(qtyMatch[1]) ?? 1) : 1;
       used.add(product.id);
       lines.push({
         productId: product.id,
@@ -241,7 +249,11 @@ function parseLines(text: string, products: Product[]) {
   return lines;
 }
 
-export function parseVoiceInvoice(text: string, customers: Customer[], products: Product[]): ParsedVoiceInvoice {
+export function parseVoiceInvoice(
+  text: string,
+  customers: Customer[],
+  products: Product[],
+): ParsedVoiceInvoice {
   const heard = text.trim();
   const action = detectVoiceAction(heard);
 
@@ -272,9 +284,7 @@ export function formatVoiceParseSummary(parsed: ParsedVoiceInvoice) {
     parsed.lines.length > 0
       ? parsed.lines.map((line) => `${line.qty}× ${line.productName}`).join(", ")
       : "—";
-  const action = parsed.action
-    ? parsed.action.replace(/_/g, " ")
-    : "—";
+  const action = parsed.action ? parsed.action.replace(/_/g, " ") : "—";
 
   return {
     customer: parsed.customerName ?? "—",

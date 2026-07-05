@@ -1,4 +1,5 @@
-const ACCESS_TOKEN_KEY = "sp_access_token";
+export const ACCESS_TOKEN_KEY = "accessToken";
+const LEGACY_ACCESS_TOKEN_KEY = "sp_access_token";
 
 let accessTokenMemory: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
@@ -23,7 +24,21 @@ export type AuthShop = {
 export function getAccessToken() {
   if (accessTokenMemory) return accessTokenMemory;
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
+
+  const token = localStorage.getItem(ACCESS_TOKEN_KEY);
+  if (token) {
+    accessTokenMemory = token;
+    return token;
+  }
+
+  const legacyToken = localStorage.getItem(LEGACY_ACCESS_TOKEN_KEY);
+  if (legacyToken) {
+    setAccessToken(legacyToken);
+    localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+    return legacyToken;
+  }
+
+  return null;
 }
 
 export function setAccessToken(token: string | null) {
@@ -31,6 +46,8 @@ export function setAccessToken(token: string | null) {
   if (typeof window === "undefined") return;
   if (token) localStorage.setItem(ACCESS_TOKEN_KEY, token);
   else localStorage.removeItem(ACCESS_TOKEN_KEY);
+
+  localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
 }
 
 export async function refreshAccessToken(apiBaseUrl: string) {

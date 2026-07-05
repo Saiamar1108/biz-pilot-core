@@ -7,20 +7,17 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentInvoices } from "@/components/dashboard/RecentInvoices";
 import { LowStockAlerts } from "@/components/dashboard/LowStockAlerts";
 import { InventoryWidgets } from "@/components/inventory/InventoryWidgets";
-import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp, Package, Receipt } from "lucide-react";
+import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
-import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { useEffect, useMemo, useState } from "react";
-import { getAnalytics, getInvoices, getProducts, getSettings, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
+import { getAnalytics, getInvoices, getProducts, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
 import { formatGrowthRate } from "@/lib/analytics";
 import { formatCurrency } from "@/lib/currency";
 import { buildLast7DaysRevenue } from "@/lib/sales-chart";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
-import { requireAuth } from "@/lib/auth-guard";
 
 export const Route = createFileRoute("/dashboard")({
-  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Dashboard — ShopPilot AI" }] }),
   component: DashboardPage,
 });
@@ -29,7 +26,6 @@ function DashboardPage() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
-  const [businessName, setBusinessName] = useState("ShopPilot AI");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -40,17 +36,15 @@ function DashboardPage() {
       try {
         if (showLoading) setLoading(true);
         setError(null);
-        const [invoiceData, productData, analyticsData, settings] = await Promise.all([
+        const [invoiceData, productData, analyticsData] = await Promise.all([
           getInvoices(),
           getProducts(),
           getAnalytics(),
-          getSettings(),
         ]);
         if (!active) return;
         setInvoices(invoiceData);
         setProducts(productData);
         setAnalytics(analyticsData);
-        setBusinessName(settings.business?.storeName || "ShopPilot AI");
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load dashboard data");
@@ -78,7 +72,7 @@ function DashboardPage() {
     };
   }, []);
 
-  const threshold = analytics?.lowStockThreshold ?? 10;
+  const threshold = 10; // Default low stock threshold
   const lowStock = useMemo(
     () => products.filter((product) => product.stock <= threshold),
     [products, threshold],
@@ -100,16 +94,12 @@ function DashboardPage() {
       <div className="space-y-6">
         <QuickActions />
 
-        <div
-          className="grid grid-cols-2 lg:grid-cols-4 gap-5"
-        >
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
             label="Revenue Collected"
             value={statValue(analytics?.revenueReceived, formatCurrency)}
             icon={DollarSign}
             accent="primary"
-            change={analytics?.growthRate}
-            comparisonLabel="from last month"
           />
           <StatCard
             label="Amount To Collect"
@@ -155,32 +145,6 @@ function DashboardPage() {
           </div>
         )}
 
-        {!loading && invoices.length === 0 && products.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center">
-            <div className="max-w-md mx-auto space-y-4">
-              <div className="grid h-16 w-16 place-items-center rounded-2xl bg-primary/10 mx-auto">
-                <ShoppingCart className="h-8 w-8 text-primary" />
-              </div>
-              <h3 className="font-display text-xl font-bold">Welcome to ShopPilot AI</h3>
-              <p className="text-sm text-muted-foreground">
-                Your store is ready. Start by adding your first product or creating an invoice to see your dashboard come to life.
-              </p>
-              <div className="flex flex-wrap justify-center gap-3 pt-2">
-                <Link to="/inventory">
-                  <Button className="gradient-primary text-primary-foreground shadow-glow">
-                    <Package className="h-4 w-4 mr-2" /> Add Products
-                  </Button>
-                </Link>
-                <Link to="/billing">
-                  <Button variant="outline">
-                    <Receipt className="h-4 w-4 mr-2" /> Create Invoice
-                  </Button>
-                </Link>
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid lg:grid-cols-3 gap-6">
           <PageSection
             title="Sales Analytics"
@@ -188,62 +152,41 @@ function DashboardPage() {
             action={<Button variant="outline" size="sm">Last 7 days</Button>}
             className="lg:col-span-2"
           >
-            <div className="h-80">
+            <div className="h-72">
               {loading ? (
                 <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
                   Loading sales…
                 </div>
-              ) : salesData.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center text-sm text-muted-foreground gap-3">
-                  <TrendingUp className="h-10 w-10 opacity-30" />
-                  <p>No sales data yet. Create your first invoice to see analytics.</p>
-                  <Link to="/billing">
-                    <Button variant="outline" size="sm">
-                      <Receipt className="h-3.5 w-3.5 mr-1.5" /> Create Invoice
-                    </Button>
-                  </Link>
-                </div>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={salesData} margin={{ top: 20, right: 20, left: 0, bottom: 10 }}>
+                  <AreaChart data={salesData}>
                     <defs>
-                      <linearGradient id="collectedGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.7 0.16 165)" stopOpacity={0.45} />
-                        <stop offset="100%" stopColor="oklch(0.7 0.16 165)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="pendingGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="oklch(0.78 0.16 75)" stopOpacity={0.3} />
-                        <stop offset="100%" stopColor="oklch(0.78 0.16 75)" stopOpacity={0} />
+                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="oklch(0.549 0.222 262)" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="oklch(0.549 0.222 262)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="4 4" vertical={false} stroke="oklch(0.9 0.01 250)" strokeOpacity={0.5} />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
                     <XAxis
                       dataKey="m"
-                      stroke="oklch(0.55 0.03 258)"
-                      fontSize={12}
+                      stroke="oklch(0.5 0.03 258)"
+                      fontSize={11}
                       tickLine={false}
                       axisLine={false}
                       interval={0}
-                      angle={-15}
+                      angle={-20}
                       textAnchor="end"
-                      height={65}
+                      height={60}
                     />
                     <YAxis
-                      stroke="oklch(0.55 0.03 258)"
+                      stroke="oklch(0.5 0.03 258)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(v) => (v >= 1000 ? `₹${v / 1000}k` : `₹${v}`)}
-                      domain={['auto', 'auto']}
                     />
                     <Tooltip
-                      contentStyle={{
-                        borderRadius: 16,
-                        border: "1px solid oklch(0.85 0.01 250)",
-                        boxShadow: "0 8px 30px rgba(0,0,0,0.12)",
-                        backdropFilter: "blur(10px)",
-                      }}
-                      cursor={{ stroke: 'oklch(0.549 0.222 262)', strokeWidth: 1, strokeDasharray: '4 4' }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }}
                       formatter={(v: number, name: string) => [
                         formatCurrency(v),
                         name === "collected" ? "Collected" : "Pending",
@@ -251,23 +194,20 @@ function DashboardPage() {
                     />
                     <Legend
                       formatter={(value) => (value === "collected" ? "Collected" : "Pending")}
-                      wrapperStyle={{ paddingTop: 10 }}
                     />
                     <Area
                       type="monotone"
                       dataKey="collected"
                       stroke="oklch(0.7 0.16 165)"
-                      strokeWidth={3.5}
-                      fill="url(#collectedGradient)"
-                      activeDot={{ r: 6, strokeWidth: 0 }}
+                      strokeWidth={2.5}
+                      fill="url(#salesGradient)"
                     />
                     <Area
                       type="monotone"
                       dataKey="pending"
                       stroke="oklch(0.78 0.16 75)"
-                      strokeWidth={3}
-                      fill="url(#pendingGradient)"
-                      activeDot={{ r: 5, strokeWidth: 0 }}
+                      strokeWidth={2.5}
+                      fill="transparent"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -330,9 +270,6 @@ function DashboardPage() {
             accent="primary"
           />
         </div>
-
-        {/* Inventory Intelligence Widgets */}
-        <InventoryWidgets businessName={businessName} />
       </div>
     </DashboardLayout>
   );

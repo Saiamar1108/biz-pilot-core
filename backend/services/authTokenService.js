@@ -8,16 +8,14 @@ const {
 const env = require("../config/env");
 
 function getRefreshCookieOptions(rememberMe = false) {
-  const maxAge = rememberMe
-    ? env.refreshRememberCookieMaxAgeMs
-    : env.refreshCookieMaxAgeMs;
+  const maxAge = rememberMe ? env.refreshRememberCookieMaxAgeMs : env.refreshCookieMaxAgeMs;
 
   return {
     httpOnly: true,
     secure: env.nodeEnv === "production",
     sameSite: env.nodeEnv === "production" ? "strict" : "lax",
     maxAge,
-    path: "/auth",
+    path: "/",
   };
 }
 
@@ -27,10 +25,7 @@ async function issueAuthTokens(user, { rememberMe = false, req } = {}) {
   const tokenHash = hashToken(refreshToken);
 
   const expiresAt = new Date(
-    Date.now() +
-      (rememberMe
-        ? env.refreshRememberCookieMaxAgeMs
-        : env.refreshCookieMaxAgeMs),
+    Date.now() + (rememberMe ? env.refreshRememberCookieMaxAgeMs : env.refreshCookieMaxAgeMs),
   );
 
   await RefreshToken.create({
@@ -67,17 +62,11 @@ async function rotateRefreshToken(oldToken, user, req) {
 async function revokeRefreshToken(token) {
   if (!token) return;
   const tokenHash = hashToken(token);
-  await RefreshToken.updateOne(
-    { tokenHash, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
-  );
+  await RefreshToken.updateOne({ tokenHash, revokedAt: null }, { $set: { revokedAt: new Date() } });
 }
 
 async function revokeAllUserTokens(userId) {
-  await RefreshToken.updateMany(
-    { userId, revokedAt: null },
-    { $set: { revokedAt: new Date() } },
-  );
+  await RefreshToken.updateMany({ userId, revokedAt: null }, { $set: { revokedAt: new Date() } });
 }
 
 async function refreshSession(refreshToken, req) {

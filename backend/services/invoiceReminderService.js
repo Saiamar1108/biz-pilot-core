@@ -11,45 +11,41 @@ const REMINDER_SCHEDULE = [
   { type: "day15", minDays: 15, maxDays: Infinity },
 ];
 
-async function getBusinessProfile() {
-  const settings = await Setting.findOne({ key: "default" }).lean();
+async function getBusinessProfile(shopId) {
+  const settings = await Setting.findOne({ key: "default", shopId }).lean();
   return settings?.business || {};
 }
 
-async function createReminderNotification({
-  type,
-  message,
-  relatedId,
-  key,
-}) {
+async function createReminderNotification({ type, message, relatedId, key, shopId }) {
   return Notification.findOneAndUpdate(
-    { key },
+    { key, shopId },
     {
       $set: {
         type,
         message,
         relatedId,
         read: false,
+        shopId,
       },
     },
     {
       upsert: true,
       new: true,
       setDefaultsOnInsert: true,
-    }
+    },
   );
 }
 
 async function syncInvoiceReminders(shopId) {
-  const business = await getBusinessProfile();
+  if (!shopId) return;
+
+  const business = await getBusinessProfile(shopId);
   const now = Date.now();
 
-  const invoiceQuery = shopId
-    ? {
-        status: { $in: [...PENDING_BUCKET_STATUSES] },
-        $or: [{ shopId }, { shopId: { $exists: false } }, { shopId: null }],
-      }
-    : { status: { $in: [...PENDING_BUCKET_STATUSES] } };
+  const invoiceQuery = {
+    status: { $in: [...PENDING_BUCKET_STATUSES] },
+    shopId,
+  };
 
   const pendingInvoices = await Invoice.find(invoiceQuery)
     .populate("customer", "name phone email")
@@ -60,18 +56,12 @@ async function syncInvoiceReminders(shopId) {
 
     if (outstanding <= 0) continue;
 
-    const daysPending = Math.floor(
-      (now - new Date(invoice.createdAt).getTime()) / 86400000
-    );
+    const daysPending = Math.floor((now - new Date(invoice.createdAt).getTime()) / 86400000);
 
-    const sentTypes = new Set(
-      (invoice.remindersSent || []).map((entry) => entry.type)
-    );
+    const sentTypes = new Set((invoice.remindersSent || []).map((entry) => entry.type));
 
     for (const schedule of REMINDER_SCHEDULE) {
-      const inWindow =
-        daysPending >= schedule.minDays &&
-        daysPending <= schedule.maxDays;
+      const inWindow = daysPending >= schedule.minDays && daysPending <= schedule.maxDays;
 
       if (!inWindow) continue;
       if (sentTypes.has(schedule.type)) continue;
@@ -87,17 +77,16 @@ async function syncInvoiceReminders(shopId) {
 
       await createReminderNotification({
         type: "payment_reminder",
-        message: `Reminder (${schedule.type}): ${
-          invoice.customerName
-        } has ₹${Math.round(outstanding).toLocaleString(
-          "en-IN"
-        )} pending on invoice ${invoice.invoiceNumber}`,
+        message: `Reminder (${schedule.type}): ${invoice.customerName} has ₹${Math.round(
+          outstanding,
+        ).toLocaleString("en-IN")} pending on invoice ${invoice.invoiceNumber}`,
         relatedId: invoice.invoiceNumber,
         key: `reminder-${schedule.type}-${invoice._id}`,
+        shopId,
       });
 
       await Invoice.updateOne(
-        { _id: invoice._id },
+        { _id: invoice._id, shopId },
         {
           $push: {
             remindersSent: {
@@ -106,7 +95,7 @@ async function syncInvoiceReminders(shopId) {
               preview: reminderPreview,
             },
           },
-        }
+        },
       );
     }
   }

@@ -1,7 +1,4 @@
-const {
-  authMiddleware,
-  shopScopeMiddleware,
-} = require("./authMiddleware");
+const { authMiddleware, shopScopeMiddleware } = require("./authMiddleware");
 
 const protect = [authMiddleware, shopScopeMiddleware];
 

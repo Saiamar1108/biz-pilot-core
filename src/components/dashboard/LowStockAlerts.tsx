@@ -25,9 +25,16 @@ export function LowStockAlerts({ products }: { products: Product[] }) {
           </div>
           <div className="min-w-0 flex-1">
             <div className="text-sm font-medium truncate">{p.name}</div>
-            <div className="text-xs text-muted-foreground">{p.sku} · {p.category}</div>
+            <div className="text-xs text-muted-foreground">
+              {p.sku} · {p.category}
+            </div>
           </div>
-          <div className={cn("text-sm font-bold shrink-0", p.stock === 0 ? "text-destructive" : "text-warning")}>
+          <div
+            className={cn(
+              "text-sm font-bold shrink-0",
+              p.stock === 0 ? "text-destructive" : "text-warning",
+            )}
+          >
             {p.stock === 0 ? "Out" : `${p.stock} left`}
           </div>
         </div>

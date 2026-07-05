@@ -9,7 +9,7 @@ exports.chat = asyncHandler(async (req, res) => {
     throw new Error("Message is required");
   }
 
-  const result = await generateAiResponse(message);
+  const result = await generateAiResponse(message, req);
 
   res.json({
     success: true,

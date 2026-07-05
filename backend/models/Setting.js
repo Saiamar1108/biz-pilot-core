@@ -1,5 +1,4 @@
 const mongoose = require("mongoose");
-const env = require("../config/env");
 
 const notificationSchema = new mongoose.Schema(
   {
@@ -45,31 +44,20 @@ const businessSchema = new mongoose.Schema(
 
 const settingSchema = new mongoose.Schema(
   {
-    key: { type: String, required: true, default: "default" },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
+    key: { type: String, required: true, trim: true, default: "default" },
     profile: { type: profileSchema, default: () => ({}) },
     business: { type: businessSchema, default: () => ({}) },
     notifications: { type: notificationSchema, default: () => ({}) },
-    taxEnabled: { type: Boolean, default: true },
-    taxMode: { type: String, enum: ["cgst-sgst", "igst", "custom", "standard", "none"], default: "cgst-sgst" },
-    taxRate: { type: Number, default: () => env.taxRate, min: 0 },
-    lowStockThreshold: { type: Number, default: () => env.lowStockThreshold, min: 1 },
+    shopId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Shop", 
+      required: true,
+      index: true 
+    },
   },
   { timestamps: true },
 );
 
-settingSchema.index({ shopId: 1, key: 1 }, { unique: true, sparse: true });
+settingSchema.index({ key: 1, shopId: 1 }, { unique: true });
 
-const Setting = mongoose.model("Setting", settingSchema);
-
-Setting.dropLegacyKeyIndex = async function dropLegacyKeyIndex() {
-  try {
-    await this.collection.dropIndex("key_1");
-  } catch (error) {
-    if (error?.code !== 27 && !/index not found/i.test(error?.message || "")) {
-      console.warn("[Setting] Could not drop legacy key index:", error.message);
-    }
-  }
-};
-
-module.exports = Setting;
+module.exports = mongoose.model("Setting", settingSchema);

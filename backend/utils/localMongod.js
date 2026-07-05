@@ -81,7 +81,7 @@ async function startLocalMongod() {
   const binary = findMongodBinary();
   if (!binary) {
     throw new Error(
-      "MongoDB binary not found. Run: cd backend && npm install mongodb-memory-server --save-dev"
+      "MongoDB binary not found. Run: cd backend && npm install mongodb-memory-server --save-dev",
     );
   }
 
@@ -91,7 +91,7 @@ async function startLocalMongod() {
   mongodProcess = spawn(
     binary,
     ["--port", String(MONGO_PORT), "--dbpath", dbPath, "--bind_ip", "127.0.0.1", "--noauth"],
-    { stdio: "ignore", detached: false }
+    { stdio: "ignore", detached: false },
   );
 
   mongodProcess.on("error", (err) => {

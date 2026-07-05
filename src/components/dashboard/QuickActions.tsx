@@ -16,7 +16,9 @@ export function QuickActions() {
         <Link key={a.label} to={a.to}>
           <Button
             variant={a.variant === "primary" ? "default" : "outline"}
-            className={a.variant === "primary" ? "gradient-primary text-primary-foreground shadow-glow" : ""}
+            className={
+              a.variant === "primary" ? "gradient-primary text-primary-foreground shadow-glow" : ""
+            }
           >
             <a.icon className="h-4 w-4 mr-2" />
             {a.label}

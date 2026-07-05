@@ -50,34 +50,40 @@ export type SalesChartPoint = {
   pending: number;
 };
 
-export function buildLast7DaysRevenue(invoices: Invoice[], referenceDate = new Date()): SalesChartPoint[] {
+export function buildLast7DaysRevenue(
+  invoices: Invoice[],
+  referenceDate = new Date(),
+): SalesChartPoint[] {
   const last7Days = getLast7Days(referenceDate);
   const rangeStart = last7Days[0];
 
-  const salesMap = invoices.reduce<Record<string, { collected: number; pending: number }>>((acc, invoice) => {
-    if (!invoice.createdAt) return acc;
+  const salesMap = invoices.reduce<Record<string, { collected: number; pending: number }>>(
+    (acc, invoice) => {
+      if (!invoice.createdAt) return acc;
 
-    const createdAt = new Date(invoice.createdAt);
-    if (Number.isNaN(createdAt.getTime())) return acc;
+      const createdAt = new Date(invoice.createdAt);
+      if (Number.isNaN(createdAt.getTime())) return acc;
 
-    const day = startOfDay(createdAt);
-    if (day < rangeStart) return acc;
+      const day = startOfDay(createdAt);
+      if (day < rangeStart) return acc;
 
-    const key = toDateKey(day);
-    const current = acc[key] ?? { collected: 0, pending: 0 };
+      const key = toDateKey(day);
+      const current = acc[key] ?? { collected: 0, pending: 0 };
 
-    if (invoice.status === "paid" || invoice.paidAmount > 0) {
-      current.collected += invoice.paidAmount || invoice.amount;
-    }
+      if (invoice.status === "paid" || invoice.paidAmount > 0) {
+        current.collected += invoice.paidAmount || invoice.amount;
+      }
 
-    const outstanding = getOutstandingAmount(invoice);
-    if (outstanding > 0) {
-      current.pending += outstanding;
-    }
+      const outstanding = getOutstandingAmount(invoice);
+      if (outstanding > 0) {
+        current.pending += outstanding;
+      }
 
-    acc[key] = current;
-    return acc;
-  }, {});
+      acc[key] = current;
+      return acc;
+    },
+    {},
+  );
 
   return last7Days.map((day) => ({
     m: formatChartDayLabel(day),

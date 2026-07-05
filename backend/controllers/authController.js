@@ -16,7 +16,6 @@ const {
   runTenancyMigration,
 } = require("../utils/migrateTenancy");
 const env = require("../config/env");
-const { OAuth2Client } = require("google-auth-library");
 
 const LOCK_TIME_MS = 30 * 60 * 1000;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -29,7 +28,6 @@ function sanitizeUser(user) {
     role: user.role,
     shopId: String(user.shopId),
     isVerified: user.isVerified,
-    onboardingCompleted: user.onboardingCompleted === true,
     lastLogin: user.lastLogin,
   };
 }
@@ -100,8 +98,6 @@ exports.register = asyncHandler(async (req, res) => {
     role: "owner",
     shopId: shop._id,
     isVerified: true,
-    authProviders: ["local"],
-    authProvider: "local",
   });
 
   if (!shop.ownerId) {
@@ -246,7 +242,7 @@ exports.refresh = asyncHandler(async (req, res) => {
   if (!refreshToken) {
     return res.status(401).json({
       success: false,
-      message: "Refresh token missing",
+      message: "No active session. Please login again.",
     });
   }
 
@@ -273,7 +269,7 @@ exports.refresh = asyncHandler(async (req, res) => {
     clearRefreshCookie(res);
     return res.status(401).json({
       success: false,
-      message: "Invalid refresh token",
+      message: "Session expired. Please login again.",
     });
   }
 });
@@ -314,26 +310,6 @@ exports.me = asyncHandler(async (req, res) => {
       shop: shop
         ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
         : null,
-    },
-  });
-});
-
-exports.completeOnboarding = asyncHandler(async (req, res) => {
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    { $set: { onboardingCompleted: true } },
-    { new: true },
-  );
-
-  if (!user) {
-    res.status(404);
-    throw new Error("User not found");
-  }
-
-  res.json({
-    success: true,
-    data: {
-      user: sanitizeUser(user),
     },
   });
 });
@@ -423,210 +399,49 @@ exports.resetPassword = asyncHandler(async (req, res) => {
   });
 });
 
-exports.googleAuth = asyncHandler(async (req, res) => {
-  const { idToken } = req.body;
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
 
-  if (!idToken) {
+  if (!currentPassword || !newPassword) {
     res.status(400);
-    throw new Error("Google ID token is required");
+    throw new Error("Current password and new password are required");
   }
 
-  if (!env.googleClientId) {
-    res.status(500);
-    throw new Error("Google OAuth is not configured");
+  if (String(newPassword).length < 8) {
+    res.status(400);
+    throw new Error("Password must be at least 8 characters");
   }
 
-  const client = new OAuth2Client(env.googleClientId);
+  const user = await User.findById(req.user._id).select("+passwordHash");
 
-  let ticket;
-  try {
-    ticket = await client.verifyIdToken({
-      idToken,
-      audience: env.googleClientId,
-    });
-  } catch (error) {
-    await logAuthEvent({
-      action: "google_auth_failed",
-      req,
-      success: false,
-      metadata: { reason: "invalid_token", error: error.message },
-    });
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  const valid = await user.comparePassword(currentPassword);
+
+  if (!valid) {
     res.status(401);
-    throw new Error("Invalid Google ID token");
+    throw new Error("Current password is incorrect");
   }
 
-  const payload = ticket.getPayload();
-  const { sub: googleId, email, name, picture } = payload;
-
-  if (!email) {
-    res.status(400);
-    throw new Error("Google account does not have an email");
-  }
-
-  const normalizedEmail = email.toLowerCase();
-
-  await runTenancyMigration();
-
-  let user = await User.findOne({ googleId });
-
-  if (user) {
-    user.lastLogin = new Date();
-    await user.save();
-
-    const { accessToken, refreshToken } = await issueAuthTokens(user, {
-      rememberMe: req.body.rememberMe === true,
-      req,
-    });
-
-    setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
-
-    await logAuthEvent({
-      userId: user._id,
-      shopId: user.shopId,
-      email: user.email,
-      action: "google_login",
-      req,
-      success: true,
-    });
-
-    const shop = await Shop.findById(user.shopId).lean();
-
-    return res.json({
-      success: true,
-      data: {
-        user: sanitizeUser(user),
-        shop: shop
-          ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-          : null,
-        accessToken,
-      },
-    });
-  }
-
-  user = await User.findOne({ email: normalizedEmail });
-
-  if (user) {
-    if (user.authProvider === "local") {
-      user.googleId = googleId;
-      if (!user.authProviders.includes("google")) {
-        user.authProviders.push("google");
-      }
-      user.authProvider = "google";
-      user.lastLogin = new Date();
-      if (picture && !user.profilePicture) {
-        user.profilePicture = picture;
-      }
-      await user.save();
-
-      await logAuthEvent({
-        userId: user._id,
-        shopId: user.shopId,
-        email: user.email,
-        action: "google_linked",
-        req,
-        success: true,
-        metadata: { previouslyLocal: true },
-      });
-    } else {
-      user.googleId = googleId;
-      user.authProvider = "google";
-      user.lastLogin = new Date();
-      if (picture && !user.profilePicture) {
-        user.profilePicture = picture;
-      }
-      if (!user.authProviders.includes("google")) {
-        user.authProviders.push("google");
-      }
-      await user.save();
-
-      await logAuthEvent({
-        userId: user._id,
-        shopId: user.shopId,
-        email: user.email,
-        action: "google_login",
-        req,
-        success: true,
-      });
-    }
-
-    const { accessToken, refreshToken } = await issueAuthTokens(user, {
-      rememberMe: req.body.rememberMe === true,
-      req,
-    });
-
-    setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
-
-    const shop = await Shop.findById(user.shopId).lean();
-
-    return res.json({
-      success: true,
-      data: {
-        user: sanitizeUser(user),
-        shop: shop
-          ? { id: String(shop._id), shopName: shop.name, slug: shop.slug }
-          : null,
-        accessToken,
-      },
-    });
-  }
-
-  const userCount = await User.countDocuments();
-  let shop;
-
-  if (userCount === 0) {
-    shop = await claimDefaultShopForFirstUser(null);
-  } else {
-    shop = await createShopForUser({
-      name: `${name}'s Store`,
-    });
-  }
-
-  user = await User.create({
-    name: name || "Google User",
-    email: normalizedEmail,
-    googleId,
-    authProvider: "google",
-    authProviders: ["google"],
-    role: "owner",
-    shopId: shop._id,
-    isVerified: true,
-    profilePicture: picture,
-  });
-
-  if (!shop.ownerId) {
-    shop.ownerId = user._id;
-    await shop.save();
-  }
-
-  const { accessToken, refreshToken } = await issueAuthTokens(user, {
-    rememberMe: req.body.rememberMe === true,
-    req,
-  });
-
-  user.lastLogin = new Date();
+  user.passwordHash = await User.hashPassword(newPassword);
   await user.save();
 
-  setRefreshCookie(res, refreshToken, req.body.rememberMe === true);
+  await revokeAllUserTokens(user._id);
 
   await logAuthEvent({
     userId: user._id,
-    shopId: shop._id,
+    shopId: user.shopId,
     email: user.email,
-    action: "google_register",
+    action: "password_changed",
     req,
     success: true,
   });
 
-  res.status(201).json({
+  res.json({
     success: true,
-    data: {
-      user: sanitizeUser(user),
-      shop: {
-        id: String(shop._id),
-        shopName: shop.name,
-        slug: shop.slug,
-      },
-      accessToken,
-    },
+    message: "Password changed successfully. Please log in again.",
   });
 });

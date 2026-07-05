@@ -30,11 +30,7 @@ export function detectDuplicateInvoices(invoices: Invoice[]) {
   return duplicates;
 }
 
-export function getTopUnpaidCustomers(
-  invoices: Invoice[],
-  customers: Customer[],
-  limit = 5,
-) {
+export function getTopUnpaidCustomers(invoices: Invoice[], customers: Customer[], limit = 5) {
   const pendingByCustomer = new Map<string, { name: string; pending: number; count: number }>();
 
   for (const invoice of invoices) {
@@ -96,16 +92,7 @@ export function getMostPurchasedProducts(invoices: Invoice[], limit = 5) {
 }
 
 export function exportInvoicesCsv(invoices: Invoice[]) {
-  const header = [
-    "Invoice",
-    "Customer",
-    "Date",
-    "Status",
-    "Total",
-    "Paid",
-    "Pending",
-    "Profit",
-  ];
+  const header = ["Invoice", "Customer", "Date", "Status", "Total", "Paid", "Pending", "Profit"];
 
   const rows = invoices.map((invoice) => [
     invoice.id,
@@ -114,7 +101,11 @@ export function exportInvoicesCsv(invoices: Invoice[]) {
     invoice.status,
     invoice.amount,
     invoice.paidAmount,
-    invoice.status === "paid" ? 0 : invoice.status === "partial" ? invoice.pendingAmount : invoice.amount,
+    invoice.status === "paid"
+      ? 0
+      : invoice.status === "partial"
+        ? invoice.pendingAmount
+        : invoice.amount,
     calculateInvoiceProfit(invoice).toFixed(2),
   ]);
 

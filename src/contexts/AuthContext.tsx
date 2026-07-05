@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   fetchCurrentSession,
-  googleLoginAccount,
   loginAccount,
   logoutAccount,
   refreshSessionToken,
@@ -30,7 +30,6 @@ type AuthContextValue = {
     shopName?: string;
     rememberMe?: boolean;
   }) => Promise<void>;
-  googleLogin: (idToken: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -38,9 +37,16 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [shop, setShop] = useState<AuthShop | null>(null);
+  const [accessToken, setAuthAccessToken] = useState<string | null>(() => getAccessToken());
   const [loading, setLoading] = useState(true);
+
+  const updateAccessToken = useCallback((token: string | null) => {
+    setAccessToken(token);
+    setAuthAccessToken(token);
+  }, []);
 
   const restoreSession = useCallback(async () => {
     try {
@@ -49,9 +55,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           const refreshed = await refreshSessionToken();
           token = refreshed.accessToken;
+          setAuthAccessToken(token);
           if (refreshed.user) setUser(refreshed.user);
         } catch {
-          setAccessToken(null);
+          updateAccessToken(null);
           setUser(null);
           setShop(null);
           return;
@@ -63,11 +70,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(session.user);
       setShop(session.shop);
     } catch {
-      setAccessToken(null);
+      updateAccessToken(null);
       setUser(null);
       setShop(null);
     }
-  }, []);
+  }, [updateAccessToken]);
 
   useEffect(() => {
     void restoreSession().finally(() => setLoading(false));
@@ -75,9 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string, rememberMe = false) => {
     const session = await loginAccount({ email, password, rememberMe });
+    updateAccessToken(session.accessToken);
     setUser(session.user);
     setShop(session.shop);
-  }, []);
+    void navigate({ to: "/dashboard" });
+  }, [navigate, updateAccessToken]);
 
   const register = useCallback(
     async (payload: {
@@ -88,37 +97,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       rememberMe?: boolean;
     }) => {
       const session = await registerAccount(payload);
+      updateAccessToken(session.accessToken);
       setUser(session.user);
       setShop(session.shop);
+      void navigate({ to: "/dashboard" });
     },
-    [],
+    [navigate, updateAccessToken],
   );
-
-  const googleLogin = useCallback(async (idToken: string, rememberMe = false) => {
-    const session = await googleLoginAccount({ idToken, rememberMe });
-    setUser(session.user);
-    setShop(session.shop);
-  }, []);
 
   const logout = useCallback(async () => {
     await logoutAccount();
+    updateAccessToken(null);
     setUser(null);
     setShop(null);
-  }, []);
+  }, [updateAccessToken]);
 
   const value = useMemo(
     () => ({
       user,
       shop,
       loading,
-      isAuthenticated: Boolean(user && getAccessToken()),
+      isAuthenticated: Boolean(user && accessToken),
       login,
       register,
-      googleLogin,
       logout,
       refresh: restoreSession,
     }),
-    [user, shop, loading, login, register, googleLogin, logout, restoreSession],
+    [user, shop, loading, accessToken, login, register, logout, restoreSession],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

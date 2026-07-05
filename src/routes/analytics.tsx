@@ -47,11 +47,7 @@ import { exportAnalyticsCsv, exportAnalyticsPdf } from "@/lib/analytics-export";
 import { formatCurrency } from "@/lib/currency";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 
-import { toast } from "sonner";
-import { requireAuth } from "@/lib/auth-guard";
-
 export const Route = createFileRoute("/analytics")({
-  beforeLoad: requireAuth,
   head: () => ({
     meta: [{ title: "Analytics — ShopPilot AI" }],
   }),
@@ -184,12 +180,8 @@ function AnalyticsPage() {
             ? { range, startDate: customStart, endDate: customEnd }
             : { range: range === "custom" ? "all" : range };
 
-        const [data, inventoryData] = await Promise.all([
-          getAnalytics(params),
-          getInventoryInsights(),
-        ]);
+        const data = await getAnalytics(params);
         setAnalytics(data);
-        setInventoryInsights(inventoryData);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
       } finally {
@@ -629,86 +621,6 @@ function AnalyticsPage() {
                 );
               })
             )}
-          </div>
-        </PageSection>
-
-        {/* Inventory Intelligence Section */}
-        <PageSection title="Inventory Intelligence" description="Stock performance and turnover metrics">
-          <div className="grid lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-2">
-              <div className="mb-4">
-                <h4 className="font-semibold mb-2">Category-wise Revenue</h4>
-                <div className="h-64">
-                  {categoryBar.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No category data yet.</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={categoryBar}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                        <Bar dataKey="revenue" fill="oklch(0.549 0.222 262)" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-              <div>
-                <h4 className="font-semibold mb-2">Profit by Category</h4>
-                <div className="h-64">
-                  {categoryBar.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No profit data yet.</p>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={categoryBar}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" />
-                        <YAxis />
-                        <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                        <Bar dataKey="profit" fill="oklch(0.7 0.16 165)" radius={[6, 6, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="space-y-4">
-              <StatCard
-                label="Stock Turnover"
-                value={inventoryInsights?.stockTurnoverRatio ? inventoryInsights.stockTurnoverRatio.toFixed(2) : "N/A"}
-                icon={RotateCcw}
-                accent="primary"
-              />
-              <div className="rounded-lg border p-4">
-                <h4 className="font-semibold mb-3">Fastest Moving</h4>
-                <div className="space-y-2">
-                  {inventoryInsights?.movementAnalysis?.fastMoving?.slice(0, 5).map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm">
-                      <span className="truncate">{item.name}</span>
-                      <span className="font-semibold">{item.salesCount} sold</span>
-                    </div>
-                  ))}
-                  {(!inventoryInsights?.movementAnalysis?.fastMoving?.length) && (
-                    <p className="text-sm text-muted-foreground">No data yet.</p>
-                  )}
-                </div>
-              </div>
-              <div className="rounded-lg border p-4">
-                <h4 className="font-semibold mb-3">Dead Stock Items</h4>
-                <div className="space-y-2">
-                  {inventoryInsights?.movementAnalysis?.deadStock?.slice(0, 5).map((item: any) => (
-                    <div key={item.id} className="flex justify-between items-center text-sm">
-                      <span className="truncate">{item.name}</span>
-                      <span className="font-semibold">{item.stock} units</span>
-                    </div>
-                  ))}
-                  {(!inventoryInsights?.movementAnalysis?.deadStock?.length) && (
-                    <p className="text-sm text-muted-foreground">No dead stock.</p>
-                  )}
-                </div>
-              </div>
-            </div>
           </div>
         </PageSection>
 

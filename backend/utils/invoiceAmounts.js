@@ -1,9 +1,4 @@
-const PENDING_BUCKET_STATUSES = new Set([
-  "pending",
-  "sent",
-  "overdue",
-  "partial",
-]);
+const PENDING_BUCKET_STATUSES = new Set(["pending", "sent", "overdue", "partial"]);
 
 const numberOrZero = (value) => {
   const parsed = Number(value ?? 0);

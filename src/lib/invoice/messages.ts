@@ -2,7 +2,8 @@ import type { BusinessProfile, Customer, Invoice } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 
 export const STORE_POLICIES = [
-  "No return. Exchange only within 7 days.",
+  "No return after 7 days",
+  "Damaged products must be reported within 24 hours",
 ];
 
 export type InvoiceMessageContext = {
@@ -175,59 +176,24 @@ export function generateReminderMessage({
   });
 
   const lines = [
-    `🏪 ${shopName}`,
-    business.address ? `📍 ${business.address}` : "",
-    business.phone ? `📞 ${business.phone}` : "",
-    "",
-    "━━━━━━━━━━━━━━━━━━",
-    "💳 PAYMENT REMINDER",
-    "━━━━━━━━━━━━━━━━━━",
-    "",
     `Hello ${customer?.name || invoice.customer},`,
     "",
     `This is a gentle reminder from ${shopName}.`,
     "",
-    `Your invoice #${invoice.id} has ₹${formatCurrency(pending)} pending.`,
+    `Your invoice #${invoice.id} of ${formatCurrency(pending)} is still pending.`,
     "",
     `Invoice Date: ${formatDate(invoice.createdAt || invoice.date)}`,
-    `Time: ${formatTime(invoice.createdAt)}`,
     `Due Date: ${formatDate(invoice.dueDate)}`,
     "",
-    "━━━━━━━━━━━━━━━━━━",
-    "ITEMS",
-    "━━━━━━━━━━━━━━━━━━",
+    "Kindly clear the payment at your earliest convenience.",
     "",
   ];
 
-  for (const item of invoice.lineItems) {
-    lines.push(
-      `• ${item.productName}`,
-      `  Qty: ${item.quantity} × ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.lineTotal)}`,
-      "",
-    );
-  }
-
-  lines.push(
-    "━━━━━━━━━━━━━━━━━━",
-    "",
-    `Total: ${formatCurrency(invoice.amount)}`,
-    `Paid: ${formatCurrency(invoice.paidAmount)}`,
-    `Pending: ${formatCurrency(pending)}`,
-    "",
-    "━━━━━━━━━━━━━━━━━━",
-    "📌 STORE POLICY",
-    "━━━━━━━━━━━━━━━━━━",
-    "No return. Exchange only within 7 days.",
-    "",
-    "Kindly clear the payment at your earliest convenience.",
-  );
-
   if (paymentLink) {
-    lines.push("", "💳 Payment Link:", paymentLink);
+    lines.push("Payment Link:", paymentLink, "");
   }
 
   lines.push(
-    "",
     "For any queries contact:",
     business.phone || "Store support",
     "",

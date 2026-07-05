@@ -12,15 +12,14 @@ const variants = {
   regular: "bg-secondary text-muted-foreground",
 };
 
-export function StatusBadge({
-  status,
-  label,
-}: {
-  status: keyof typeof variants;
-  label?: string;
-}) {
+export function StatusBadge({ status, label }: { status: keyof typeof variants; label?: string }) {
   return (
-    <span className={cn("text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full", variants[status])}>
+    <span
+      className={cn(
+        "text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full",
+        variants[status],
+      )}
+    >
       {label ?? status}
     </span>
   );

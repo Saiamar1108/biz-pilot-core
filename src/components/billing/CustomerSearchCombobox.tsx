@@ -1,7 +1,15 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronsUpDown, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import type { Customer } from "@/lib/api";
@@ -34,12 +42,19 @@ export function CustomerSearchCombobox({
     );
   }, [customers, query]);
 
-  const showCreate = query.trim().length > 0 && !filtered.some((c) => c.name.toLowerCase() === query.trim().toLowerCase());
+  const showCreate =
+    query.trim().length > 0 &&
+    !filtered.some((c) => c.name.toLowerCase() === query.trim().toLowerCase());
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" role="combobox" aria-expanded={open} className="w-full justify-between font-normal">
+        <Button
+          variant="outline"
+          role="combobox"
+          aria-expanded={open}
+          className="w-full justify-between font-normal"
+        >
           <span className="truncate">{selected?.name ?? placeholder}</span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -60,10 +75,17 @@ export function CustomerSearchCombobox({
                     setQuery("");
                   }}
                 >
-                  <Check className={cn("mr-2 h-4 w-4", value === customer.id ? "opacity-100" : "opacity-0")} />
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === customer.id ? "opacity-100" : "opacity-0",
+                    )}
+                  />
                   <div className="min-w-0">
                     <div className="text-sm font-medium truncate">{customer.name}</div>
-                    <div className="text-xs text-muted-foreground truncate">{customer.phone} · {customer.email}</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {customer.phone} · {customer.email}
+                    </div>
                   </div>
                 </CommandItem>
               ))}

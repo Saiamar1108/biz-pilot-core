@@ -1,4 +1,5 @@
 import axios from "axios";
+import { ACCESS_TOKEN_KEY, getAccessToken } from "./auth-store";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
 
@@ -10,61 +11,21 @@ export const api = axios.create({
   },
 });
 
-let refreshInFlight: Promise<string | null> | null = null;
-
-api.interceptors.request.use((config) => {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("sp_access_token") : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
-
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const original = error.config;
-    if (!original || original._retry || error.response?.status !== 401) {
-      return Promise.reject(error);
+// Request interceptor to add Authorization header
+api.interceptors.request.use(
+  (config) => {
+    const token =
+      typeof window !== "undefined" ? localStorage.getItem(ACCESS_TOKEN_KEY) : getAccessToken();
+    console.log("[api.ts] Token from store:", token ? `${token.substring(0, 20)}...` : null);
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+      console.log("[api.ts] Authorization header set:", config.headers.Authorization);
     }
-
-    if (original.url?.includes("/auth/login") || original.url?.includes("/auth/register")) {
-      return Promise.reject(error);
-    }
-
-    original._retry = true;
-
-    if (!refreshInFlight) {
-      refreshInFlight = (async () => {
-        try {
-          const response = await axios.post(
-            `${apiBaseUrl}/auth/refresh`,
-            {},
-            { withCredentials: true },
-          );
-          const token = response.data?.data?.accessToken as string | undefined;
-          if (token && typeof window !== "undefined") {
-            localStorage.setItem("sp_access_token", token);
-          }
-          return token || null;
-        } catch {
-          if (typeof window !== "undefined") {
-            localStorage.removeItem("sp_access_token");
-          }
-          return null;
-        } finally {
-          refreshInFlight = null;
-        }
-      })();
-    }
-
-    const token = await refreshInFlight;
-    if (!token) return Promise.reject(error);
-
-    original.headers.Authorization = `Bearer ${token}`;
-    return api(original);
+    return config;
   },
+  (error) => {
+    return Promise.reject(error);
+  }
 );
 
 export type ApiResponse<T> = {
@@ -82,8 +43,6 @@ export type Product = {
   stock: number;
   price: number;
   sold: number;
-  barcode?: string;
-  expiryDate?: string;
   stockMovements: Array<{
     type: "added" | "sold" | "adjusted";
     quantity: number;
@@ -125,8 +84,6 @@ export type InvoiceLineItem = {
   unitPrice: number;
   costPrice: number;
   lineTotal: number;
-  discount: number;
-  discountType: "percentage" | "flat";
 };
 
 export type PaymentHistoryEntry = {
@@ -147,13 +104,7 @@ export type Invoice = {
   subtotal: number;
   tax: number;
   taxRate: number;
-  taxEnabled: boolean;
-  taxMode: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
-  cgst: number;
-  sgst: number;
-  igst: number;
   discount: number;
-  discountType: "percentage" | "flat";
   paidAmount: number;
   status: "paid" | "pending" | "partial" | "overdue" | "sent";
   date: string;
@@ -657,44 +608,6 @@ export type AiChatResponse = {
   context: unknown;
 };
 
-export type SettingsProfile = {
-  fullName: string;
-  email: string;
-  phone: string;
-  timezone: string;
-  imageDataUrl: string;
-};
-
-export type BusinessProfile = {
-  storeName: string;
-  ownerName: string;
-  gstNumber: string;
-  phone: string;
-  email: string;
-  address: string;
-  category: string;
-  logoDataUrl: string;
-  upiId: string;
-};
-
-export type NotificationSettings = {
-  invoiceNotifications: boolean;
-  stockAlerts: boolean;
-  paymentReminders: boolean;
-  aiInsightsAlerts: boolean;
-};
-
-export type AppSettings = {
-  profile: SettingsProfile;
-  business: BusinessProfile;
-  notifications: NotificationSettings;
-  taxRate: number;
-  taxEnabled: boolean;
-  taxMode: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
-  lowStockThreshold: number;
-  demoSeeded: boolean;
-};
-
 type ApiRecord = Record<string, unknown>;
 
 const asRecord = (value: unknown): ApiRecord =>
@@ -805,12 +718,6 @@ const normalizeInvoice = (value: unknown): Invoice => {
   const createdAtRaw = item.createdAt ?? item.date;
   const lineItemsRaw = Array.isArray(item.lineItems) ? item.lineItems.map(asRecord) : [];
 
-  const validTaxModes = ["cgst-sgst", "igst", "custom", "standard", "none"] as const;
-  const taxMode = asString(item.taxMode, "cgst-sgst");
-  const validatedTaxMode = validTaxModes.includes(taxMode as any) ? taxMode as Invoice["taxMode"] : "cgst-sgst";
-
-  const taxEnabled = validatedTaxMode !== "none";
-  
   return {
     id: asString(item.invoiceNumber ?? item._id ?? item.id),
     customerId: asString(customer._id ?? customer.id ?? item.customer),
@@ -825,13 +732,7 @@ const normalizeInvoice = (value: unknown): Invoice => {
     subtotal: asNumber(item.subtotal),
     tax: asNumber(item.tax),
     taxRate: asNumber(item.taxRate),
-    taxEnabled,
-    taxMode: validatedTaxMode,
-    cgst: asNumber(item.cgst, 0),
-    sgst: asNumber(item.sgst, 0),
-    igst: asNumber(item.igst, 0),
     discount: asNumber(item.discount),
-    discountType: (item.discountType === "percentage" || item.discountType === "flat" ? item.discountType : "flat") as "percentage" | "flat",
     paidAmount: asNumber(item.paidAmount),
     status: normalizeInvoiceStatus(item.status),
     date: normalizeDate(asString(createdAtRaw)),
@@ -850,8 +751,6 @@ const normalizeInvoice = (value: unknown): Invoice => {
         unitPrice: asNumber(line.unitPrice),
         costPrice: asNumber(line.costPrice),
         lineTotal: asNumber(line.lineTotal),
-        discount: asNumber(line.discount),
-        discountType: (line.discountType === "percentage" || line.discountType === "flat" ? line.discountType : "flat") as "percentage" | "flat",
       };
     }),
     paymentHistory: Array.isArray(item.paymentHistory)
@@ -865,51 +764,6 @@ const normalizeInvoice = (value: unknown): Invoice => {
           };
         })
       : [],
-  };
-};
-
-const normalizeSettings = (value: unknown): AppSettings => {
-  const item = asRecord(value);
-  const profile = asRecord(item.profile);
-  const business = asRecord(item.business);
-  const notifications = asRecord(item.notifications);
-
-  const validTaxModes = ["cgst-sgst", "igst", "custom", "standard", "none"] as const;
-  const taxMode = asString(item.taxMode, "cgst-sgst");
-  const validatedTaxMode = validTaxModes.includes(taxMode as any) ? taxMode as AppSettings["taxMode"] : "cgst-sgst";
-
-  const taxEnabled = validatedTaxMode !== "none";
-  
-  return {
-    profile: {
-      fullName: asString(profile.fullName),
-      email: asString(profile.email),
-      phone: asString(profile.phone),
-      timezone: asString(profile.timezone, "Asia/Kolkata"),
-      imageDataUrl: asString(profile.imageDataUrl),
-    },
-    business: {
-      storeName: asString(business.storeName),
-      ownerName: asString(business.ownerName),
-      gstNumber: asString(business.gstNumber),
-      phone: asString(business.phone),
-      email: asString(business.email),
-      address: asString(business.address),
-      category: asString(business.category),
-      logoDataUrl: asString(business.logoDataUrl),
-      upiId: asString(business.upiId),
-    },
-    notifications: {
-      invoiceNotifications: notifications.invoiceNotifications !== false,
-      stockAlerts: notifications.stockAlerts !== false,
-      paymentReminders: notifications.paymentReminders !== false,
-      aiInsightsAlerts: notifications.aiInsightsAlerts === true,
-    },
-    taxRate: asNumber(item.taxRate, 0.18),
-    taxEnabled,
-    taxMode: validatedTaxMode,
-    lowStockThreshold: asNumber(item.lowStockThreshold, 10),
-    demoSeeded: item.demoSeeded === true,
   };
 };
 
@@ -979,19 +833,15 @@ export async function addInvoicePayment(
   invoiceId: string,
   payload: { amount: number; paymentMethod?: string; note?: string },
 ) {
-  const response = await api.post<ApiResponse<unknown>>(`/invoices/${invoiceId}/add-payment`, payload);
+  const response = await api.post<ApiResponse<unknown>>(`/invoices/${invoiceId}/payment`, payload);
   return normalizeInvoice(response.data.data);
 }
 
 export async function createInvoice(payload: {
   customer: string;
-  lineItems: Array<{ product: string; quantity: number; unitPrice: number; discount?: number; discountType?: "percentage" | "flat" }>;
+  lineItems: Array<{ product: string; quantity: number; unitPrice: number }>;
   status?: string;
   taxRate?: number;
-  taxMode?: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
-  taxEnabled?: boolean;
-  discount?: number;
-  discountType?: "percentage" | "flat";
 }) {
   const response = await api.post<ApiResponse<unknown>>("/invoices", payload);
   return normalizeInvoice(response.data.data);
@@ -1032,66 +882,6 @@ export async function markNotificationRead(id: string) {
 
 export async function clearNotifications() {
   await api.put("/notifications/read-all");
-}
-
-export async function getSettings() {
-  const response = await api.get<ApiResponse<unknown>>("/settings");
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateProfile(profile: Omit<SettingsProfile, "imageDataUrl">) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/profile", { profile });
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateProfileImage(imageDataUrl: string) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/profile-image", {
-    imageDataUrl,
-  });
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateBusiness(business: Omit<BusinessProfile, "logoDataUrl">) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/business", { business });
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateBusinessLogo(logoDataUrl: string) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/business-logo", {
-    logoDataUrl,
-  });
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateTaxSettings(taxSettings: {
-  taxEnabled?: boolean;
-  taxMode?: "cgst-sgst" | "igst" | "custom" | "standard" | "none";
-  taxRate?: number;
-  lowStockThreshold?: number;
-}) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/tax-settings", { taxSettings });
-  return normalizeSettings(response.data.data);
-}
-
-export async function updateNotifications(notifications: NotificationSettings) {
-  const response = await api.put<ApiResponse<unknown>>("/settings/notifications", {
-    notifications,
-  });
-  return normalizeSettings(response.data.data);
-}
-
-export async function seedDemoData() {
-  const response = await api.post<ApiResponse<{ seeded: boolean; counts?: Record<string, number>; message?: string }>>(
-    "/onboarding/seed-demo",
-  );
-  return response.data.data;
-}
-
-export async function resetDemoData() {
-  const response = await api.delete<ApiResponse<{ deleted: Record<string, number> }>>(
-    "/onboarding/demo-data",
-  );
-  return response.data.data;
 }
 
 export async function postAiChat(message: string) {

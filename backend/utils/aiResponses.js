@@ -4,8 +4,8 @@ const { buildAnalytics } = require("../services/analyticsService");
 const OPENAI_API_URL =
   "https://api.groq.com/openai/v1/chat/completions";
 
-async function getAnalyticsContext() {
-  return buildAnalytics();
+async function getAnalyticsContext(req) {
+  return buildAnalytics({}, req);
 }
 
 async function askOpenAI(message, context) {
@@ -80,8 +80,8 @@ PENDING PAYMENTS: ${context.pendingInvoicesCount || 0} invoices`;
   return data.choices?.[0]?.message?.content || "No response";
 }
 
-async function generateAiResponse(message) {
-  const ctx = await getAnalyticsContext();
+async function generateAiResponse(message, req) {
+  const ctx = await getAnalyticsContext(req);
 
   try {
     const reply = await askOpenAI(message, ctx);

@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const customerSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
-    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    email: { type: String, required: true, trim: true },
     phone: { type: String, trim: true, default: "" },
     address: { type: String, trim: true, default: "" },
     gstNumber: { type: String, trim: true, default: "" },
@@ -23,10 +23,17 @@ const customerSchema = new mongoose.Schema(
     orderHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: "Invoice" }],
     status: { type: String, enum: ["vip", "regular", "new"], default: "new" },
     lastOrder: { type: Date, default: Date.now },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
-    isDemoData: { type: Boolean, default: false, index: true },
+    shopId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Shop", 
+      required: true,
+      index: true 
+    },
   },
   { timestamps: true },
 );
+
+// Compound index for unique email per shop
+customerSchema.index({ email: 1, shopId: 1 }, { unique: true });
 
 module.exports = mongoose.model("Customer", customerSchema);

@@ -39,9 +39,7 @@ export function exportAnalyticsCsv(analytics: AnalyticsSummary) {
     "",
     "Top Customers,Name,Total Spent,Pending",
     ...analytics.topCustomers.map((customer) =>
-      [customer.name, customer.totalSpent, customer.pendingAmount]
-        .map(escapeCsv)
-        .join(","),
+      [customer.name, customer.totalSpent, customer.pendingAmount].map(escapeCsv).join(","),
     ),
     "",
     "Invoice Aging,Amount,Count",
@@ -86,10 +84,7 @@ export async function exportAnalyticsPdf(analytics: AnalyticsSummary) {
 
   writeln("Top Products", 13);
   for (const product of analytics.topProducts.slice(0, 5)) {
-    writeln(
-      `• ${product.name}: ${product.sold} sold, ${formatCurrency(product.revenue)}`,
-      10,
-    );
+    writeln(`• ${product.name}: ${product.sold} sold, ${formatCurrency(product.revenue)}`, 10);
   }
   y += 2;
 

@@ -139,9 +139,25 @@ const uniqueProducts = productNames.filter(([sku]) => {
   return true;
 });
 
-const categories = ["Grocery", "Dairy", "Snacks", "Beverages", "Cleaning", "Personal Care", "Household", "Stationery"];
+const categories = [
+  "Grocery",
+  "Dairy",
+  "Snacks",
+  "Beverages",
+  "Cleaning",
+  "Personal Care",
+  "Household",
+  "Stationery",
+];
 const extras = [
-  "Premium", "Family Pack", "Economy", "Organic", "Value Pack", "Classic", "Deluxe", "Fresh",
+  "Premium",
+  "Family Pack",
+  "Economy",
+  "Organic",
+  "Value Pack",
+  "Classic",
+  "Deluxe",
+  "Fresh",
 ];
 let counter = 1;
 while (uniqueProducts.length < 110) {

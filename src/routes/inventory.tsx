@@ -11,15 +11,13 @@ import { Package, Pencil, Plus, Trash2, Search, AlertTriangle, Boxes, TrendingUp
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct } from "@/lib/api";
+import { createProduct, deleteProduct, getProducts, type Product, updateProduct } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
-import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText, formatExpiryDate } from "@/lib/inventory";
 import { PurchaseOrderGenerator } from "@/components/inventory/PurchaseOrderGenerator";
-import { requireAuth } from "@/lib/auth-guard";
+import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText } from "@/lib/inventory";
 
 export const Route = createFileRoute("/inventory")({
-  beforeLoad: requireAuth,
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
   component: InventoryPage,
 });
@@ -46,10 +44,8 @@ function InventoryPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, settings] = await Promise.all([getProducts(), getSettings()]);
+      const data = await getProducts();
       setItems(data);
-      setLowStockThreshold(settings.lowStockThreshold);
-      setBusinessName(settings.business?.storeName || "ShopPilot AI");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     } finally {
@@ -88,17 +84,8 @@ function InventoryPage() {
     return items.filter((i) => {
       const matchesSearch =
         i.name.toLowerCase().includes(q.toLowerCase()) ||
-        i.sku.toLowerCase().includes(q.toLowerCase()) ||
-        (i.barcode && i.barcode.toLowerCase().includes(q.toLowerCase()));
+        i.sku.toLowerCase().includes(q.toLowerCase());
       const matchesCategory = category === "All" || i.category === category;
-      
-      // Expiry filter
-      const expiryStatus = getExpiryStatus(i.expiryDate);
-      let matchesExpiry = true;
-      if (expiryFilter === "expired") matchesExpiry = expiryStatus === "expired";
-      else if (expiryFilter === "critical") matchesExpiry = expiryStatus === "critical";
-      else if (expiryFilter === "warning") matchesExpiry = expiryStatus === "warning";
-      else if (expiryFilter === "good") matchesExpiry = expiryStatus === "good";
       
       // Stock filter
       let matchesStock = true;
@@ -106,9 +93,9 @@ function InventoryPage() {
       else if (stockFilter === "out") matchesStock = i.stock === 0;
       else if (stockFilter === "high") matchesStock = i.stock > lowStockThreshold * 5;
       
-      return matchesSearch && matchesCategory && matchesExpiry && matchesStock;
+      return matchesSearch && matchesCategory && matchesStock;
     });
-  }, [items, q, category, expiryFilter, stockFilter, lowStockThreshold]);
+  }, [items, q, category, stockFilter, lowStockThreshold]);
 
   const low = items.filter((i) => i.stock <= lowStockThreshold).length;
 
@@ -135,8 +122,8 @@ function InventoryPage() {
       category: product.category,
       stock: String(product.stock),
       price: String(product.price),
-      barcode: product.barcode || "",
-      expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : "",
+      barcode: (product as any).barcode || "",
+      expiryDate: (product as any).expiryDate ? (product as any).expiryDate.split('T')[0] : "",
     });
     setDialogOpen(true);
   };
@@ -221,10 +208,6 @@ function InventoryPage() {
           <StatCard label="Total Products" value={String(items.length)} icon={Boxes} accent="primary" />
           <StatCard label="Low Stock" value={String(low)} icon={AlertTriangle} accent="destructive" />
           <StatCard label="Out of Stock" value={String(items.filter((i) => i.stock === 0).length)} icon={Package} accent="warning" />
-          <StatCard label="Expiring Soon" value={String(items.filter((i) => {
-            const status = getExpiryStatus(i.expiryDate);
-            return status === "critical" || status === "expired";
-          }).length)} icon={Calendar} accent="destructive" />
           <StatCard label="Best Seller" value={bestSeller?.sold ? bestSeller.name : "No sales"} icon={TrendingUp} accent="emerald" />
         </div>
 
@@ -254,18 +237,6 @@ function InventoryPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={expiryFilter} onValueChange={setExpiryFilter}>
-                <SelectTrigger className="w-full sm:w-40">
-                  <SelectValue placeholder="Expiry" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All Expiry</SelectItem>
-                  <SelectItem value="expired">Expired</SelectItem>
-                  <SelectItem value="critical">Expiring Soon (7d)</SelectItem>
-                  <SelectItem value="warning">Expiring (30d)</SelectItem>
-                  <SelectItem value="good">Good</SelectItem>
-                </SelectContent>
-              </Select>
               <Select value={stockFilter} onValueChange={setStockFilter}>
                 <SelectTrigger className="w-full sm:w-40">
                   <SelectValue placeholder="Stock" />
@@ -287,9 +258,7 @@ function InventoryPage() {
                 setDialogOpen(open);
               }}>
                 <DialogTrigger asChild>
-                  <Button
-                    className="gradient-primary text-primary-foreground shrink-0"
-                  >
+                  <Button className="gradient-primary text-primary-foreground shrink-0">
                     <Plus className="h-4 w-4 mr-1" /> Add Product
                   </Button>
                 </DialogTrigger>
@@ -326,8 +295,6 @@ function InventoryPage() {
                   <th className="text-left px-5 py-3 font-semibold">Product</th>
                   <th className="text-left px-5 py-3 font-semibold hidden sm:table-cell">SKU</th>
                   <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Category</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Barcode</th>
-                  <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Expiry</th>
                   <th className="text-right px-5 py-3 font-semibold">Stock</th>
                   <th className="text-right px-5 py-3 font-semibold">Price</th>
                   <th className="text-right px-5 py-3 font-semibold hidden lg:table-cell">Sold</th>
@@ -336,27 +303,12 @@ function InventoryPage() {
               </thead>
               <tbody>
                 {filtered.map((i) => {
-                  const expiryStatus = getExpiryStatus(i.expiryDate);
-                  const daysUntilExpiry = getDaysUntilExpiry(i.expiryDate);
-                  
                   return (
                     <tr key={i.sku} className="border-t border-border hover:bg-secondary/40 transition">
                       <td className="px-5 py-4 font-medium">{i.name}</td>
                       <td className="px-5 py-4 text-muted-foreground font-mono text-xs hidden sm:table-cell">{i.sku}</td>
                       <td className="px-5 py-4 hidden md:table-cell">
                         <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">{i.category}</span>
-                      </td>
-                      <td className="px-5 py-4 text-muted-foreground font-mono text-xs hidden lg:table-cell">
-                        {i.barcode || "—"}
-                      </td>
-                      <td className="px-5 py-4 hidden lg:table-cell">
-                        {expiryStatus ? (
-                          <span className={cn("px-2 py-0.5 rounded-md text-xs font-medium border", getExpiryBadgeColor(expiryStatus))}>
-                            {getExpiryBadgeText(expiryStatus, daysUntilExpiry)}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground text-xs">—</span>
-                        )}
                       </td>
                       <td className={cn(
                         "px-5 py-4 text-right font-semibold",
@@ -388,7 +340,7 @@ function InventoryPage() {
                 })}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={9} className="text-center py-16 text-muted-foreground">
+                    <td colSpan={7} className="text-center py-16 text-muted-foreground">
                       <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
                       No products match your search
                     </td>

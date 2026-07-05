@@ -26,8 +26,22 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { clearNotifications, getNotifications, markNotificationRead, type NotificationItem, getInvoices, getProducts, getSettings, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  clearNotifications,
+  getNotifications,
+  markNotificationRead,
+  type NotificationItem,
+  getInvoices,
+  getProducts,
+  type Invoice,
+  type Product,
+} from "@/lib/api";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
@@ -45,7 +59,13 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function DashboardLayout({ children, title }: { children: React.ReactNode; title?: string }) {
+export function DashboardLayout({
+  children,
+  title,
+}: {
+  children: React.ReactNode;
+  title?: string;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
   const { user, shop, logout } = useAuth();
@@ -55,7 +75,12 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifOpen, setNotifOpen] = useState(false);
   const [loadingSummary, setLoadingSummary] = useState(true);
-  const [todaySummary, setTodaySummary] = useState({ sales: 0, invoices: 0, pending: 0, lowStock: 0 });
+  const [todaySummary, setTodaySummary] = useState({
+    sales: 0,
+    invoices: 0,
+    pending: 0,
+    lowStock: 0,
+  });
 
   const unreadLabel = useMemo(
     () => (unreadCount > 99 ? "99+" : String(unreadCount)),
@@ -66,15 +91,14 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
     let active = true;
     const load = async () => {
       try {
-        const [notifData, invoiceData, productData, settings] = await Promise.all([
+        const [notifData, invoiceData, productData] = await Promise.all([
           getNotifications(),
           getInvoices(),
           getProducts(),
-          getSettings(),
         ]);
-        
+
         if (!active) return;
-        
+
         setNotifications(notifData.notifications);
         setUnreadCount(notifData.unreadCount);
 
@@ -83,16 +107,18 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date(today);
         tomorrow.setDate(tomorrow.getDate() + 1);
-        
-        const todayInvoices = invoiceData.filter(inv => {
+
+        const todayInvoices = invoiceData.filter((inv) => {
           const invDate = new Date(inv.createdAt);
           return invDate >= today && invDate < tomorrow;
         });
-        
+
         const sales = todayInvoices.reduce((sum, inv) => sum + inv.paidAmount, 0);
-        const pendingInvoices = invoiceData.filter(inv => inv.status === "pending" || inv.status === "partial").length;
-        const threshold = settings.lowStockThreshold ?? 10;
-        const lowStock = productData.filter(p => p.stock <= threshold).length;
+        const pendingInvoices = invoiceData.filter(
+          (inv) => inv.status === "pending" || inv.status === "partial",
+        ).length;
+        const threshold = 10; // Default low stock threshold
+        const lowStock = productData.filter((p) => p.stock <= threshold).length;
 
         setTodaySummary({
           sales,
@@ -140,7 +166,7 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
       <aside
         className={cn(
           "fixed lg:sticky top-0 left-0 z-40 h-screen w-68 shrink-0 border-r border-border bg-gradient-to-br from-sidebar to-sidebar/80 backdrop-blur-md transition-transform duration-500 ease-out shadow-lg",
-          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+          mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
         <div className="flex h-full flex-col">
@@ -158,7 +184,8 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
 
           <nav className="flex-1 overflow-y-auto px-4 py-5 space-y-2">
             {navItems.map((item) => {
-              const active = pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
+              const active =
+                pathname === item.to || (item.to !== "/dashboard" && pathname.startsWith(item.to));
               return (
                 <Link
                   key={item.to}
@@ -168,11 +195,13 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                     "group flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 relative overflow-hidden",
                     active
                       ? "text-primary-foreground shadow-md"
-                      : "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
                   )}
                 >
                   {active && <div className="absolute inset-0 gradient-primary opacity-100" />}
-                  {!active && <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/50 transition-colors duration-300" />}
+                  {!active && (
+                    <div className="absolute inset-0 bg-accent/0 group-hover:bg-accent/50 transition-colors duration-300" />
+                  )}
                   <item.icon className="h-5 w-5 shrink-0 relative z-10" />
                   <span className="relative z-10">{item.label}</span>
                 </Link>
@@ -218,22 +247,30 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               <div className="flex gap-4 md:gap-6">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="h-4.5 w-4.5 text-accent-brand" />
-                  <span className="font-semibold text-accent-brand">{loadingSummary ? "..." : formatCurrency(todaySummary.sales)}</span>
+                  <span className="font-semibold text-accent-brand">
+                    {loadingSummary ? "..." : formatCurrency(todaySummary.sales)}
+                  </span>
                   <span className="text-muted-foreground text-sm">Sales</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Receipt className="h-4.5 w-4.5 text-primary" />
-                  <span className="font-semibold text-primary">{loadingSummary ? "..." : todaySummary.invoices}</span>
+                  <span className="font-semibold text-primary">
+                    {loadingSummary ? "..." : todaySummary.invoices}
+                  </span>
                   <span className="text-muted-foreground text-sm">Invoices</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <AlertTriangle className="h-4.5 w-4.5 text-warning" />
-                  <span className="font-semibold text-warning">{loadingSummary ? "..." : todaySummary.pending}</span>
+                  <span className="font-semibold text-warning">
+                    {loadingSummary ? "..." : todaySummary.pending}
+                  </span>
                   <span className="text-muted-foreground text-sm">Pending</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Package className="h-4.5 w-4.5 text-destructive" />
-                  <span className="font-semibold text-destructive">{loadingSummary ? "..." : todaySummary.lowStock}</span>
+                  <span className="font-semibold text-destructive">
+                    {loadingSummary ? "..." : todaySummary.lowStock}
+                  </span>
                   <span className="text-muted-foreground text-sm">Low Stock</span>
                 </div>
               </div>
@@ -245,13 +282,13 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem onClick={() => navigate({ to: '/billing' })}>
+                <DropdownMenuItem onClick={() => navigate({ to: "/billing" })}>
                   <Receipt className="h-4.5 w-4.5 mr-2" /> New Invoice
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/inventory' })}>
+                <DropdownMenuItem onClick={() => navigate({ to: "/inventory" })}>
                   <ShoppingCart className="h-4.5 w-4.5 mr-2" /> Add Product
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => navigate({ to: '/customers' })}>
+                <DropdownMenuItem onClick={() => navigate({ to: "/customers" })}>
                   <Users className="h-4.5 w-4.5 mr-2" /> Add Customer
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -272,22 +309,13 @@ export function DashboardLayout({ children, title }: { children: React.ReactNode
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={toggleTheme}
-                className="relative"
-              >
+              <Button variant="outline" size="icon" onClick={toggleTheme} className="relative">
                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
               </Button>
               <Popover open={notifOpen} onOpenChange={setNotifOpen}>
                 <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    className="relative"
-                  >
+                  <Button variant="outline" size="icon" className="relative">
                     <Bell className="h-4 w-4" />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 rounded-full bg-destructive text-[10px] text-white min-w-4 h-4 px-1 flex items-center justify-center">

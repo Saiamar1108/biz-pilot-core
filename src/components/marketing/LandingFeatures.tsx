@@ -1,12 +1,5 @@
 import { motion } from "framer-motion";
-import {
-  BarChart3,
-  Bot,
-  Package,
-  Receipt,
-  ShieldCheck,
-  Users,
-} from "lucide-react";
+import { BarChart3, Bot, Package, Receipt, ShieldCheck, Users } from "lucide-react";
 
 const features = [
   {
@@ -54,7 +47,7 @@ const item = {
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] },
+    transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
   },
 };
 
@@ -63,15 +56,13 @@ export function LandingFeatures() {
     <section id="features" className="py-20 md:py-28">
       <div className="mx-auto max-w-7xl px-4 md:px-8">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="text-sm font-medium uppercase tracking-wider text-primary">
-            Features
-          </p>
+          <p className="text-sm font-medium uppercase tracking-wider text-primary">Features</p>
           <h2 className="mt-3 font-display text-3xl font-semibold tracking-tight md:text-4xl">
             Everything a modern shop needs to operate with confidence
           </h2>
           <p className="mt-4 text-muted-foreground">
-            Practical tools for owners who care about accuracy, speed, and control —
-            not flashy dashboards with no business value.
+            Practical tools for owners who care about accuracy, speed, and control — not flashy
+            dashboards with no business value.
           </p>
         </div>
 
@@ -94,9 +85,7 @@ export function LandingFeatures() {
                 <feature.icon className="h-5 w-5" />
               </div>
               <h3 className="font-display text-lg font-semibold">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {feature.desc}
-              </p>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{feature.desc}</p>
             </motion.article>
           ))}
         </motion.div>

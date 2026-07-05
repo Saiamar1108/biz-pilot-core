@@ -121,10 +121,18 @@ export function PurchaseOrderGenerator({ businessName }: PurchaseOrderGeneratorP
                         </div>
                       </div>
                     </div>
+                    <div className="text-xs text-muted-foreground bg-secondary/30 p-2 rounded">
+                      {item.explanation}
+                    </div>
                     <div className="flex items-center justify-between text-xs">
-                      <span className="text-muted-foreground">
-                        Current Stock: {item.currentStock}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">
+                          Current Stock: {item.currentStock}
+                        </span>
+                        <span className="text-muted-foreground">
+                          Confidence: {item.confidence}%
+                        </span>
+                      </div>
                       <span className={`px-2 py-0.5 rounded-full ${
                         item.urgency === "critical" ? "bg-red-100 text-red-700" :
                         item.urgency === "high" ? "bg-orange-100 text-orange-700" :

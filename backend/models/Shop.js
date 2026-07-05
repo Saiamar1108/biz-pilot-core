@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const shopSchema = new mongoose.Schema(
   {
-    name: {
+    shopName: {
       type: String,
       required: true,
       trim: true,
@@ -43,10 +43,6 @@ const shopSchema = new mongoose.Schema(
       },
     },
     isDefault: {
-      type: Boolean,
-      default: false,
-    },
-    demoSeeded: {
       type: Boolean,
       default: false,
     },

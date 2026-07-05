@@ -2,33 +2,28 @@ const express = require("express");
 const {
   register,
   login,
+  me,
   logout,
   refresh,
-  me,
-  completeOnboarding,
   forgotPassword,
   resetPassword,
-  googleAuth,
+  changePassword,
 } = require("../controllers/authController");
-const {
-  authMiddleware,
-  shopScopeMiddleware,
-} = require("../middlewares/authMiddleware");
-const {
-  loginRateLimiter,
-  authActionRateLimiter,
-} = require("../middlewares/rateLimitMiddleware");
+const { protect } = require("../middlewares/auth");
+const { loginRateLimiter, authActionRateLimiter } = require("../middlewares/rateLimitMiddleware");
 
 const router = express.Router();
 
-router.post("/register", authActionRateLimiter, register);
+// Public routes with rate limiting
+router.post("/register", loginRateLimiter, register);
 router.post("/login", loginRateLimiter, login);
-router.post("/google", authActionRateLimiter, googleAuth);
-router.post("/refresh", authActionRateLimiter, refresh);
-router.post("/logout", authMiddleware, logout);
-router.get("/me", authMiddleware, shopScopeMiddleware, me);
-router.patch("/onboarding-complete", authMiddleware, completeOnboarding);
 router.post("/forgot-password", authActionRateLimiter, forgotPassword);
 router.post("/reset-password", authActionRateLimiter, resetPassword);
+router.post("/refresh", refresh);
+
+// Protected routes
+router.get("/me", protect, me);
+router.post("/logout", protect, logout);
+router.post("/change-password", protect, changePassword);
 
 module.exports = router;

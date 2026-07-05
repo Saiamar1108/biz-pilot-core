@@ -1,8 +1,5 @@
 const asyncHandler = require("../middlewares/asyncHandler");
-const {
-  resetDemoDataForShop,
-  seedDemoDataForShop,
-} = require("../services/onboardingDemoService");
+const { resetDemoDataForShop, seedDemoDataForShop } = require("../services/onboardingDemoService");
 
 exports.seedDemo = asyncHandler(async (req, res) => {
   const result = await seedDemoDataForShop(req.shopId);

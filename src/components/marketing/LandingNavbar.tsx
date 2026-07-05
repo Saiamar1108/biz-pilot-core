@@ -37,9 +37,7 @@ export function LandingNavbar() {
           <div className="grid h-8 w-8 place-items-center rounded-lg bg-primary text-primary-foreground">
             <span className="font-display text-sm font-bold">SP</span>
           </div>
-          <span className="font-display text-base font-semibold tracking-tight">
-            ShopPilot AI
-          </span>
+          <span className="font-display text-base font-semibold tracking-tight">ShopPilot AI</span>
         </Link>
 
         <nav className="hidden items-center gap-8 md:flex">
@@ -62,7 +60,10 @@ export function LandingNavbar() {
             </Button>
           </Link>
           <Link to="/register">
-            <Button size="sm" className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90">
+            <Button
+              size="sm"
+              className="bg-primary text-primary-foreground shadow-sm hover:bg-primary/90"
+            >
               Start free
             </Button>
           </Link>

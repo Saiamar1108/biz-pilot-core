@@ -1,14 +1,6 @@
 const AuthAuditLog = require("../models/AuthAuditLog");
 
-async function logAuthEvent({
-  userId,
-  shopId,
-  email,
-  action,
-  req,
-  success = true,
-  metadata = {},
-}) {
+async function logAuthEvent({ userId, shopId, email, action, req, success = true, metadata = {} }) {
   try {
     await AuthAuditLog.create({
       userId,

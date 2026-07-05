@@ -7,11 +7,16 @@ const notificationSchema = new mongoose.Schema(
     relatedId: { type: String, trim: true, default: "" },
     key: { type: String, trim: true, default: "" },
     read: { type: Boolean, default: false },
-    shopId: { type: mongoose.Schema.Types.ObjectId, ref: "Shop", index: true },
+    shopId: { 
+      type: mongoose.Schema.Types.ObjectId, 
+      ref: "Shop", 
+      required: true,
+      index: true 
+    },
   },
   { timestamps: true },
 );
 
-notificationSchema.index({ key: 1 }, { unique: true, sparse: true });
+notificationSchema.index({ key: 1, shopId: 1 }, { unique: true, sparse: true });
 
 module.exports = mongoose.model("Notification", notificationSchema);

@@ -32,10 +32,8 @@ import {
   createCustomer,
   getCustomers,
   getInvoices,
-  getSettings,
   updateInvoicePayment,
   updateCustomer,
-  type BusinessProfile,
   type Customer,
   type CustomerPayload,
   type Invoice,
@@ -43,7 +41,7 @@ import {
 import { formatCurrency } from "@/lib/currency";
 import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
 import { DATA_REFRESH_EVENT, emitDataRefresh } from "@/lib/live-refresh";
-import { generateReminderMessage, getInvoiceOutstanding, openWhatsApp } from "@/lib/invoice";
+import { getInvoiceOutstanding } from "@/lib/invoice";
 import { toast } from "sonner";
 import { requireAuth } from "@/lib/auth-guard";
 
@@ -62,8 +60,6 @@ function CustomersPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [updatingInvoiceId, setUpdatingInvoiceId] = useState<string | null>(null);
-  const [reminderCustomerId, setReminderCustomerId] = useState<string | null>(null);
-  const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
   const [form, setForm] = useState<CustomerPayload>({
@@ -82,15 +78,13 @@ function CustomersPage() {
       try {
         if (showLoading) setLoading(true);
         setError(null);
-        const [customerData, invoiceData, settings] = await Promise.all([
+        const [customerData, invoiceData] = await Promise.all([
           getCustomers(),
           getInvoices(),
-          getSettings(),
         ]);
         if (!active) return;
         setCustomers(customerData);
         setInvoices(invoiceData);
-        setBusiness(settings.business);
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load customers");
@@ -133,47 +127,6 @@ function CustomersPage() {
       .sort((a, b) => b.pendingAmount - a.pendingAmount)
       .map((entry) => ({ ...entry.customer, pendingAmount: entry.pendingAmount }));
   }, [customers, invoices]);
-
-  const handleSendReminder = async (customer: Customer) => {
-    if (!business) {
-      toast.error("Business settings not loaded yet.");
-      return;
-    }
-    if (!customer.phone) {
-      toast.error("Customer phone number is missing.");
-      return;
-    }
-
-    const customerInvoices = invoices
-      .filter((invoice) => invoice.customerId === customer.id)
-      .filter((invoice) => getInvoiceOutstanding(invoice) > 0)
-      .sort(
-        (a, b) =>
-          getInvoiceOutstanding(b) - getInvoiceOutstanding(a) ||
-          new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-      );
-
-    const targetInvoice = customerInvoices[0];
-    if (!targetInvoice) {
-      toast.error("No pending invoice found for this customer.");
-      return;
-    }
-
-    try {
-      setReminderCustomerId(customer.id);
-      const message = generateReminderMessage({
-        invoice: targetInvoice,
-        business,
-        customer,
-      });
-      openWhatsApp(customer.phone, message);
-      toast.success(`Payment reminder opened for ${customer.name}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Unable to send reminder");
-    } finally {
-      setReminderCustomerId(null);
-    }
-  };
   const vipCustomers = useMemo(
     () => customers.filter((customer) => customer.customerType === "VIP"),
     [customers],
@@ -400,7 +353,9 @@ function CustomersPage() {
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Total pending</div>
-                      <div className="font-semibold text-warning">{currency(customer.pendingAmount)}</div>
+                      <div className="font-semibold text-warning">
+                        {currency(customer.pendingAmount)}
+                      </div>
                     </div>
                     <div>
                       <div className="text-xs text-muted-foreground">Total billed</div>
@@ -518,17 +473,8 @@ function CustomersPage() {
                       <div className="font-medium">{c.name}</div>
                       <div className="text-xs text-muted-foreground">{c.email}</div>
                     </div>
-                    <div className="text-right shrink-0">
+                      <div className="text-right shrink-0">
                       <div className="font-bold text-destructive">{currency(c.pendingAmount)}</div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="mt-1 h-7 text-xs"
-                        disabled={reminderCustomerId === c.id}
-                        onClick={() => void handleSendReminder(c)}
-                      >
-                        {reminderCustomerId === c.id ? "Sending…" : "Send Reminder"}
-                      </Button>
                     </div>
                   </div>
                 ))}
