@@ -78,17 +78,19 @@ function mergeMonthlySeries(
 ) {
   const monthKeys = Array.from(
     new Set([
-      ...(monthlyRevenue || []).map((entry) => entry.month),
-      ...(monthlyPendingRevenue || []).map((entry) => entry.month),
+      ...(monthlyRevenue?.filter(Boolean)?.map((entry) => entry?.month) ?? []),
+      ...(monthlyPendingRevenue?.filter(Boolean)?.map((entry) => entry?.month) ?? []),
     ]),
   )
     .filter(Boolean)
     .sort();
 
-  return monthKeys.map((month) => {
-    const collectedEntry = (monthlyRevenue || []).find((entry) => entry.month === month);
-    const pendingEntry = (monthlyPendingRevenue || []).find((entry) => entry.month === month);
-    
+  return monthKeys?.filter(Boolean)?.map((month) => {
+    const collectedEntry = monthlyRevenue?.filter(Boolean)?.find((entry) => entry?.month === month);
+    const pendingEntry = monthlyPendingRevenue
+      ?.filter(Boolean)
+      ?.find((entry) => entry?.month === month);
+
     return {
       m: formatMonthLabel(month),
       collected: collectedEntry?.revenue ?? 0,
@@ -97,32 +99,43 @@ function mergeMonthlySeries(
   });
 }
 
-function ProductTable({ rows, valueKey }: { rows: ProductAnalyticsRow[]; valueKey: "revenue" | "profit" | "units" }) {
-  if (!rows.length) {
+function ProductTable({
+  rows,
+  valueKey,
+}: {
+  rows: ProductAnalyticsRow[];
+  valueKey: "revenue" | "profit" | "units";
+}) {
+  const safeRows = rows?.filter(Boolean) ?? [];
+
+  if (!safeRows.length) {
     return <p className="text-sm text-muted-foreground">No product data for this period.</p>;
   }
 
   return (
     <div className="space-y-2">
-      {rows.slice(0, 8).map((row, index) => (
-        <div
-          key={`${row.name}-${index}`}
-          className="flex items-center justify-between rounded-lg border p-3 text-sm"
-        >
-          <div>
-            <p className="font-medium">{row.name || row.category}</p>
-            <p className="text-muted-foreground">{row.category}</p>
+      {safeRows
+        ?.filter(Boolean)
+        ?.slice(0, 8)
+        ?.map((row, index) => (
+          <div
+            key={`${row?.name ?? row?.category ?? "Unknown"}-${index}`}
+            className="flex items-center justify-between rounded-lg border p-3 text-sm"
+          >
+            <div>
+              <p className="font-medium">{row?.name || row?.category || "Unknown"}</p>
+              <p className="text-muted-foreground">{row?.category ?? "Unknown"}</p>
+            </div>
+            <div className="text-right">
+              <p>{row?.units ?? 0} units</p>
+              <p className="font-semibold">
+                {valueKey === "units"
+                  ? `${row?.units ?? 0} sold`
+                  : formatCurrency(row?.[valueKey] ?? 0)}
+              </p>
+            </div>
           </div>
-          <div className="text-right">
-            <p>{row.units} units</p>
-            <p className="font-semibold">
-              {valueKey === "units"
-                ? `${row.units} sold`
-                : formatCurrency(row[valueKey])}
-            </p>
-          </div>
-        </div>
-      ))}
+        ))}
     </div>
   );
 }
@@ -134,25 +147,27 @@ function CustomerList({
   rows: AnalyticsSummary["customerIntelligence"]["topPaying"];
   highlight: "spent" | "pending" | "orders" | "aov";
 }) {
-  if (!rows.length) {
+  const safeRows = rows?.filter(Boolean) ?? [];
+
+  if (!safeRows.length) {
     return <p className="text-sm text-muted-foreground">No customer data yet.</p>;
   }
 
   return (
     <div className="space-y-2">
-      {rows.map((customer, index) => (
+      {safeRows?.filter(Boolean)?.map((customer, index) => (
         <div
-          key={customer.id || `${customer.name}-${index}`}
+          key={customer?.id || `${customer?.name ?? "Unknown"}-${index}`}
           className="flex items-center justify-between rounded-lg border p-3 text-sm"
         >
           <span className="font-medium">
-            {index + 1}. {customer.name}
+            {index + 1}. {customer?.name ?? "Unknown"}
           </span>
           <span className="font-semibold">
-            {highlight === "spent" && formatCurrency(customer.totalSpent)}
-            {highlight === "pending" && formatCurrency(customer.pendingAmount)}
-            {highlight === "orders" && `${customer.orders} orders`}
-            {highlight === "aov" && formatCurrency(customer.avgOrderValue)}
+            {highlight === "spent" && formatCurrency(customer?.totalSpent ?? 0)}
+            {highlight === "pending" && formatCurrency(customer?.pendingAmount ?? 0)}
+            {highlight === "orders" && `${customer?.orders ?? 0} orders`}
+            {highlight === "aov" && formatCurrency(customer?.avgOrderValue ?? 0)}
           </span>
         </div>
       ))}
@@ -180,8 +195,8 @@ function AnalyticsPage() {
             ? { range, startDate: customStart, endDate: customEnd }
             : { range: range === "custom" ? "all" : range };
 
-        const data = await getAnalytics(params);
-        setAnalytics(data);
+        const analytics = (await getAnalytics(params)) || {};
+        setAnalytics({ ...EMPTY_ANALYTICS, ...analytics });
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to load analytics");
       } finally {
@@ -202,8 +217,8 @@ function AnalyticsPage() {
           range === "custom" && customStart && customEnd
             ? { range, startDate: customStart, endDate: customEnd }
             : { range: range === "custom" ? "all" : range };
-        const data = await getAnalytics(params);
-        if (active) setAnalytics(data);
+        const analytics = (await getAnalytics(params)) || {};
+        if (active) setAnalytics({ ...EMPTY_ANALYTICS, ...analytics });
       } catch (err) {
         if (active) {
           setError(err instanceof Error ? err.message : "Unable to load analytics");
@@ -230,88 +245,137 @@ function AnalyticsPage() {
     };
   }, [range, customStart, customEnd]);
 
+  const safeAnalytics = useMemo<AnalyticsSummary>(
+    () => ({
+      ...EMPTY_ANALYTICS,
+      ...analytics,
+      dateRange: analytics?.dateRange ?? EMPTY_ANALYTICS.dateRange,
+      monthlyRevenue: analytics?.monthlyRevenue ?? [],
+      monthlyPendingRevenue: analytics?.monthlyPendingRevenue ?? [],
+      monthlyTotalBilled: analytics?.monthlyTotalBilled ?? [],
+      monthlyGrowth: analytics?.monthlyGrowth ?? [],
+      monthlyProfitTrends: analytics?.monthlyProfitTrends ?? [],
+      demandPredictions: analytics?.demandPredictions ?? [],
+      smartPredictions: analytics?.smartPredictions ?? [],
+      topProducts: analytics?.topProducts ?? [],
+      lowStockItems: analytics?.lowStockItems ?? [],
+      topCustomers: analytics?.topCustomers ?? [],
+      productAnalytics: {
+        ...EMPTY_ANALYTICS.productAnalytics,
+        ...(analytics?.productAnalytics ?? {}),
+        byCategory: analytics?.productAnalytics?.byCategory ?? [],
+        byProduct: analytics?.productAnalytics?.byProduct ?? [],
+        mostProfitable: analytics?.productAnalytics?.mostProfitable ?? [],
+        lowPerforming: analytics?.productAnalytics?.lowPerforming ?? [],
+      },
+      customerIntelligence: {
+        ...EMPTY_ANALYTICS.customerIntelligence,
+        ...(analytics?.customerIntelligence ?? {}),
+        topPaying: analytics?.customerIntelligence?.topPaying ?? [],
+        mostPending: analytics?.customerIntelligence?.mostPending ?? [],
+        mostFrequent: analytics?.customerIntelligence?.mostFrequent ?? [],
+        avgOrderValueByCustomer: analytics?.customerIntelligence?.avgOrderValueByCustomer ?? [],
+      },
+      invoiceAging: analytics?.invoiceAging ?? [],
+      activityFeed: analytics?.activityFeed ?? [],
+      recommendations: analytics?.recommendations ?? [],
+    }),
+    [analytics],
+  );
+
+  const analyticsWithFallbackArrays = safeAnalytics as AnalyticsSummary & {
+    salesByMonth?: AnalyticsSummary["monthlyRevenue"];
+    customerGrowth?: AnalyticsSummary["monthlyGrowth"];
+    categoryBreakdown?: AnalyticsSummary["productAnalytics"]["byCategory"];
+    profitTrend?: AnalyticsSummary["monthlyProfitTrends"];
+  };
+
+  const analyticsArrays = {
+    salesByMonth: analyticsWithFallbackArrays.salesByMonth ?? safeAnalytics.monthlyRevenue ?? [],
+    topProducts: safeAnalytics.topProducts ?? [],
+    customerGrowth: analyticsWithFallbackArrays.customerGrowth ?? safeAnalytics.monthlyGrowth ?? [],
+    categoryBreakdown:
+      analyticsWithFallbackArrays.categoryBreakdown ??
+      safeAnalytics.productAnalytics?.byCategory ??
+      [],
+    profitTrend: analyticsWithFallbackArrays.profitTrend ?? safeAnalytics.monthlyProfitTrends ?? [],
+  };
+
   const revenue = useMemo(
     () =>
-      mergeMonthlySeries(
-        analytics.monthlyRevenue || [],
-        analytics.monthlyPendingRevenue || [],
-      ),
-    [analytics.monthlyRevenue, analytics.monthlyPendingRevenue],
+      mergeMonthlySeries(analyticsArrays.salesByMonth, safeAnalytics.monthlyPendingRevenue ?? []),
+    [analyticsArrays.salesByMonth, safeAnalytics.monthlyPendingRevenue],
   );
 
   const receivables = useMemo(
     () =>
-      (analytics.monthlyPendingRevenue || []).map((entry) => ({
-        m: formatMonthLabel(entry.month),
-        v: entry.revenue || 0,
+      safeAnalytics.monthlyPendingRevenue?.filter(Boolean)?.map((entry) => ({
+        m: formatMonthLabel(entry?.month),
+        v: entry?.revenue || 0,
       })),
-    [analytics],
+    [safeAnalytics.monthlyPendingRevenue],
   );
 
   const profitTrends = useMemo(
     () =>
-      (analytics.monthlyProfitTrends || []).map((entry) => ({
-        m: formatMonthLabel(entry.month),
-        collected: entry.collected,
-        pending: entry.pending,
-        profit: entry.profit,
+      analyticsArrays.profitTrend?.filter(Boolean)?.map((entry) => ({
+        m: formatMonthLabel(entry?.month),
+        collected: entry?.collected ?? 0,
+        pending: entry?.pending ?? 0,
+        profit: entry?.profit ?? 0,
       })),
-    [analytics],
+    [analyticsArrays.profitTrend],
   );
 
   const categoryPie = useMemo(
     () =>
-      (analytics.productAnalytics?.byCategory || []).map((row, index) => ({
-        name: row.category,
-        value: row.revenue,
+      analyticsArrays.categoryBreakdown?.filter(Boolean)?.map((row, index) => ({
+        name: row?.category ?? "Unknown",
+        value: row?.revenue ?? 0,
         color: chartColors[index % chartColors.length],
       })),
-    [analytics],
+    [analyticsArrays.categoryBreakdown],
   );
 
   const categoryBar = useMemo(
     () =>
-      (analytics.productAnalytics?.byCategory || []).map((row) => ({
-        name: row.category,
-        revenue: row.revenue,
-        profit: row.profit,
+      analyticsArrays.categoryBreakdown?.filter(Boolean)?.map((row) => ({
+        name: row?.category ?? "Unknown",
+        revenue: row?.revenue ?? 0,
+        profit: row?.profit ?? 0,
       })),
-    [analytics],
+    [analyticsArrays.categoryBreakdown],
   );
 
-  const predictions = analytics.smartPredictions?.length
-    ? analytics.smartPredictions
-    : analytics.demandPredictions || [];
+  const predictions = safeAnalytics.smartPredictions?.length
+    ? safeAnalytics.smartPredictions
+    : (safeAnalytics.demandPredictions ?? []);
 
   return (
     <DashboardLayout title="Analytics">
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-wrap gap-2">
-            {RANGE_OPTIONS.map((option) => (
+            {RANGE_OPTIONS?.filter(Boolean)?.map((option) => (
               <Button
-                key={option.value}
+                key={option?.value ?? "unknown"}
                 size="sm"
-                variant={range === option.value ? "default" : "outline"}
-                onClick={() => setRange(option.value)}
+                variant={range === option?.value ? "default" : "outline"}
+                onClick={() => option?.value && setRange(option.value)}
               >
-                {option.label}
+                {option?.label ?? "Unknown"}
               </Button>
             ))}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => exportAnalyticsCsv(analytics)}
-            >
+            <Button size="sm" variant="outline" onClick={() => exportAnalyticsCsv(safeAnalytics)}>
               <Download className="h-4 w-4 mr-1" />
               Export CSV
             </Button>
             <Button
               size="sm"
               variant="outline"
-              onClick={() => void exportAnalyticsPdf(analytics)}
+              onClick={() => void exportAnalyticsPdf(safeAnalytics)}
             >
               <FileText className="h-4 w-4 mr-1" />
               Export PDF
@@ -348,7 +412,10 @@ function AnalyticsPage() {
         )}
 
         <p className="text-sm text-muted-foreground">
-          Showing: <span className="font-medium text-foreground">{analytics.dateRange.label}</span>
+          Showing:{" "}
+          <span className="font-medium text-foreground">
+            {safeAnalytics.dateRange?.label ?? "Unknown"}
+          </span>
         </p>
 
         {error && (
@@ -360,31 +427,31 @@ function AnalyticsPage() {
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <StatCard
             label="Collected Revenue"
-            value={loading ? "…" : formatCurrency(analytics.revenueReceived)}
+            value={loading ? "…" : formatCurrency(safeAnalytics.revenueReceived ?? 0)}
             icon={DollarSign}
             accent="primary"
           />
           <StatCard
             label="Pending Revenue"
-            value={loading ? "…" : formatCurrency(analytics.pendingRevenue)}
+            value={loading ? "…" : formatCurrency(safeAnalytics.pendingRevenue ?? 0)}
             icon={TrendingUp}
             accent="warning"
           />
           <StatCard
             label="Total Billed"
-            value={loading ? "…" : formatCurrency(analytics.totalBilled)}
+            value={loading ? "…" : formatCurrency(safeAnalytics.totalBilled ?? 0)}
             icon={ShoppingCart}
             accent="emerald"
           />
           <StatCard
             label="Profit"
-            value={loading ? "…" : formatCurrency(analytics.profit)}
+            value={loading ? "…" : formatCurrency(safeAnalytics.profit ?? 0)}
             icon={Award}
             accent="emerald"
           />
           <StatCard
             label="Orders"
-            value={loading ? "…" : analytics.totalOrders.toLocaleString("en-IN")}
+            value={loading ? "…" : (safeAnalytics.totalOrders ?? 0).toLocaleString("en-IN")}
             icon={ShoppingCart}
             accent="primary"
           />
@@ -495,9 +562,20 @@ function AnalyticsPage() {
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={categoryPie} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label>
-                          {categoryPie.map((entry, index) => (
-                            <Cell key={entry.name} fill={entry.color || chartColors[index % chartColors.length]} />
+                        <Pie
+                          data={categoryPie}
+                          dataKey="value"
+                          nameKey="name"
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={90}
+                          label
+                        >
+                          {categoryPie?.filter(Boolean)?.map((entry, index) => (
+                            <Cell
+                              key={entry?.name ?? "Unknown"}
+                              fill={entry?.color || chartColors[index % chartColors.length]}
+                            />
                           ))}
                         </Pie>
                         <Tooltip formatter={(value: number) => formatCurrency(value)} />
@@ -505,7 +583,10 @@ function AnalyticsPage() {
                     </ResponsiveContainer>
                   )}
                 </div>
-                <ProductTable rows={analytics.productAnalytics.byCategory} valueKey="revenue" />
+                <ProductTable
+                  rows={safeAnalytics.productAnalytics?.byCategory ?? []}
+                  valueKey="revenue"
+                />
               </TabsContent>
 
               <TabsContent value="product" className="mt-0 space-y-4">
@@ -519,27 +600,43 @@ function AnalyticsPage() {
                         <XAxis dataKey="name" />
                         <YAxis />
                         <Tooltip formatter={(value: number) => formatCurrency(value)} />
-                        <Bar dataKey="revenue" fill="oklch(0.549 0.222 262)" radius={[6, 6, 0, 0]} />
+                        <Bar
+                          dataKey="revenue"
+                          fill="oklch(0.549 0.222 262)"
+                          radius={[6, 6, 0, 0]}
+                        />
                       </BarChart>
                     </ResponsiveContainer>
                   )}
                 </div>
-                <ProductTable rows={analytics.productAnalytics.byProduct} valueKey="revenue" />
+                <ProductTable
+                  rows={safeAnalytics.productAnalytics?.byProduct ?? []}
+                  valueKey="revenue"
+                />
               </TabsContent>
 
               <TabsContent value="profitable" className="mt-0 lg:col-span-2">
-                <ProductTable rows={analytics.productAnalytics.mostProfitable} valueKey="profit" />
+                <ProductTable
+                  rows={safeAnalytics.productAnalytics?.mostProfitable ?? []}
+                  valueKey="profit"
+                />
               </TabsContent>
 
               <TabsContent value="low" className="mt-0 lg:col-span-2">
-                <ProductTable rows={analytics.productAnalytics.lowPerforming} valueKey="units" />
+                <ProductTable
+                  rows={safeAnalytics.productAnalytics?.lowPerforming ?? []}
+                  valueKey="units"
+                />
               </TabsContent>
             </div>
           </Tabs>
         </PageSection>
 
         <div className="grid lg:grid-cols-2 gap-6">
-          <PageSection title="Customer Intelligence" description="Who pays, who owes, who buys often">
+          <PageSection
+            title="Customer Intelligence"
+            description="Who pays, who owes, who buys often"
+          >
             <Tabs defaultValue="paying">
               <TabsList className="mb-4 flex flex-wrap h-auto">
                 <TabsTrigger value="paying">Top paying</TabsTrigger>
@@ -548,17 +645,26 @@ function AnalyticsPage() {
                 <TabsTrigger value="aov">Avg order value</TabsTrigger>
               </TabsList>
               <TabsContent value="paying">
-                <CustomerList rows={analytics.customerIntelligence.topPaying} highlight="spent" />
+                <CustomerList
+                  rows={safeAnalytics.customerIntelligence?.topPaying ?? []}
+                  highlight="spent"
+                />
               </TabsContent>
               <TabsContent value="pending">
-                <CustomerList rows={analytics.customerIntelligence.mostPending} highlight="pending" />
+                <CustomerList
+                  rows={safeAnalytics.customerIntelligence?.mostPending ?? []}
+                  highlight="pending"
+                />
               </TabsContent>
               <TabsContent value="frequent">
-                <CustomerList rows={analytics.customerIntelligence.mostFrequent} highlight="orders" />
+                <CustomerList
+                  rows={safeAnalytics.customerIntelligence?.mostFrequent ?? []}
+                  highlight="orders"
+                />
               </TabsContent>
               <TabsContent value="aov">
                 <CustomerList
-                  rows={analytics.customerIntelligence.avgOrderValueByCustomer}
+                  rows={safeAnalytics.customerIntelligence?.avgOrderValueByCustomer ?? []}
                   highlight="aov"
                 />
               </TabsContent>
@@ -567,11 +673,11 @@ function AnalyticsPage() {
 
           <PageSection title="Invoice Aging" description="Pending amounts by age bucket">
             <div className="h-64 mb-4">
-              {(analytics.invoiceAging || []).length === 0 ? (
+              {(safeAnalytics.invoiceAging ?? []).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No pending invoices to age.</p>
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={analytics.invoiceAging}>
+                  <BarChart data={safeAnalytics.invoiceAging ?? []}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="label" />
                     <YAxis />
@@ -582,14 +688,17 @@ function AnalyticsPage() {
               )}
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {(analytics.invoiceAging || []).map((bucket) => (
-                <div key={bucket.label} className="rounded-lg border p-3 text-sm">
+              {safeAnalytics.invoiceAging?.filter(Boolean)?.map((bucket, index) => (
+                <div
+                  key={`${bucket?.label ?? "Unknown"}-${index}`}
+                  className="rounded-lg border p-3 text-sm"
+                >
                   <div className="flex items-center gap-2 text-muted-foreground">
                     <Clock className="h-4 w-4" />
-                    {bucket.label}
+                    {bucket?.label ?? "Unknown"}
                   </div>
-                  <p className="mt-1 font-semibold">{formatCurrency(bucket.amount)}</p>
-                  <p className="text-xs text-muted-foreground">{bucket.count} invoices</p>
+                  <p className="mt-1 font-semibold">{formatCurrency(bucket?.amount ?? 0)}</p>
+                  <p className="text-xs text-muted-foreground">{bucket?.count ?? 0} invoices</p>
                 </div>
               ))}
             </div>
@@ -603,20 +712,23 @@ function AnalyticsPage() {
                 Predictions will appear as your store accumulates data.
               </p>
             ) : (
-              predictions.map((prediction, index) => {
+              predictions?.filter(Boolean)?.map((prediction, index) => {
                 const icons = [Package, TrendingUp, Users];
                 const Icon = icons[index % icons.length];
                 return (
-                  <div key={`${prediction.title}-${index}`} className="rounded-xl border p-4">
+                  <div
+                    key={`${prediction?.title ?? "Unknown"}-${index}`}
+                    className="rounded-xl border p-4"
+                  >
                     <div className="flex items-center gap-2 mb-2">
                       <Icon className="h-4 w-4 text-primary" />
                       <span className="text-xs font-medium text-muted-foreground">
-                        {prediction.confidence}
+                        {prediction?.confidence ?? "Unknown"}
                       </span>
                     </div>
-                    <h4 className="font-semibold">{prediction.title}</h4>
-                    <p className="text-sm mt-1">{prediction.forecast}</p>
-                    <p className="text-xs text-muted-foreground mt-2">{prediction.detail}</p>
+                    <h4 className="font-semibold">{prediction?.title ?? "Unknown"}</h4>
+                    <p className="text-sm mt-1">{prediction?.forecast ?? "Unknown"}</p>
+                    <p className="text-xs text-muted-foreground mt-2">{prediction?.detail ?? ""}</p>
                   </div>
                 );
               })
@@ -626,21 +738,24 @@ function AnalyticsPage() {
 
         <PageSection title="Top Products">
           <div className="space-y-3">
-            {(analytics.topProducts || []).length === 0 ? (
+            {analyticsArrays.topProducts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No product sales data yet.</p>
             ) : (
-              analytics.topProducts.slice(0, 5).map((product, index) => (
-                <div
-                  key={`${product.id}-${index}`}
-                  className="flex justify-between items-center p-3 border rounded-lg"
-                >
-                  <span>
-                    {index + 1}. {product.name}
-                  </span>
-                  <span>{product.sold} sold</span>
-                  <span>{formatCurrency(product.revenue)}</span>
-                </div>
-              ))
+              analyticsArrays.topProducts
+                ?.filter(Boolean)
+                ?.slice(0, 5)
+                ?.map((product, index) => (
+                  <div
+                    key={`${product?.id ?? "Unknown"}-${index}`}
+                    className="flex justify-between items-center p-3 border rounded-lg"
+                  >
+                    <span>
+                      {index + 1}. {product?.name ?? "Unknown"}
+                    </span>
+                    <span>{product?.sold ?? 0} sold</span>
+                    <span>{formatCurrency(product?.revenue ?? 0)}</span>
+                  </div>
+                ))
             )}
           </div>
         </PageSection>
@@ -652,19 +767,22 @@ function AnalyticsPage() {
               <span className="text-sm opacity-80">Live recommendations</span>
             </div>
             <h3 className="font-bold text-lg mb-2">
-              {analytics.recommendations?.[0] ??
+              {safeAnalytics.recommendations?.[0] ??
                 "Insights will appear as your store accumulates sales data."}
             </h3>
             <p className="text-sm opacity-80">
-              {analytics.recommendations?.[1] ??
+              {safeAnalytics.recommendations?.[1] ??
                 "Track inventory and invoices to unlock forecasts."}
             </p>
             <div className="mt-4 space-y-2">
-              {(analytics.recommendations?.slice(2) || []).map((item, index) => (
-                <div key={`${item}-${index}`} className="bg-white/10 p-2 rounded-lg text-sm">
-                  {item}
-                </div>
-              ))}
+              {safeAnalytics.recommendations
+                ?.filter(Boolean)
+                ?.slice(2)
+                ?.map((item, index) => (
+                  <div key={`${item}-${index}`} className="bg-white/10 p-2 rounded-lg text-sm">
+                    {item}
+                  </div>
+                ))}
             </div>
           </div>
         </PageSection>
