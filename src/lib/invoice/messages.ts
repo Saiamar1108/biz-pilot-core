@@ -219,11 +219,13 @@ export function buildUpiPaymentUrl({
   payeeName,
   amount,
   note,
+  transactionRef,
 }: {
   upiId: string;
   payeeName: string;
   amount: number;
   note?: string;
+  transactionRef?: string;
 }) {
   const pa = upiId.trim();
   if (!pa) return "";
@@ -233,6 +235,8 @@ export function buildUpiPaymentUrl({
   if (payeeName) params.set("pn", payeeName.slice(0, 50));
   if (amount > 0) params.set("am", amount.toFixed(2));
   if (note) params.set("tn", note.slice(0, 80));
+  if (transactionRef) params.set("tr", transactionRef.slice(0, 35));
+  params.set("cu", "INR");
   return `upi://pay?${params.toString()}`;
 }
 
@@ -245,18 +249,21 @@ export function generatePaymentQRCode({
   business,
   amount,
   note,
+  transactionRef,
   size = 200,
 }: {
   business: BusinessProfile;
   amount: number;
   note?: string;
+  transactionRef?: string;
   size?: number;
 }) {
   const paymentUrl = buildUpiPaymentUrl({
-    upiId: resolveUpiId(business),
+    upiId: business.upiId?.trim() || "",
     payeeName: business.storeName,
     amount,
     note,
+    transactionRef,
   });
 
   return {

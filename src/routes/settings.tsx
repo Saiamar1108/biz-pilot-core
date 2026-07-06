@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getSettings, type BusinessProfile } from "@/lib/api";
+import { getSettings, updateBusinessSettings, type BusinessProfile } from "@/lib/api";
 import { requireAuth } from "@/lib/auth-guard";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/settings")({
   beforeLoad: requireAuth,
@@ -23,8 +25,11 @@ type Profile = {
 function SettingsPage() {
   const [profile, setProfile] = useState<Profile>({});
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
+  const [upiId, setUpiId] = useState("");
   const [taxRate, setTaxRate] = useState("");
   const [loading, setLoading] = useState(true);
+  const [savingUpi, setSavingUpi] = useState(false);
+  const [upiError, setUpiError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -33,6 +38,7 @@ function SettingsPage() {
         if (!active) return;
         setProfile(settings.profile || {});
         setBusiness(settings.business || null);
+        setUpiId(settings.business?.upiId || "");
         setTaxRate(settings.taxRate != null ? `${Number(settings.taxRate) * 100}%` : "");
       })
       .finally(() => {
@@ -42,6 +48,35 @@ function SettingsPage() {
       active = false;
     };
   }, []);
+
+  const saveUpiId = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextUpiId = upiId.trim();
+    if (nextUpiId && !/^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z0-9]{2,64}$/.test(nextUpiId)) {
+      setUpiError("Enter a valid UPI ID, for example store@okaxis.");
+      return;
+    }
+
+    try {
+      setSavingUpi(true);
+      setUpiError(null);
+      const updated = await updateBusinessSettings({ business: { upiId: nextUpiId } });
+      setBusiness((current) => ({ ...(current || updated.business), ...updated.business }));
+      setUpiId(updated.business.upiId || "");
+      toast.success("Business UPI ID saved.");
+    } catch (err) {
+      const responseMessage =
+        err && typeof err === "object" && "response" in err
+          ? (err as { response?: { data?: { message?: string } } }).response?.data?.message
+          : undefined;
+      const text =
+        responseMessage || (err instanceof Error ? err.message : "Unable to save Business UPI ID.");
+      setUpiError(text);
+      toast.error(text);
+    } finally {
+      setSavingUpi(false);
+    }
+  };
 
   return (
     <DashboardLayout title="Settings">
@@ -103,6 +138,22 @@ function SettingsPage() {
                 <Label>Address</Label>
                 <Input value={business?.address || ""} readOnly className="mt-1" />
               </div>
+              <form className="space-y-2" onSubmit={saveUpiId}>
+                <Label htmlFor="business-upi-id">Business UPI ID</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="business-upi-id"
+                    value={upiId}
+                    onChange={(event) => setUpiId(event.target.value)}
+                    placeholder="store@okaxis"
+                    className="mt-1"
+                  />
+                  <Button type="submit" className="mt-1" disabled={savingUpi}>
+                    {savingUpi ? "Saving..." : "Save"}
+                  </Button>
+                </div>
+                {upiError && <p className="text-sm text-destructive">{upiError}</p>}
+              </form>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div>
                   <Label>GST</Label>

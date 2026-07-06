@@ -207,14 +207,17 @@ function BillingPage() {
     return () => {
       active = false;
     };
-  }, [customer, completedInvoice]);
+  }, [customer, completedInvoice?.id]);
 
   const displayInvoiceNumber = completedInvoice?.id ?? "Pending";
   const effectiveTaxRate = Number.isFinite(taxRate) ? taxRate : 0;
   const taxPercentLabel = `${Math.round(effectiveTaxRate * 100)}%`;
-  const subtotal = moneyAmount(lines.reduce((sum, line) => sum + line.qty * line.price, 0));
-  const tax = moneyAmount(subtotal * effectiveTaxRate);
-  const total = moneyAmount(subtotal + tax);
+  const subtotal = useMemo(
+    () => moneyAmount(lines.reduce((sum, line) => sum + line.qty * line.price, 0)),
+    [lines],
+  );
+  const tax = useMemo(() => moneyAmount(subtotal * effectiveTaxRate), [subtotal, effectiveTaxRate]);
+  const total = useMemo(() => moneyAmount(subtotal + tax), [subtotal, tax]);
 
   const selectedCustomer = useMemo(
     () => customers.find((item) => item.id === customer),
@@ -258,6 +261,17 @@ function BillingPage() {
     [lines, products],
   );
   const hasInvalidStock = stockIssues.length > 0;
+  const payloadLines = useMemo(
+    () =>
+      lines
+        .filter((line) => line.productId)
+        .map((line) => ({
+          product: line.productId,
+          quantity: line.qty,
+          unitPrice: moneyAmount(line.price),
+        })),
+    [lines],
+  );
 
   const paidAmount = completedInvoice?.paidAmount ?? 0;
   const remainingAmount = completedInvoice
@@ -323,15 +337,6 @@ function BillingPage() {
       price: product.price,
     });
   };
-
-  const buildPayloadLines = () =>
-    lines
-      .filter((line) => line.productId)
-      .map((line) => ({
-        product: line.productId,
-        quantity: line.qty,
-        unitPrice: moneyAmount(line.price),
-      }));
 
   const toggleVoice = () => {
     if (!voiceSupported || !recognitionRef.current) {
@@ -471,7 +476,7 @@ function BillingPage() {
   };
 
   const handleGenerateInvoice = async () => {
-    if (!customer || buildPayloadLines().length === 0) {
+    if (!customer || payloadLines.length === 0) {
       setError("Select a customer and at least one product before creating an invoice.");
       return;
     }
@@ -486,7 +491,7 @@ function BillingPage() {
       const created = await createInvoice({
         customer,
         taxRate: effectiveTaxRate,
-        lineItems: buildPayloadLines(),
+        lineItems: payloadLines,
       });
       finalizeInvoice(created);
       setMessage("Invoice created successfully.");
@@ -520,7 +525,7 @@ function BillingPage() {
   };
 
   const handleSendInvoice = async () => {
-    if (!selectedCustomer || !hasPhone || buildPayloadLines().length === 0) {
+    if (!selectedCustomer || !hasPhone || payloadLines.length === 0) {
       toast.error("Select a customer with phone and add products.");
       return;
     }
@@ -530,7 +535,7 @@ function BillingPage() {
       const created = await createInvoice({
         customer,
         taxRate: effectiveTaxRate,
-        lineItems: buildPayloadLines(),
+        lineItems: payloadLines,
         status: "sent",
       });
       finalizeInvoice(created);
@@ -609,7 +614,7 @@ function BillingPage() {
           void handleSendInvoice();
           return;
         case "generate_invoice":
-          if (!customer || buildPayloadLines().length === 0) {
+          if (!customer || payloadLines.length === 0) {
             toast.error("Select a customer and add products before generating.");
             return;
           }
@@ -1068,7 +1073,7 @@ function BillingPage() {
                 size="sm"
                 className="bg-accent-brand text-accent-brand-foreground"
                 onClick={handleSendInvoice}
-                disabled={!selectedCustomer || !hasPhone || buildPayloadLines().length === 0 || submitting}
+                disabled={!selectedCustomer || !hasPhone || payloadLines.length === 0 || submitting}
               >
                 <Send className="h-4 w-4 mr-1" /> Send
               </Button>

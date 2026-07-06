@@ -116,9 +116,10 @@ export function InvoiceActions({
 
   const qr = generatePaymentQRCode({
     business,
-    amount: outstanding > 0 ? outstanding : invoice.amount,
-    note: invoice.id,
-    size: 160,
+    amount: invoice.total || invoice.amount,
+    note: `Payment for invoice ${invoice.invoiceNumber || invoice.id}`,
+    transactionRef: invoice.invoiceNumber || invoice.id,
+    size: 240,
   });
 
   const buttonSize = compact ? "sm" : "sm";
@@ -189,17 +190,23 @@ export function InvoiceActions({
         </Button>
       </div>
 
-      {qr.qrImageUrl && isUnpaid && (
-        <div className="flex items-center gap-3 rounded-lg border p-3 bg-muted/30">
-          <img
-            src={qr.qrImageUrl}
-            alt="UPI payment QR code"
-            className="h-20 w-20 rounded-md border bg-white p-1"
-          />
-          <div className="min-w-0 text-xs text-muted-foreground">
-            <p className="font-medium text-foreground">Scan to pay</p>
-            <p className="truncate">{qr.paymentUrl}</p>
-          </div>
+      {isUnpaid && (
+        <div className="rounded-lg border p-4 bg-muted/30 text-center">
+          {qr.qrImageUrl ? (
+            <div className="space-y-3">
+              <p className="font-semibold text-foreground">Scan & Pay</p>
+              <img
+                src={qr.qrImageUrl}
+                alt="UPI payment QR code"
+                className="mx-auto h-60 w-60 rounded-md border bg-white p-2"
+              />
+              <p className="text-xs text-muted-foreground">UPI ID: {business.upiId}</p>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Configure your Business UPI ID in Settings.
+            </p>
+          )}
         </div>
       )}
     </div>

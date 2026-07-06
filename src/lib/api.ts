@@ -542,6 +542,14 @@ export async function getSettings() {
   return unwrap(response);
 }
 
+export async function updateBusinessSettings(payload: { business: Pick<BusinessProfile, "upiId"> }) {
+  const response = await api.put<ApiResponse<{ business: BusinessProfile }>>(
+    "/settings/business",
+    payload,
+  );
+  return unwrap(response);
+}
+
 export async function changePassword(payload: { currentPassword: string; newPassword: string }) {
   const response = await api.post<ApiResponse<{ message: string }>>(
     "/auth/change-password",

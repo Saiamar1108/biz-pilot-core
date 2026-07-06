@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,12 +32,25 @@ export function ProductSearchCombobox({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const selected = products.find((product) => product.id === value || product.name === value);
-
-  const sorted = useMemo(
-    () => [...products].sort((a, b) => a.name.localeCompare(b.name)),
-    [products],
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const selected = useMemo(
+    () => products.find((product) => product.id === value || product.name === value),
+    [products, value],
   );
+
+  const sorted = useMemo(() => {
+    const q = deferredQuery.trim().toLowerCase();
+    const filtered = q
+      ? products.filter(
+          (product) =>
+            product.name.toLowerCase().includes(q) ||
+            product.sku.toLowerCase().includes(q) ||
+            product.category?.toLowerCase().includes(q),
+        )
+      : products;
+    return [...filtered].sort((a, b) => a.name.localeCompare(b.name));
+  }, [products, deferredQuery]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -53,8 +66,12 @@ export function ProductSearchCombobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
-        <Command>
-          <CommandInput placeholder="Search by name or SKU…" />
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder="Search by name or SKU…"
+            value={query}
+            onValueChange={setQuery}
+          />
           <CommandList>
             <CommandEmpty>No product found.</CommandEmpty>
             <CommandGroup>
@@ -65,6 +82,7 @@ export function ProductSearchCombobox({
                   onSelect={() => {
                     onSelect(product);
                     setOpen(false);
+                    setQuery("");
                   }}
                 >
                   <Check

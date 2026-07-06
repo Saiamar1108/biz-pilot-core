@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { Check, ChevronsUpDown, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,10 +29,11 @@ export function CustomerSearchCombobox({
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
   const selected = customers.find((customer) => customer.id === value);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = deferredQuery.trim().toLowerCase();
     if (!q) return customers;
     return customers.filter(
       (customer) =>
@@ -40,7 +41,7 @@ export function CustomerSearchCombobox({
         customer.phone.includes(q) ||
         customer.email.toLowerCase().includes(q),
     );
-  }, [customers, query]);
+  }, [customers, deferredQuery]);
 
   const showCreate =
     query.trim().length > 0 &&
