@@ -20,6 +20,7 @@ import {
   TrendingUp,
   ShoppingCart,
   AlertTriangle,
+  ClipboardList,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -55,13 +56,12 @@ const navItems = [
   { to: "/billing", label: "Billing", icon: Receipt },
   { to: "/invoices", label: "Invoices", icon: FileText },
   { to: "/inventory", label: "Inventory", icon: Package },
+  { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/assistant", label: "AI Assistant", icon: Bot },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },
   { to: "/settings", label: "Settings", icon: Settings },
 ];
-
-const AI_CREDITS_REMAINING = 43;
 
 export function DashboardLayout({
   children,
@@ -139,14 +139,10 @@ export function DashboardLayout({
     };
 
     void load();
-    const interval = window.setInterval(() => {
-      void load();
-    }, 30000);
     const refreshHandler = () => void load();
     window.addEventListener(DATA_REFRESH_EVENT, refreshHandler);
     return () => {
       active = false;
-      window.clearInterval(interval);
       window.removeEventListener(DATA_REFRESH_EVENT, refreshHandler);
     };
   }, []);
@@ -314,11 +310,6 @@ export function DashboardLayout({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {AI_CREDITS_REMAINING <= 50 && (
-                <div className="hidden sm:flex items-center rounded-full border border-warning/40 bg-warning/10 px-3 py-1.5 text-xs font-medium text-warning">
-                  ⚠ Only {AI_CREDITS_REMAINING}% of AI credits remaining
-                </div>
-              )}
               <Button variant="outline" size="icon" onClick={toggleTheme} className="relative">
                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />

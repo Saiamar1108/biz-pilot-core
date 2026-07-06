@@ -38,13 +38,13 @@ export function getExpiryBadgeColor(status: ExpiryStatus): string {
 export function getExpiryBadgeText(status: ExpiryStatus, daysUntil: number | null): string {
   switch (status) {
     case "expired":
-      return `Expired ${Math.abs(daysUntil || 0)} days ago`;
+      return "Expired";
     case "critical":
       return `Expires in ${daysUntil} days`;
     case "warning":
       return `Expires in ${daysUntil} days`;
     case "good":
-      return `Good`;
+      return "";
     default:
       return "No expiry";
   }
@@ -55,7 +55,7 @@ export function formatExpiryDate(expiryDate: string | null | undefined): string 
   const date = new Date(expiryDate);
   return date.toLocaleDateString("en-IN", {
     day: "2-digit",
-    month: "short",
+    month: "2-digit",
     year: "numeric",
   });
 }

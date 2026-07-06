@@ -14,8 +14,7 @@ import { cn } from "@/lib/utils";
 import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
-import { getDaysUntilExpiry, getExpiryStatus, getExpiryBadgeColor, getExpiryBadgeText, formatExpiryDate } from "@/lib/inventory";
-import { PurchaseOrderGenerator } from "@/components/inventory/PurchaseOrderGenerator";
+import { getExpiryStatus, formatExpiryDate } from "@/lib/inventory";
 
 export const Route = createFileRoute("/inventory")({
   head: () => ({ meta: [{ title: "Inventory — ShopPilot AI" }] }),
@@ -38,7 +37,6 @@ function InventoryPage() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
-  const [businessName, setBusinessName] = useState("ShopPilot AI");
 
   const loadProducts = async () => {
     try {
@@ -47,7 +45,6 @@ function InventoryPage() {
       const [data, settings] = await Promise.all([getProducts(), getSettings()]);
       setItems(data);
       setLowStockThreshold(settings.lowStockThreshold);
-      setBusinessName(settings.business?.storeName || "ShopPilot AI");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     } finally {
@@ -63,20 +60,10 @@ function InventoryPage() {
       await loadProducts();
     };
 
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") {
-        void loadProducts();
-      }
-    };
-
     void load();
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
 
     return () => {
       active = false;
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
     };
   }, []);
 
@@ -96,7 +83,6 @@ function InventoryPage() {
       if (expiryFilter === "expired") matchesExpiry = expiryStatus === "expired";
       else if (expiryFilter === "critical") matchesExpiry = expiryStatus === "critical";
       else if (expiryFilter === "warning") matchesExpiry = expiryStatus === "warning";
-      else if (expiryFilter === "good") matchesExpiry = expiryStatus === "good";
       
       // Stock filter
       let matchesStock = true;
@@ -261,7 +247,6 @@ function InventoryPage() {
                   <SelectItem value="expired">Expired</SelectItem>
                   <SelectItem value="critical">Expiring Soon (7d)</SelectItem>
                   <SelectItem value="warning">Expiring (30d)</SelectItem>
-                  <SelectItem value="good">Good</SelectItem>
                 </SelectContent>
               </Select>
               <Select value={stockFilter} onValueChange={setStockFilter}>
@@ -277,7 +262,6 @@ function InventoryPage() {
               </Select>
             </div>
             <div className="flex gap-2">
-              <PurchaseOrderGenerator businessName={businessName} />
               <Dialog open={dialogOpen} onOpenChange={(open) => {
                 if (!open) {
                   resetForm();
@@ -333,8 +317,6 @@ function InventoryPage() {
               <tbody>
                 {filtered.map((i) => {
                   const expiryStatus = getExpiryStatus(i.expiryDate);
-                  const daysUntilExpiry = getDaysUntilExpiry(i.expiryDate);
-                  
                   return (
                     <tr key={i.sku} className="border-t border-border hover:bg-secondary/40 transition">
                       <td className="px-5 py-4 font-medium">{i.name}</td>
@@ -346,10 +328,15 @@ function InventoryPage() {
                         {i.barcode || "—"}
                       </td>
                       <td className="px-5 py-4 hidden lg:table-cell">
-                        {expiryStatus ? (
-                          <span className={cn("px-2 py-0.5 rounded-md text-xs font-medium border", getExpiryBadgeColor(expiryStatus))}>
-                            {getExpiryBadgeText(expiryStatus, daysUntilExpiry)}
-                          </span>
+                        {i.expiryDate ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-xs">{formatExpiryDate(i.expiryDate)}</span>
+                            {expiryStatus === "expired" && (
+                              <span className="w-fit px-2 py-0.5 rounded-md text-xs font-medium border bg-red-100 text-red-700 border-red-200">
+                                Expired
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-muted-foreground text-xs">—</span>
                         )}

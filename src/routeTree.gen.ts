@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RegisterRouteImport } from './routes/register'
+import { Route as PurchaseOrdersRouteImport } from './routes/purchase-orders'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as InvoicesRouteImport } from './routes/invoices'
 import { Route as InventoryRouteImport } from './routes/inventory'
@@ -37,6 +38,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PurchaseOrdersRoute = PurchaseOrdersRouteImport.update({
+  id: '/purchase-orders',
+  path: '/purchase-orders',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -107,6 +113,7 @@ export interface FileRoutesByFullPath {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -123,6 +130,7 @@ export interface FileRoutesByTo {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -140,6 +148,7 @@ export interface FileRoutesById {
   '/inventory': typeof InventoryRoute
   '/invoices': typeof InvoicesRoute
   '/login': typeof LoginRoute
+  '/purchase-orders': typeof PurchaseOrdersRoute
   '/register': typeof RegisterRoute
   '/reset-password': typeof ResetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -158,6 +167,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/purchase-orders'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/purchase-orders'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -190,6 +201,7 @@ export interface FileRouteTypes {
     | '/inventory'
     | '/invoices'
     | '/login'
+    | '/purchase-orders'
     | '/register'
     | '/reset-password'
     | '/settings'
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   InventoryRoute: typeof InventoryRoute
   InvoicesRoute: typeof InvoicesRoute
   LoginRoute: typeof LoginRoute
+  PurchaseOrdersRoute: typeof PurchaseOrdersRoute
   RegisterRoute: typeof RegisterRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SettingsRoute: typeof SettingsRoute
@@ -233,6 +246,13 @@ declare module '@tanstack/react-router' {
       path: '/register'
       fullPath: '/register'
       preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/purchase-orders': {
+      id: '/purchase-orders'
+      path: '/purchase-orders'
+      fullPath: '/purchase-orders'
+      preLoaderRoute: typeof PurchaseOrdersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -327,6 +347,7 @@ const rootRouteChildren: RootRouteChildren = {
   InventoryRoute: InventoryRoute,
   InvoicesRoute: InvoicesRoute,
   LoginRoute: LoginRoute,
+  PurchaseOrdersRoute: PurchaseOrdersRoute,
   RegisterRoute: RegisterRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SettingsRoute: SettingsRoute,

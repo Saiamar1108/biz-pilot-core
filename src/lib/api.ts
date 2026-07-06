@@ -372,8 +372,19 @@ export type AnalyticsSummary = {
 };
 
 export type PurchaseOrder = {
-  items: any[];
+  items: Array<{
+    productName: string;
+    sku: string;
+    category: string;
+    currentStock: number;
+    recommendedQuantity: number;
+    estimatedCost: number;
+    confidence: number;
+    urgency: string;
+    explanation: string;
+  }>;
   totalEstimatedCost: number;
+  generatedAt?: string;
   [key: string]: any;
 };
 
@@ -519,9 +530,15 @@ export async function addInvoicePayment(
 
 export async function getSettings() {
   const response =
-    await api.get<ApiResponse<{ business: BusinessProfile; profile?: any; notifications?: any }>>(
-      "/settings",
-    );
+    await api.get<
+      ApiResponse<{
+        business: BusinessProfile;
+        profile?: any;
+        notifications?: any;
+        taxRate?: number;
+        lowStockThreshold?: number;
+      }>
+    >("/settings");
   return unwrap(response);
 }
 
