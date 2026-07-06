@@ -382,12 +382,12 @@ function InvoicesPage() {
                           <span className="font-mono text-sm">{invoice.id}</span>
                           <PaymentStatusBadge status={invoice.status} />
                           {duplicateIds.has(invoice.id) && (
-                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-700 inline-flex items-center gap-1">
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-warning/20 text-warning inline-flex items-center gap-1">
                               <AlertTriangle className="h-3 w-3" /> Possible duplicate
                             </span>
                           )}
                           {customer && isBestCustomer(customer) && (
-                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 inline-flex items-center gap-1">
+                            <span className="text-[10px] font-semibold uppercase px-2 py-0.5 rounded-full bg-accent-brand/15 text-accent-brand inline-flex items-center gap-1">
                               <Star className="h-3 w-3" /> VIP
                             </span>
                           )}

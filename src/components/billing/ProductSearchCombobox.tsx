@@ -17,7 +17,7 @@ import { formatCurrency } from "@/lib/currency";
 function stockBadgeClass(stock: number) {
   if (stock <= 2) return "text-destructive bg-destructive/10 border-destructive/20";
   if (stock <= 10) return "text-warning bg-warning/10 border-warning/20";
-  return "text-emerald-700 bg-emerald-100 border-emerald-200";
+  return "text-accent-brand bg-accent-brand/10 border-accent-brand/20";
 }
 
 export function ProductSearchCombobox({

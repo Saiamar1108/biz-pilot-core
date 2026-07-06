@@ -332,7 +332,7 @@ function InventoryPage() {
                           <div className="flex flex-col gap-1">
                             <span className="text-xs">{formatExpiryDate(i.expiryDate)}</span>
                             {expiryStatus === "expired" && (
-                              <span className="w-fit px-2 py-0.5 rounded-md text-xs font-medium border bg-red-100 text-red-700 border-red-200">
+                              <span className="w-fit px-2 py-0.5 rounded-md text-xs font-medium border bg-destructive/15 text-destructive border-destructive/20">
                                 Expired
                               </span>
                             )}

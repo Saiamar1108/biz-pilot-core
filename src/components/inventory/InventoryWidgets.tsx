@@ -79,12 +79,12 @@ export function InventoryWidgets({ businessName }: InventoryWidgetsProps) {
               </div>
             ))}
             {insights?.expiryAlerts?.critical?.slice(0, 2).map((item: any) => (
-              <div key={item.id} className="flex items-center justify-between p-2 rounded-lg bg-orange-100 border border-orange-200">
+              <div key={item.id} className="flex items-center justify-between p-2 rounded-lg bg-warning/20 border border-warning/30">
                 <div className="flex-1 min-w-0">
                   <div className="font-medium text-sm">{item.name}</div>
                   <div className="text-xs text-muted-foreground">{item.sku}</div>
                 </div>
-                <div className="text-orange-700 font-semibold text-xs">
+                <div className="text-warning font-semibold text-xs">
                   {item.daysUntilExpiry}d left
                 </div>
               </div>

@@ -2,11 +2,11 @@ import { cn } from "@/lib/utils";
 import type { Invoice } from "@/lib/api";
 
 const styles = {
-  paid: "bg-emerald-500/15 text-emerald-700",
-  pending: "bg-yellow-400/20 text-yellow-700",
-  partial: "bg-blue-500/15 text-blue-700",
-  overdue: "bg-red-500/15 text-red-700",
-  sent: "bg-purple-500/15 text-purple-700",
+  paid: "bg-accent-brand/15 text-accent-brand",
+  pending: "bg-warning/20 text-warning",
+  partial: "bg-primary/15 text-primary",
+  overdue: "bg-destructive/15 text-destructive",
+  sent: "bg-accent/30 text-accent-foreground",
 };
 
 export function PaymentStatusBadge({ status }: { status: Invoice["status"] }) {

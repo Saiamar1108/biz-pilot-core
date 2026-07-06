@@ -169,10 +169,10 @@ function DashboardPage() {
                         <stop offset="100%" stopColor="oklch(0.549 0.222 262)" stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="oklch(0.92 0.012 258)" />
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
                     <XAxis
                       dataKey="m"
-                      stroke="oklch(0.5 0.03 258)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={11}
                       tickLine={false}
                       axisLine={false}
@@ -182,14 +182,14 @@ function DashboardPage() {
                       height={60}
                     />
                     <YAxis
-                      stroke="oklch(0.5 0.03 258)"
+                      stroke="var(--color-muted-foreground)"
                       fontSize={12}
                       tickLine={false}
                       axisLine={false}
                       tickFormatter={(v) => (v >= 1000 ? `₹${v / 1000}k` : `₹${v}`)}
                     />
                     <Tooltip
-                      contentStyle={{ borderRadius: 12, border: "1px solid oklch(0.92 0.012 258)" }}
+                      contentStyle={{ borderRadius: 12, border: "1px solid var(--color-border)", background: "var(--color-card)", color: "var(--color-card-foreground)" }}
                       formatter={(v: number, name: string) => [
                         formatCurrency(v),
                         name === "collected" ? "Collected" : "Pending",
