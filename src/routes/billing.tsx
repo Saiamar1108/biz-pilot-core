@@ -997,7 +997,7 @@ function BillingPage() {
 
             <div className="rounded-xl gradient-primary text-primary-foreground p-4 flex justify-between items-center">
               <span className="text-sm font-medium">Total Due</span>
-              <span className="font-display text-xl font-bold">{formatCurrency(total)}</span>
+              <span className="font-display text-xl font-bold">{formatCurrency(remainingAmount)}</span>
             </div>
 
             {completedInvoice && (
