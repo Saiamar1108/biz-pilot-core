@@ -36,4 +36,8 @@ const customerSchema = new mongoose.Schema(
 // Compound index for unique email per shop
 customerSchema.index({ email: 1, shopId: 1 }, { unique: true });
 
+// List/filter performance
+customerSchema.index({ shopId: 1, createdAt: -1 });
+customerSchema.index({ shopId: 1, status: 1 });
+
 module.exports = mongoose.model("Customer", customerSchema);

@@ -1,6 +1,7 @@
 const Invoice = require("../models/Invoice");
 const Customer = require("../models/Customer");
 const Product = require("../models/Product");
+const Notification = require("../models/Notification");
 const mongoose = require("mongoose");
 const env = require("../config/env");
 const asyncHandler = require("../middlewares/asyncHandler");
@@ -103,10 +104,10 @@ exports.createInvoice = asyncHandler(async (req, res) => {
     shopId: req.shopId,
   });
 
-  for (const item of lineItems) {
-    const updatedProduct = await Product.findOneAndUpdate(
-      { _id: item.product, shopId: req.shopId },
-      {
+  const bulkOps = lineItems.map((item) => ({
+    updateOne: {
+      filter: { _id: item.product, shopId: req.shopId },
+      update: {
         $inc: {
           stock: -item.quantity,
           sold: item.quantity,
@@ -120,18 +121,26 @@ exports.createInvoice = asyncHandler(async (req, res) => {
           },
         },
       },
-      { new: true },
-    );
+    },
+  }));
 
-    if (updatedProduct && Number(updatedProduct.stock) <= env.lowStockThreshold) {
-      await createNotification({
-        type: "low_stock",
-        message: `Low stock: ${updatedProduct.name} only ${updatedProduct.stock} left`,
-        relatedId: String(updatedProduct._id),
-        key: `low-stock-${String(updatedProduct._id)}`,
-        shopId: req.shopId,
-      });
-    }
+  await Product.bulkWrite(bulkOps);
+
+  const updatedProductIds = lineItems.map((item) => item.product);
+  const updatedProducts = await Product.find({ _id: { $in: updatedProductIds } }).lean();
+
+  const lowStockNotifications = updatedProducts
+    .filter((product) => Number(product.stock) <= env.lowStockThreshold)
+    .map((product) => ({
+      type: "low_stock",
+      message: `Low stock: ${product.name} only ${product.stock} left`,
+      relatedId: String(product._id),
+      key: `low-stock-${String(product._id)}`,
+      shopId: req.shopId,
+    }));
+
+  if (lowStockNotifications.length > 0) {
+    await Notification.insertMany(lowStockNotifications);
   }
 
   customer.orderHistory = Array.isArray(customer.orderHistory) ? customer.orderHistory : [];

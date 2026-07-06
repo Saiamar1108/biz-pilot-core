@@ -35,4 +35,7 @@ const productSchema = new mongoose.Schema(
 // Compound index for unique SKU per shop
 productSchema.index({ sku: 1, shopId: 1 }, { unique: true });
 
+productSchema.index({ shopId: 1, createdAt: -1 });
+productSchema.index({ shopId: 1, category: 1 });
+
 module.exports = mongoose.model("Product", productSchema);

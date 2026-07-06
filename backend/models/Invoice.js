@@ -64,4 +64,7 @@ const invoiceSchema = new mongoose.Schema(
 // Compound index for unique invoice number per shop
 invoiceSchema.index({ invoiceNumber: 1, shopId: 1 }, { unique: true });
 
+invoiceSchema.index({ shopId: 1, createdAt: -1 });
+invoiceSchema.index({ shopId: 1, status: 1 });
+
 module.exports = mongoose.model("Invoice", invoiceSchema);

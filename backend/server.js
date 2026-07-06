@@ -3,6 +3,7 @@ const cors = require("cors");
 const morgan = require("morgan");
 const cookieParser = require("cookie-parser");
 const helmet = require("helmet");
+const compression = require("compression");
 
 const connectDB = require("./config/db");
 const env = require("./config/env");
@@ -32,6 +33,9 @@ app.use(
     crossOriginEmbedderPolicy: false,
   }),
 );
+
+// compression
+app.use(compression());
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
