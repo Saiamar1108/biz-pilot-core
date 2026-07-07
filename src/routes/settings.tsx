@@ -30,6 +30,7 @@ function SettingsPage() {
   const [loading, setLoading] = useState(true);
   const [savingUpi, setSavingUpi] = useState(false);
   const [upiError, setUpiError] = useState<string | null>(null);
+  const [upiSaved, setUpiSaved] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -63,7 +64,9 @@ function SettingsPage() {
       const updated = await updateBusinessSettings({ business: { upiId: nextUpiId } });
       setBusiness((current) => ({ ...(current || updated.business), ...updated.business }));
       setUpiId(updated.business.upiId || "");
-      toast.success("Business UPI ID saved.");
+      toast.success("UPI ID saved successfully.");
+      setUpiSaved(true);
+      setTimeout(() => setUpiSaved(false), 2000);
     } catch (err) {
       const responseMessage =
         err && typeof err === "object" && "response" in err
@@ -148,8 +151,8 @@ function SettingsPage() {
                     placeholder="store@okaxis"
                     className="mt-1"
                   />
-                  <Button type="submit" className="mt-1" disabled={savingUpi}>
-                    {savingUpi ? "Saving..." : "Save"}
+                  <Button type="submit" className="mt-1" disabled={savingUpi || upiSaved}>
+                    {upiSaved ? "✓ Saved" : savingUpi ? "Saving..." : "Save"}
                   </Button>
                 </div>
                 {upiError && <p className="text-sm text-destructive">{upiError}</p>}

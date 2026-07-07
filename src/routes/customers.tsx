@@ -99,22 +99,10 @@ function CustomersPage() {
       }
     };
 
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") {
-        void load(false);
-      }
-    };
-
     void load(true);
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
-    window.addEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
 
     return () => {
       active = false;
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
-      window.removeEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
     };
   }, []);
 
@@ -248,7 +236,7 @@ function CustomersPage() {
         name: form.name.trim(),
         phone,
         email: form.email.trim(),
-        address: form.address.trim(),
+        address: (form.address ?? "").trim(),
         gstNumber: form.gstNumber?.trim() ?? "",
         notes: form.notes?.trim() ?? "",
       };
@@ -364,7 +352,7 @@ function CustomersPage() {
                           <h3 className="font-semibold truncate">{customer.name}</h3>
                           <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
                         </div>
-                        <StatusBadge status={customer.status} label={customer.customerType} />
+                        <StatusBadge status={customer.status as any} label={customer.customerType} />
                       </div>
                       <div className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
                         <Phone className="h-3.5 w-3.5" />

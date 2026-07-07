@@ -56,22 +56,10 @@ function DashboardPage() {
       }
     };
 
-    const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") {
-        void load(false);
-      }
-    };
-
     void load(true);
-    window.addEventListener("focus", refreshOnFocus);
-    document.addEventListener("visibilitychange", refreshOnFocus);
-    window.addEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
 
     return () => {
       active = false;
-      window.removeEventListener("focus", refreshOnFocus);
-      document.removeEventListener("visibilitychange", refreshOnFocus);
-      window.removeEventListener(DATA_REFRESH_EVENT, refreshOnFocus);
     };
   }, []);
 

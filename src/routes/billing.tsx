@@ -24,6 +24,7 @@ import {
   Barcode,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { InvoiceActions } from "@/components/billing/InvoiceActions";
 import {
@@ -80,6 +81,8 @@ function BillingPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [invoiceCreated, setInvoiceCreated] = useState(false);
+  const [customersLoading, setCustomersLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(true);
   const [completedInvoice, setCompletedInvoice] = useState<Invoice | null>(null);
   const [showNextCustomer, setShowNextCustomer] = useState(false);
   const [customerInvoices, setCustomerInvoices] = useState<Invoice[]>([]);
@@ -128,6 +131,8 @@ function BillingPage() {
     let active = true;
     const load = async () => {
       try {
+        setCustomersLoading(true);
+        setProductsLoading(true);
         const [customerData, productData, settings] = await Promise.all([
           getCustomers(),
           getProducts(),
@@ -141,6 +146,11 @@ function BillingPage() {
       } catch (err) {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load billing data");
+      } finally {
+        if (active) {
+          setCustomersLoading(false);
+          setProductsLoading(false);
+        }
       }
     };
     void load();
@@ -279,9 +289,16 @@ function BillingPage() {
     : total;
 
   const refreshCatalog = async () => {
-    const [customerData, productData] = await Promise.all([getCustomers(), getProducts()]);
-    setCustomers(customerData);
-    setProducts(productData);
+    setCustomersLoading(true);
+    setProductsLoading(true);
+    try {
+      const [customerData, productData] = await Promise.all([getCustomers(), getProducts()]);
+      setCustomers(customerData);
+      setProducts(productData);
+    } finally {
+      setCustomersLoading(false);
+      setProductsLoading(false);
+    }
   };
 
   const resetForNextCustomer = () => {
@@ -494,7 +511,7 @@ function BillingPage() {
         lineItems: payloadLines,
       });
       finalizeInvoice(created);
-      setMessage("Invoice created successfully.");
+      setMessage("✓ Invoice created successfully.");
       await refreshCatalog();
       emitDataRefresh();
     } catch (err) {
@@ -540,7 +557,7 @@ function BillingPage() {
       });
       finalizeInvoice(created);
       await downloadInvoicePdfFor(created);
-      setMessage("Invoice sent successfully.");
+      setMessage("✓ Invoice sent successfully.");
       toast.success("Invoice sent successfully");
       await refreshCatalog();
       emitDataRefresh();
@@ -749,6 +766,7 @@ function BillingPage() {
                 value={customer}
                 onSelect={setCustomer}
                 onCreateNew={openCreateCustomer}
+                loading={customersLoading}
               />
             </div>
 
@@ -852,6 +870,7 @@ function BillingPage() {
                           products={products}
                           value={line.productId || line.product}
                           onSelect={(product) => selectProduct(line.id, product)}
+                          loading={productsLoading}
                         />
                         {line.productId && (() => {
                           const product = products.find((item) => item.id === line.productId);
@@ -954,7 +973,7 @@ function BillingPage() {
             <Button
               className="w-full gradient-primary text-primary-foreground shadow-glow h-11"
               onClick={handleGenerateInvoice}
-              disabled={submitting || hasInvalidStock}
+              disabled={submitting || hasInvalidStock || !customer || payloadLines.length === 0}
             >
               <Zap className="h-4 w-4 mr-2" /> {submitting ? "Creating..." : "Generate Invoice"}
             </Button>
@@ -1124,16 +1143,17 @@ function BillingPage() {
             <div className="space-y-2">
               <Label>Address</Label>
               <Textarea
-                value={customerForm.address}
+                value={customerForm.address ?? ""}
                 onChange={(e) => setCustomerForm((c) => ({ ...c, address: e.target.value }))}
                 rows={2}
               />
             </div>
             <div className="space-y-2">
               <Label>GST Number</Label>
-              <Input
+              <Textarea
                 value={customerForm.gstNumber ?? ""}
                 onChange={(e) => setCustomerForm((c) => ({ ...c, gstNumber: e.target.value.toUpperCase() }))}
+                rows={2}
               />
             </div>
             <div className="space-y-2">

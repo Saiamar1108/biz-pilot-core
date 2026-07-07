@@ -25,11 +25,13 @@ export function ProductSearchCombobox({
   value,
   onSelect,
   placeholder = "Search product or SKU…",
+  loading = false,
 }: {
   products: Product[];
   value: string;
   onSelect: (product: Product) => void;
   placeholder?: string;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -73,7 +75,11 @@ export function ProductSearchCombobox({
             onValueChange={setQuery}
           />
           <CommandList>
-            <CommandEmpty>No product found.</CommandEmpty>
+            {loading ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Loading products...</div>
+            ) : (
+              <CommandEmpty>No product found.</CommandEmpty>
+            )}
             <CommandGroup>
               {sorted.map((product) => (
                 <CommandItem

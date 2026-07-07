@@ -20,12 +20,14 @@ export function CustomerSearchCombobox({
   onSelect,
   onCreateNew,
   placeholder = "Search customer…",
+  loading = false,
 }: {
   customers: Customer[];
   value: string;
   onSelect: (customerId: string) => void;
   onCreateNew: (query: string) => void;
   placeholder?: string;
+  loading?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -64,7 +66,11 @@ export function CustomerSearchCombobox({
         <Command shouldFilter={false}>
           <CommandInput placeholder="Type customer name…" value={query} onValueChange={setQuery} />
           <CommandList>
-            <CommandEmpty>No customers found.</CommandEmpty>
+            {loading ? (
+              <div className="py-6 text-center text-sm text-muted-foreground">Loading customers...</div>
+            ) : (
+              <CommandEmpty>No customers found.</CommandEmpty>
+            )}
             <CommandGroup>
               {filtered.map((customer) => (
                 <CommandItem
