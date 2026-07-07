@@ -32,11 +32,24 @@ type SpeechRecognitionWindow = Window & {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 };
 
-const initial: Msg[] = [{ role: "ai", text: "Ask anything about your business." }];
+const initial: Msg[] = [{ role: "ai", text: "How can I help with your business today?" }];
 
-const prompts = [{ icon: Sparkles, text: "Ask anything about your business" }];
+const prompts = [
+  { icon: Sparkles, text: "📈 How is my business today?" },
+  { icon: Sparkles, text: "📦 Which products should I reorder?" },
+  { icon: Sparkles, text: "💰 Who hasn't paid yet?" },
+  { icon: Sparkles, text: "📊 How can I increase profit?" },
+  { icon: Sparkles, text: "🤖 Give me today's AI insights" },
+];
 
-const voiceCommands = ["ask anything about your business"];
+const voiceCommands = [
+  "how is my business today",
+  "which products should i reorder",
+  "who hasn't paid yet",
+  "how can i increase profit",
+  "give me today's ai insights",
+  "ask anything about your business",
+];
 
 export function AssistantPage() {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
@@ -276,61 +289,74 @@ export function AssistantPage() {
               ))}
             </div>
             <div className="flex items-center gap-2 p-2 rounded-xl border border-border bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition">
-              <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9 shrink-0"
-                onClick={() => fileRef.current?.click()}
-                disabled={sending}
-              >
-                <Paperclip className="h-4 w-4" />
-              </Button>
-              <div className="relative flex items-center">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className={`h-9 w-9 shrink-0 ${listening ? "text-destructive shadow-glow" : "text-primary"}`}
-                  onClick={toggleVoice}
-                  disabled={sending || !recognitionSupported}
-                  title={recognitionSupported ? "Start voice input" : "Voice not supported"}
-                >
-                  <Mic className="h-4 w-4" />
-                </Button>
-                {listening && (
-                  <span className="absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-ping" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
-                  </span>
-                )}
-              </div>
-              <div className="flex-1">
-                <Input
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && send()}
-                  placeholder="Ask anything about your business..."
-                  disabled={sending}
-                  className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
-                />
-                {(voiceStatus || sendError || processingVoice) && (
-                  <div className="text-[11px] mt-1 text-muted-foreground">
-                    {processingVoice ? "Processing..." : sendError || voiceStatus}
-                  </div>
-                )}
-              </div>
-              <Button
-                size="icon"
-                onClick={() => send()}
-                className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground"
-                disabled={sending}
-              >
-                <Send className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        </div>
+               <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
+               <Button
+                 variant="ghost"
+                 size="icon"
+                 className="h-9 w-9 shrink-0"
+                 onClick={() => fileRef.current?.click()}
+                 disabled={sending}
+               >
+                 <Paperclip className="h-4 w-4" />
+               </Button>
+               <div className="relative flex items-center">
+                 <Button
+                   variant="ghost"
+                   size="icon"
+                   className={`h-9 w-9 shrink-0 ${listening ? "text-destructive shadow-glow" : "text-primary"}`}
+                   onClick={toggleVoice}
+                   disabled={sending || !recognitionSupported}
+                   title={recognitionSupported ? "Start voice input" : "Voice not supported"}
+                 >
+                   <Mic className="h-4 w-4" />
+                 </Button>
+                 {listening && (
+                   <span className="absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                     <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-ping" />
+                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
+                   </span>
+                 )}
+               </div>
+               <div className="flex-1">
+                 <Input
+                   value={input}
+                   onChange={(e) => setInput(e.target.value)}
+                   onKeyDown={(e) => e.key === "Enter" && send()}
+                   placeholder="Ask anything about your business..."
+                   disabled={sending}
+                   className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
+                 />
+                 {(voiceStatus || sendError || processingVoice) && (
+                   <div className="text-[11px] mt-1 text-muted-foreground">
+                     {processingVoice ? "Processing..." : sendError || voiceStatus}
+                   </div>
+                 )}
+               </div>
+               <Button
+                 size="icon"
+                 onClick={() => send()}
+                 className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground"
+                 disabled={sending}
+               >
+                 <Send className="h-4 w-4" />
+               </Button>
+             </div>
+
+             <div className="flex flex-wrap gap-2 mt-3">
+               {prompts.map((p) => (
+                 <button
+                   key={p.text}
+                   onClick={() => send(p.text)}
+                   disabled={sending}
+                   className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-full border border-border bg-secondary/60 hover:bg-accent hover:border-primary/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                 >
+                   <p.icon className="h-3.5 w-3.5 text-primary" /> {p.text}
+                 </button>
+               ))}
+             </div>
+           </div>
+         </div>
 
         <div className="hidden lg:block space-y-4">
           <div className="glass-card rounded-2xl p-5">
