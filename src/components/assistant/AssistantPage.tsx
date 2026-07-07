@@ -341,22 +341,9 @@ export function AssistantPage() {
                >
                  <Send className="h-4 w-4" />
                </Button>
-             </div>
-
-             <div className="flex flex-wrap gap-2 mt-3">
-               {prompts.map((p) => (
-                 <button
-                   key={p.text}
-                   onClick={() => send(p.text)}
-                   disabled={sending}
-                   className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-full border border-border bg-secondary/60 hover:bg-accent hover:border-primary/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                 >
-                   <p.icon className="h-3.5 w-3.5 text-primary" /> {p.text}
-                 </button>
-               ))}
-             </div>
-           </div>
-         </div>
+              </div>
+            </div>
+          </div>
 
         <div className="hidden lg:block space-y-4">
           <div className="glass-card rounded-2xl p-5">
