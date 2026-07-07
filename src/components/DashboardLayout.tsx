@@ -191,6 +191,7 @@ export function DashboardLayout({
                 <Link
                   key={item.to}
                   to={item.to}
+                  id={`tour-nav-${item.to.replace("/", "")}`}
                   onClick={() => setMobileOpen(false)}
                   className={cn(
                     "group flex items-center gap-3.5 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-300 relative overflow-hidden",
