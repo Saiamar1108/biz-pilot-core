@@ -11,7 +11,7 @@ async function getAnalyticsContext(req) {
 function detectIntent(message) {
   const lower = String(message || "").toLowerCase();
 
-  if (/^(hi|hello|hey|good\s*(morning|afternoon|evening)|namaste)/i.test(lower)) return "greeting";
+  // Check business intents FIRST so "Hi, what's my revenue?" matches sales, not greeting
   if (/(inventory|stock|product|reorder|restock|shelf|warehouse|item)/i.test(lower)) return "inventory";
   if (/(purchase\s*order|\bpo\b|reorder|stock\s*replenishment|supplier)/i.test(lower)) return "purchase_orders";
   if (/(profit|margin|markup|earnings|net\s*income|profitability|most\s*profitable)/i.test(lower)) return "profit";
@@ -21,6 +21,10 @@ function detectIntent(message) {
   if (/(payment|paid|unpaid|overdue|pending\s*payment|collection|receivable|due)/i.test(lower)) return "payments";
   if (/(sales|revenue|sold|income|turnover|business\s*health|performance|top\s*sell)/i.test(lower)) return "sales";
   if (/(analytic|insight|dashboard|metric|kpi|summary|report|stats)/i.test(lower)) return "analytics";
+  // Greeting — only matched if no business keyword was detected above
+  if (/^(hi|hello|hey|yo|what'?s\s*up|good\s*(morning|afternoon|evening)|namaste)/i.test(lower)) return "greeting";
+  // Casual conversation — only matched if not business and not greeting
+  if (/^(how\s+are\s+you|what\s+can\s+you\s+do|who\s+are\s+you|tell\s+me\s+about\s+yourself|thanks?|thank\s+you|bye|goodbye|good\s*night|see\s+you|have\s+a\s+great|you\s+too)/i.test(lower)) return "casual";
 
   return "general";
 }
@@ -258,10 +262,9 @@ async function askOpenAI(message, context, intent) {
   }
 
   const sections = {
-    greeting: () =>
-      formatBusinessHealth(context) +
-      formatKeyHighlights(context) +
-      formatRecommendedActions(context),
+    greeting: () => "",
+
+    casual: () => "",
 
     sales: () =>
       formatSalesOverview(context) +
@@ -317,7 +320,27 @@ async function askOpenAI(message, context, intent) {
 
   const scopedData = typeof sections[intent] === "function" ? sections[intent]() : sections.general();
 
-  const systemPrompt = `You are ShopPilot AI, an experienced Indian retail business copilot. Generate a premium, structured business report using the provided live data and the user's exact wording.
+  let systemPrompt;
+  if (intent === "greeting") {
+    systemPrompt = `You are ShopPilot AI, an experienced Indian retail business copilot.
+
+The user just greeted you. Respond with a warm, natural greeting. Do NOT include business data, revenue, sales, analytics, inventory, or recommendations unless the user explicitly asks for it.
+
+Keep your response short, human, and friendly.
+
+USER MESSAGE: "${message}"
+
+Return a natural greeting.`;
+  } else if (intent === "casual") {
+    systemPrompt = `You are ShopPilot AI, an experienced Indian retail business copilot.
+
+The user is having a casual conversation. Respond naturally and conversationally. Do NOT include business data, revenue, sales, analytics, inventory, or recommendations unless the conversation becomes business-related.
+
+USER MESSAGE: "${message}"
+
+Return a natural conversational response.`;
+  } else {
+    systemPrompt = `You are ShopPilot AI, an experienced Indian retail business copilot. Generate a premium, structured business report using the provided live data and the user's exact wording.
 
 RULES:
 1. Keep it concise but structured: use short sections with headings and bullets
@@ -334,6 +357,7 @@ SCOPED BUSINESS DATA TEMPLATE:
 ${scopedData}
 
 Return a clean, scannable business report.`;
+  }
 
   const response = await fetch(OPENAI_API_URL, {
     method: "POST",
@@ -400,8 +424,11 @@ async function generateAiResponse(message, req) {
           return `PAYMENTS\n- Pending invoices: ${ctx.pendingInvoicesCount || 0}\n- Pending revenue: ₹${ctx.pendingRevenue?.toLocaleString('en-IN') || 0}\n- Collection efficiency: ${ctx.collectionEfficiency || 0}%\nRecommended: Start recovery with oldest overdue invoices and offer early-payment incentives.`;
         case "sales":
           return `SALES\n- Revenue: ₹${ctx.totalBilled?.toLocaleString('en-IN') || 0}\n- Orders: ${ctx.totalOrders || 0}\n- Collection efficiency: ${ctx.collectionEfficiency || 0}%\nRecommended: Push ${ctx.topProducts?.[0]?.name || 'top products'} and clear ₹${ctx.pendingRevenue?.toLocaleString('en-IN') || 0} pending.`;
-        case "analytics":
         case "greeting":
+          return "Hi! 👋 How can I help you today?";
+        case "casual":
+          return "Hello! I'm ShopPilot AI, your business copilot. How can I assist you today?";
+        case "analytics":
         case "general":
         default:
           return `BUSINESS SNAPSHOT\n- ₹${ctx.totalBilled?.toLocaleString('en-IN') || 0} total revenue\n- ${ctx.pendingInvoicesCount || 0} pending payments\n- ${ctx.lowStockItems?.length || 0} low stock items\nRecommended: Restock top sellers and collect oldest pending payments.`;
