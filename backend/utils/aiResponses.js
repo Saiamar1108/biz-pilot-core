@@ -5,7 +5,7 @@ const OPENAI_API_URL =
   "https://api.groq.com/openai/v1/chat/completions";
 
 async function getAnalyticsContext(req) {
-  return buildAnalytics({}, req);
+   return buildAnalytics({ range: "last30" }, req);
 }
 
 function detectIntent(message) {
