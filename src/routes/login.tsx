@@ -1,12 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useMemo, useRef, useState, type MouseEvent } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { useMemo, useState } from "react";
 import { AuthLayout } from "@/components/auth/AuthLayout";
 import { AuthFormField } from "@/components/auth/AuthFormField";
 import { AuthSubmitButton } from "@/components/auth/AuthFormExtras";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -24,9 +22,7 @@ function LoginPage() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
-  const passwordRef = useRef<HTMLInputElement>(null);
 
   const errors = useMemo(() => {
     const next: { email?: string; password?: string } = {};
@@ -102,61 +98,18 @@ function LoginPage() {
             disabled={loading}
           />
 
-          <div className="space-y-2">
-            <Label htmlFor="password" className="text-sm font-medium text-foreground">
-              Password
-            </Label>
-            <div className="relative">
-              <input
-                ref={passwordRef}
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-                disabled={loading}
-                aria-invalid={Boolean(errors.password)}
-                className={cn(
-                  "flex h-11 w-full rounded-lg border bg-background px-3.5 pr-11 text-sm shadow-sm transition-all",
-                  "placeholder:text-muted-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20 focus-visible:border-primary/50",
-                  errors.password
-                    ? "border-destructive/70 focus-visible:border-destructive focus-visible:ring-destructive/15"
-                    : "border-border/80 hover:border-border",
-                )}
-                placeholder="Enter your password"
-              />
-              <button
-                type="button"
-                onClick={(e: MouseEvent) => {
-                  e.preventDefault();
-                  setShowPassword((prev) => !prev);
-                  // Preserve focus after toggle
-                  requestAnimationFrame(() => passwordRef.current?.focus());
-                }}
-                disabled={loading}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-                className={cn(
-                  "absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-md",
-                  "opacity-70 hover:opacity-100 transition-opacity duration-200",
-                  "text-muted-foreground hover:text-foreground",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20",
-                  "cursor-pointer",
-                )}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4" aria-hidden="true" />
-                )}
-              </button>
-            </div>
-            {errors.password ? (
-              <p className="text-xs text-destructive">{errors.password}</p>
-            ) : null}
-          </div>
+          <AuthFormField
+            label="Password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
+            error={errors.password}
+            placeholder="Enter your password"
+            disabled={loading}
+          />
 
           <div className="flex items-center justify-between gap-3 pt-1">
             <div className="flex items-center gap-2">
