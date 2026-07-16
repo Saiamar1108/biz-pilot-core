@@ -20,8 +20,10 @@ import {
   UserPlus,
   Mic,
   RotateCcw,
+  Loader2,
   UserRound,
   Barcode,
+  Check,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -78,6 +80,7 @@ function BillingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [lines, setLines] = useState<Line[]>([emptyLine()]);
   const [submitting, setSubmitting] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [invoiceCreated, setInvoiceCreated] = useState(false);
@@ -505,15 +508,17 @@ function BillingPage() {
       setSubmitting(true);
       setError(null);
       setMessage(null);
-      const created = await createInvoice({
-        customer,
-        taxRate: effectiveTaxRate,
-        lineItems: payloadLines,
-      });
-      finalizeInvoice(created);
-      setMessage("✓ Invoice created successfully.");
-      await refreshCatalog();
-      emitDataRefresh();
+          const created = await createInvoice({
+            customer,
+            taxRate: effectiveTaxRate,
+            lineItems: payloadLines,
+          });
+          finalizeInvoice(created);
+          setMessage("✓ Invoice created successfully.");
+          setShowSuccess(true);
+          setTimeout(() => setShowSuccess(false), 1200);
+          await refreshCatalog();
+          emitDataRefresh();
     } catch (err) {
       setInvoiceCreated(false);
       const responseError =
@@ -970,13 +975,33 @@ function BillingPage() {
               </div>
             )}
 
-            <Button
-              className="w-full gradient-primary text-primary-foreground shadow-glow h-11"
-              onClick={handleGenerateInvoice}
-              disabled={submitting || hasInvalidStock || !customer || payloadLines.length === 0}
-            >
-              <Zap className="h-4 w-4 mr-2" /> {submitting ? "Creating..." : "Generate Invoice"}
-            </Button>
+            <div className="relative">
+              <Button
+                className="w-full btn-generate h-14"
+                onClick={handleGenerateInvoice}
+                disabled={submitting || hasInvalidStock || !customer || payloadLines.length === 0}
+              >
+                {showSuccess ? (
+                  <>
+                    <Check className="h-[18px] w-[18px] mr-2 animate-in fade-in zoom-in" />
+                    Invoice Generated Successfully
+                  </>
+                ) : submitting ? (
+                  <>
+                    <Loader2 className="h-[18px] w-[18px] mr-2 animate-spin shrink-0" />
+                    <span>Generating Invoice...</span>
+                  </>
+                ) : (
+                  <>
+                    <Zap className="h-[18px] w-[18px] mr-2 shrink-0" fill="currentColor" />
+                    <span>Generate Invoice</span>
+                  </>
+                )}
+              </Button>
+              {showSuccess && (
+                <div className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-accent-brand animate-in fade-in zoom-in" />
+              )}
+            </div>
           </div>
         </div>
 
