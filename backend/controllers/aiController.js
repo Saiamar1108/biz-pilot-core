@@ -2,14 +2,20 @@ const asyncHandler = require("../middlewares/asyncHandler");
 const { generateAiResponse } = require("../utils/aiResponses");
 
 exports.chat = asyncHandler(async (req, res) => {
-  const { message } = req.body;
+  const { message, history } = req.body;
 
   if (!message?.trim()) {
     res.status(400);
     throw new Error("Message is required");
   }
 
-  const result = await generateAiResponse(message, req);
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    Expires: "0",
+  });
+
+  const result = await generateAiResponse(message, req, history);
 
   res.json({
     success: true,

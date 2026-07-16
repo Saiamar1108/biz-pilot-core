@@ -1,7 +1,8 @@
 import { api, type ApiResponse } from "@/lib/api";
 import { refreshAccessToken, setAccessToken, type AuthShop, type AuthUser } from "@/lib/auth-store";
+import { resolveApiBaseUrl } from "@/lib/api-base-url";
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+const apiBaseUrl = resolveApiBaseUrl();
 
 export type AuthSession = {
   user: AuthUser;

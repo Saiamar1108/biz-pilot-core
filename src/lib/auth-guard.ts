@@ -1,8 +1,8 @@
 import { redirect } from "@tanstack/react-router";
 import { getAccessToken, refreshAccessToken } from "@/lib/auth-store";
+import { resolveApiBaseUrl } from "@/lib/api-base-url";
 
-const apiBaseUrl =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+const apiBaseUrl = resolveApiBaseUrl();
 
 export async function requireAuth() {
   let token = getAccessToken();

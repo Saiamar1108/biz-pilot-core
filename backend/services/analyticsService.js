@@ -2,7 +2,6 @@ const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const env = require("../config/env");
-const { ensureDemoData } = require("../utils/demoData");
 const { calculateFinancialSummary } = require("./financialSummary");
 const {
   getOutstandingAmount,
@@ -534,12 +533,7 @@ function emptyAnalyticsShape(label = "All time") {
 }
 
 async function buildAnalytics(options = {}, req = {}) {
-  // Demo-data seeding should never take down the analytics endpoint.
-  try {
-    await ensureDemoData(req.shopId);
-  } catch (err) {
-    console.error("[analyticsService] ensureDemoData failed:", err);
-  }
+  const strictMode = Boolean(options.strict);
 
   const shopFilter = buildShopFilter(req.shopId);
 
@@ -577,6 +571,9 @@ async function buildAnalytics(options = {}, req = {}) {
     financialSummary = results[2] || {};
   } catch (err) {
     console.error("[analyticsService] failed to load core analytics data:", err);
+    if (strictMode) {
+      throw err;
+    }
     // Return a safe, zeroed shape instead of a 500.
     return emptyAnalyticsShape(label);
   }

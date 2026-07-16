@@ -31,6 +31,12 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
 
   const ctx = await buildAnalytics({ range, startDate, endDate }, req);
 
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, private",
+    Pragma: "no-cache",
+    Expires: "0",
+  });
+
   const analytics = {
     dateRange: ctx.dateRange,
     totalSales: round2(ctx.totalSales),
