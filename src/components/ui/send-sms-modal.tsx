@@ -33,6 +33,14 @@ export default function SendSmsModal({ open, onOpenChange, customerName, custome
     const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
     const sep = isIos ? "&" : "?";
     const url = `sms:${phone}${sep}body=${body}`;
+
+    console.log("SMS debug:", {
+      customer: { name: customerName, phone: customerPhone },
+      phone,
+      message,
+      url,
+    });
+
     // Close modal and open SMS app
     onOpenChange(false);
     try {
