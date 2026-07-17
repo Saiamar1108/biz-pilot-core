@@ -7,6 +7,27 @@ const numberOrZero = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
+function buildShopFilter(storeId) {
+  return storeId ? { shopId: storeId } : {};
+}
+
+function getProductReorderThreshold(product = {}) {
+  return numberOrZero(
+    product.reorderThreshold ?? product.lowStockThreshold ?? env.lowStockThreshold,
+  );
+}
+
+function safeDate(value, fallback = new Date()) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? fallback : date;
+}
+
+function toDateKey(value) {
+  return safeDate(value).toISOString().slice(0, 10);
+}
+
 function getDaysUntilExpiry(expiryDate) {
   if (!expiryDate) return null;
   const expiry = new Date(expiryDate);
@@ -82,6 +103,75 @@ function classifyMovement(salesCount, daysSinceLastSale, threshold) {
   if (salesCount >= 10) return "fast";
   if (salesCount >= 3) return "normal";
   return "slow";
+}
+
+async function getLowStockProducts(storeId) {
+  const products = await Product.find(buildShopFilter(storeId)).lean();
+
+  return toArray(products)
+    .filter((product) => {
+      const stock = numberOrZero(product?.stock);
+      const reorderThreshold = getProductReorderThreshold(product);
+      return stock <= reorderThreshold;
+    })
+    .map((product) => ({
+      ...product,
+      stock: numberOrZero(product?.stock),
+      reorderThreshold: getProductReorderThreshold(product),
+    }));
+}
+
+async function predictDemand(productId) {
+  if (!productId) {
+    return {
+      productId: null,
+      periodDays: 30,
+      totalQuantitySold: 0,
+      averageDailyDemand: 0,
+      projectedNext30Days: 0,
+      dailySales: [],
+    };
+  }
+
+  const now = new Date();
+  const startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const invoices = await Invoice.find({
+    createdAt: { $gte: startDate, $lte: now },
+    "lineItems.product": productId,
+  })
+    .select("createdAt lineItems")
+    .lean();
+
+  const salesByDay = new Map();
+  let totalQuantitySold = 0;
+
+  for (const invoice of toArray(invoices)) {
+    const dateKey = toDateKey(invoice?.createdAt);
+
+    for (const item of toArray(invoice?.lineItems)) {
+      if (String(item?.product || "") !== String(productId)) continue;
+
+      const quantity = numberOrZero(item?.quantity);
+      totalQuantitySold += quantity;
+      salesByDay.set(dateKey, numberOrZero(salesByDay.get(dateKey)) + quantity);
+    }
+  }
+
+  const dailySales = Array.from(salesByDay.entries())
+    .map(([date, quantity]) => ({ date, quantity }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const averageDailyDemand = totalQuantitySold / 30;
+
+  return {
+    productId: String(productId),
+    periodDays: 30,
+    startDate: startDate.toISOString(),
+    endDate: now.toISOString(),
+    totalQuantitySold,
+    averageDailyDemand: Number(averageDailyDemand.toFixed(2)),
+    projectedNext30Days: Number((averageDailyDemand * 30).toFixed(2)),
+    dailySales,
+  };
 }
 
 async function getRestockPredictions(products) {
@@ -246,6 +336,26 @@ async function generatePurchaseOrder(lowStockProducts) {
   };
 }
 
+async function checkPurchaseOrderStatus(storeId) {
+  const lowStockProducts = await getLowStockProducts(storeId);
+  const purchaseOrder = await generatePurchaseOrder(lowStockProducts);
+  const openPurchaseOrders = toArray(purchaseOrder?.items).map((item) => ({
+    ...item,
+    status: "open",
+    expectedDeliveryDate: item.expectedDeliveryDate || null,
+  }));
+
+  return {
+    storeId: storeId ? String(storeId) : null,
+    openPurchaseOrders,
+    totalOpen: openPurchaseOrders.length,
+    totalEstimatedCost: numberOrZero(purchaseOrder?.totalEstimatedCost),
+    generatedAt: purchaseOrder?.generatedAt || new Date(),
+    note:
+      "No persisted purchase-order model exists yet; this reflects currently generated open replenishment recommendations.",
+  };
+}
+
 async function getCategoryPerformance(products, invoices) {
   const categoryRevenue = new Map();
   const categoryProfit = new Map();
@@ -319,10 +429,13 @@ async function getStockTurnoverRatio(products, invoices) {
 module.exports = {
   getDaysUntilExpiry,
   getExpiryStatus,
+  getLowStockProducts,
   getProductMovementAnalysis,
+  predictDemand,
   getRestockPredictions,
   getExpiryAlerts,
   generatePurchaseOrder,
+  checkPurchaseOrderStatus,
   getCategoryPerformance,
   getStockTurnoverRatio
 };

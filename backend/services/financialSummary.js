@@ -26,6 +26,81 @@ function toMonthlySeries(bucket) {
     .sort((a, b) => a.month.localeCompare(b.month));
 }
 
+function safeDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function endOfDay(value) {
+  const date = safeDate(value);
+  if (!date) return null;
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
+function resolvePeriod(period = {}) {
+  const startDate = safeDate(period.startDate ?? period.start);
+  const endDate = endOfDay(period.endDate ?? period.end);
+
+  if (!startDate || !endDate) {
+    return { startDate: null, endDate: null };
+  }
+
+  return { startDate, endDate };
+}
+
+async function sumRevenueForPeriod(storeId, period = {}) {
+  const { startDate, endDate } = resolvePeriod(period);
+
+  if (!startDate || !endDate) {
+    return 0;
+  }
+
+  const filter = {
+    createdAt: { $gte: startDate, $lte: endDate },
+  };
+
+  if (storeId) {
+    filter.shopId = storeId;
+  }
+
+  const invoices = await Invoice.find(filter)
+    .select("total amount paidAmount")
+    .lean();
+
+  const revenue = invoices.reduce(
+    (sum, invoice) =>
+      sum + numberOrZero(invoice?.paidAmount ?? invoice?.total ?? invoice?.amount),
+    0,
+  );
+
+  return Number(revenue.toFixed(2));
+}
+
+async function compareRevenuePeriods(storeId, period1 = {}, period2 = {}) {
+  const [period1Revenue, period2Revenue] = await Promise.all([
+    sumRevenueForPeriod(storeId, period1),
+    sumRevenueForPeriod(storeId, period2),
+  ]);
+  const delta = Number((period2Revenue - period1Revenue).toFixed(2));
+  const percentChange =
+    period1Revenue > 0 ? Number(((delta / period1Revenue) * 100).toFixed(2)) : null;
+
+  return {
+    storeId: storeId ? String(storeId) : null,
+    period1: {
+      ...resolvePeriod(period1),
+      revenue: period1Revenue,
+    },
+    period2: {
+      ...resolvePeriod(period2),
+      revenue: period2Revenue,
+    },
+    delta,
+    percentChange,
+  };
+}
+
 async function calculateFinancialSummary(filter = {}) {
   const invoices = await Invoice.find(filter)
     .select(
@@ -128,6 +203,7 @@ async function calculateFinancialSummary(filter = {}) {
 
 module.exports = {
   calculateFinancialSummary,
+  compareRevenuePeriods,
   PENDING_BUCKET_STATUSES,
   getOutstandingAmount,
 };
