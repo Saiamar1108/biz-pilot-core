@@ -30,6 +30,10 @@ function sanitizeUser(user) {
     shopId: String(user.shopId),
     isVerified: user.isVerified,
     lastLogin: user.lastLogin,
+    phone: user.phone || "",
+    timezone: user.timezone || "Asia/Kolkata",
+    language: user.language || "en",
+    imageDataUrl: user.imageDataUrl || "",
   };
 }
 
@@ -152,6 +156,7 @@ exports.register = asyncHandler(async (req, res) => {
       user: sanitizeUser(user),
       shop: {
         id: String(shop._id),
+        name: shop.name,
         shopName: shop.name,
         slug: shop.slug,
       },
@@ -225,6 +230,7 @@ exports.login = asyncHandler(async (req, res) => {
       shop: shop
         ? {
             id: String(shop._id),
+            name: shop.name,
             shopName: shop.name,
             slug: shop.slug,
           }
@@ -304,6 +310,7 @@ exports.me = asyncHandler(async (req, res) => {
       shop: shop
         ? {
             id: String(shop._id),
+            name: shop.name,
             shopName: shop.name,
             slug: shop.slug,
           }

@@ -214,11 +214,33 @@ export function DashboardLayout({
           </nav>
 
           <div className="p-5 border-t border-border/50 bg-sidebar/90 space-y-3">
-            <div className="space-y-1">
-              <div className="text-sm text-muted-foreground truncate">
-                {shop?.name || "ShopPilot Store"}
+            <div className="flex items-center gap-3">
+              <Avatar className="h-10 w-10 ring-2 ring-primary/10 shrink-0">
+                {user?.imageDataUrl ? (
+                  <img
+                    src={user.imageDataUrl}
+                    alt={user.name}
+                    className="h-full w-full object-cover rounded-full"
+                  />
+                ) : (
+                  <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-xs">
+                    {(user?.name || "SP")
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </AvatarFallback>
+                )}
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="text-xs text-muted-foreground truncate">
+                  {shop?.name || "ShopPilot Store"}
+                </div>
+                <div className="text-sm font-semibold text-foreground truncate">
+                  {user?.name || "User"}
+                </div>
               </div>
-              <div className="text-sm font-medium truncate">{user?.name || "User"}</div>
             </div>
             <Button
               variant="outline"
@@ -366,14 +388,22 @@ export function DashboardLayout({
                 </PopoverContent>
               </Popover>
               <Avatar className="h-9 w-9 ring-2 ring-primary/20">
-                <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-sm">
-                  {(user?.name || "SP")
-                    .split(" ")
-                    .map((part) => part[0])
-                    .join("")
-                    .slice(0, 2)
-                    .toUpperCase()}
-                </AvatarFallback>
+                {user?.imageDataUrl ? (
+                  <img
+                    src={user.imageDataUrl}
+                    alt={user.name}
+                    className="h-full w-full object-cover rounded-full"
+                  />
+                ) : (
+                  <AvatarFallback className="gradient-primary text-primary-foreground font-semibold text-sm">
+                    {(user?.name || "SP")
+                      .split(" ")
+                      .map((part) => part[0])
+                      .join("")
+                      .slice(0, 2)
+                      .toUpperCase()}
+                  </AvatarFallback>
+                )}
               </Avatar>
             </div>
           </div>

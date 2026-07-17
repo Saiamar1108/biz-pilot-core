@@ -19,6 +19,20 @@ const userSchema = new mongoose.Schema({
     trim: true,
     default: "",
   },
+  timezone: {
+    type: String,
+    trim: true,
+    default: "Asia/Kolkata",
+  },
+  language: {
+    type: String,
+    trim: true,
+    default: "en",
+  },
+  imageDataUrl: {
+    type: String,
+    default: "",
+  },
   passwordHash: {
     type: String,
     required: true,

@@ -570,9 +570,12 @@ export async function getSettings() {
   const response =
     await api.get<
       ApiResponse<{
-        business: BusinessProfile;
-        profile?: any;
-        notifications?: any;
+        profile: any;
+        business: any;
+        branding: any;
+        notifications: any;
+        preferences: any;
+        aiSettings: any;
         taxRate?: number;
         lowStockThreshold?: number;
       }>
@@ -580,9 +583,49 @@ export async function getSettings() {
   return unwrap(response);
 }
 
-export async function updateBusinessSettings(payload: { business: Pick<BusinessProfile, "upiId"> }) {
-  const response = await api.put<ApiResponse<{ business: BusinessProfile }>>(
+export async function updateProfileSettings(payload: { profile: any }) {
+  const response = await api.put<ApiResponse<{ profile: any }>>(
+    "/settings/profile",
+    payload,
+  );
+  return unwrap(response);
+}
+
+export async function updateBusinessSettings(payload: { business: any }) {
+  const response = await api.put<ApiResponse<{ business: any }>>(
     "/settings/business",
+    payload,
+  );
+  return unwrap(response);
+}
+
+export async function updateBrandingSettings(payload: { branding: any }) {
+  const response = await api.put<ApiResponse<{ branding: any }>>(
+    "/settings/branding",
+    payload,
+  );
+  return unwrap(response);
+}
+
+export async function updateNotificationSettings(payload: { notifications: any }) {
+  const response = await api.put<ApiResponse<{ notifications: any }>>(
+    "/settings/notifications",
+    payload,
+  );
+  return unwrap(response);
+}
+
+export async function updatePreferenceSettings(payload: { preferences: any }) {
+  const response = await api.put<ApiResponse<{ preferences: any }>>(
+    "/settings/preferences",
+    payload,
+  );
+  return unwrap(response);
+}
+
+export async function updateAiSettings(payload: { aiSettings: any }) {
+  const response = await api.put<ApiResponse<{ aiSettings: any }>>(
+    "/settings/ai",
     payload,
   );
   return unwrap(response);

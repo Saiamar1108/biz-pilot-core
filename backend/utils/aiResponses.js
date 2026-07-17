@@ -745,15 +745,36 @@ function resolveLlmConfig() {
   return null;
 }
 
-async function askOpenAI({ message, history, intent, context, logger }) {
+async function askOpenAI({ message, history, intent, context, logger, req }) {
   const llmConfig = resolveLlmConfig();
 
   if (!llmConfig) {
     return null;
   }
 
+  let shopName = "ShopPilot Store";
+  let userName = "User";
+
+  if (req) {
+    if (req.user?.name) {
+      userName = req.user.name;
+    }
+    if (req.shopId) {
+      try {
+        const Shop = mongoose.model("Shop");
+        const shop = await Shop.findById(req.shopId).lean();
+        if (shop?.name) {
+          shopName = shop.name;
+        }
+      } catch (err) {
+        console.error("[aiResponses] Failed to fetch shop context for AI prompt:", err);
+      }
+    }
+  }
+
   const prompt = [
-    "You are ShopPilot AI, a real-time business copilot.",
+    `You are ShopPilot AI, a real-time business copilot for ${shopName}.`,
+    `You are chatting with ${userName}, the business owner/staff.`,
     "Only use the live business data provided below.",
     "Never invent products, customers, invoices, revenue, or inventory levels.",
     "If the live data does not support a claim, say that clearly.",
@@ -925,6 +946,7 @@ async function generateAiResponse(message, req, history = []) {
       intent: classification.intent,
       context: liveContext,
       logger,
+      req,
     });
 
     if (!llmResult) {
