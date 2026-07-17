@@ -215,6 +215,16 @@ export type Product = {
   sold?: number;
   barcode?: string;
   expiryDate?: string | null;
+  defaultSupplier?: string | { id: string; supplierName: string } | null;
+  minStock?: number;
+  targetStock?: number;
+  purchaseHistory?: Array<{
+    supplier: string;
+    supplierName: string;
+    price: number;
+    quantity: number;
+    purchaseDate: string;
+  }>;
   [key: string]: any;
 };
 
@@ -624,5 +634,135 @@ export async function postAiChat(message: string, history: AiChatHistoryEntry[] 
       history,
     },
   );
+  return unwrap(response);
+}
+
+export type Supplier = {
+  id: string;
+  _id?: string;
+  supplierName: string;
+  contactPerson?: string;
+  mobileNumber: string;
+  alternateNumber?: string;
+  email?: string;
+  gstNumber?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  notes?: string;
+  isActive: boolean;
+  preferredSupplier: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type PurchaseOrderLineItem = {
+  product: string;
+  productName: string;
+  sku?: string;
+  quantity: number;
+  unit?: string;
+  purchasePrice: number;
+  receivedQuantity: number;
+  expectedDeliveryDate?: string;
+  remarks?: string;
+  batchNumber?: string;
+  expiryDate?: string;
+};
+
+export type PurchaseOrder = {
+  id: string;
+  _id?: string;
+  purchaseOrderNumber: string;
+  supplier: string | Supplier;
+  supplierName: string;
+  items: PurchaseOrderLineItem[];
+  status: "Draft" | "Sent" | "Confirmed" | "Partially Received" | "Received" | "Cancelled";
+  totalAmount: number;
+  notes?: string;
+  expectedDeliveryDate?: string;
+  receivedDate?: string;
+  invoiceNumber?: string;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type LowStockRecommendation = {
+  product: {
+    id: string;
+    name: string;
+    sku: string;
+    category: string;
+    stock: number;
+    minStock: number;
+    targetStock: number;
+    costPrice: number;
+    price: number;
+  };
+  suggestedSupplier: {
+    id: string;
+    supplierName: string;
+  } | null;
+  suggestionSource: "default" | "previous" | "none";
+  recommendedQuantity: number;
+  lastPurchasePrice: number | null;
+  purchasePrice: number;
+};
+
+// Supplier APIs
+export async function getSuppliers(params?: Record<string, any>) {
+  const response = await api.get<ApiResponse<Supplier[]>>("/suppliers", { params });
+  return unwrap(response);
+}
+
+export async function createSupplier(payload: Omit<Supplier, "id">) {
+  const response = await api.post<ApiResponse<Supplier>>("/suppliers", payload);
+  return unwrap(response);
+}
+
+export async function updateSupplier(id: string, payload: Partial<Supplier>) {
+  const response = await api.put<ApiResponse<Supplier>>(`/suppliers/${id}`, payload);
+  return unwrap(response);
+}
+
+export async function deleteSupplier(id: string) {
+  const response = await api.delete<ApiResponse<{ message: string }>>(`/suppliers/${id}`);
+  return response.data;
+}
+
+export async function getSupplierHistory(id: string) {
+  const response = await api.get<ApiResponse<{ supplier: Supplier; stats: any; orders: PurchaseOrder[] }>>(`/suppliers/${id}/history`);
+  return unwrap(response);
+}
+
+// Purchase Order APIs
+export async function getPurchaseOrders(params?: Record<string, any>) {
+  const response = await api.get<ApiResponse<PurchaseOrder[]>>("/purchase-orders", { params });
+  return unwrap(response);
+}
+
+export async function getPurchaseOrderById(id: string) {
+  const response = await api.get<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`);
+  return unwrap(response);
+}
+
+export async function createPurchaseOrders(payload: { items: any[]; notes?: string; expectedDeliveryDate?: string }) {
+  const response = await api.post<ApiResponse<PurchaseOrder[]>>("/purchase-orders", payload);
+  return unwrap(response);
+}
+
+export async function updatePurchaseOrder(id: string, payload: Partial<PurchaseOrder>) {
+  const response = await api.put<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`, payload);
+  return unwrap(response);
+}
+
+export async function receiveGoods(id: string, payload: { receivedItems: any[]; receivedDate?: string; invoiceNumber?: string }) {
+  const response = await api.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/receive`, payload);
+  return unwrap(response);
+}
+
+export async function getLowStockAssistant() {
+  const response = await api.get<ApiResponse<LowStockRecommendation[]>>("/purchase-orders/low-stock-assistant");
   return unwrap(response);
 }

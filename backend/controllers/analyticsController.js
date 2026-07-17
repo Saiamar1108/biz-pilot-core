@@ -190,6 +190,24 @@ exports.getAnalytics = asyncHandler(async (req, res) => {
     })),
     activityFeed: Array.isArray(ctx.activityFeed) ? ctx.activityFeed : [],
     recommendations: Array.isArray(ctx.recommendations) ? ctx.recommendations : [],
+    purchaseDashboard: ctx.purchaseDashboard ? {
+      pendingPurchaseOrders: safeNumber(ctx.purchaseDashboard.pendingPurchaseOrders),
+      ordersAwaitingDelivery: safeNumber(ctx.purchaseDashboard.ordersAwaitingDelivery),
+      totalPurchaseValue: round2(ctx.purchaseDashboard.totalPurchaseValue),
+      thisMonthPurchases: round2(ctx.purchaseDashboard.thisMonthPurchases),
+      topSuppliers: Array.isArray(ctx.purchaseDashboard.topSuppliers)
+        ? ctx.purchaseDashboard.topSuppliers.map((ts) => ({
+            name: ts.name || "N/A",
+            amount: round2(ts.amount),
+          }))
+        : [],
+    } : {
+      pendingPurchaseOrders: 0,
+      ordersAwaitingDelivery: 0,
+      totalPurchaseValue: 0,
+      thisMonthPurchases: 0,
+      topSuppliers: [],
+    },
   };
 
   res.status(200).json({

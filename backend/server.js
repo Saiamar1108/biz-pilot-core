@@ -20,6 +20,8 @@ const aiRoutes = require("./routes/aiRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const notificationRoutes = require("./routes/notificationRoutes");
 const inventoryIntelligenceRoutes = require("./routes/inventoryIntelligenceRoutes");
+const supplierRoutes = require("./routes/supplierRoutes");
+const purchaseOrderRoutes = require("./routes/purchaseOrderRoutes");
 
 const app = express();
 
@@ -85,6 +87,8 @@ app.use("/ai", aiRoutes);
 app.use("/settings", settingsRoutes);
 app.use("/notifications", notificationRoutes);
 app.use("/inventory-intelligence", inventoryIntelligenceRoutes);
+app.use("/suppliers", supplierRoutes);
+app.use("/purchase-orders", purchaseOrderRoutes);
 
 // error handlers
 app.use(notFound);

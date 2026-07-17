@@ -28,6 +28,21 @@ const productSchema = new mongoose.Schema(
     },
     barcode: { type: String, trim: true, default: "" },
     expiryDate: { type: Date, default: null },
+    defaultSupplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier", default: null },
+    purchaseHistory: {
+      type: [
+        {
+          supplier: { type: mongoose.Schema.Types.ObjectId, ref: "Supplier" },
+          supplierName: { type: String, required: true },
+          price: { type: Number, required: true },
+          quantity: { type: Number, required: true },
+          purchaseDate: { type: Date, default: Date.now }
+        }
+      ],
+      default: []
+    },
+    minStock: { type: Number, default: 10, min: 0 },
+    targetStock: { type: Number, default: 50, min: 0 },
   },
   { timestamps: true }
 );

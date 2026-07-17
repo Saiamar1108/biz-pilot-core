@@ -11,7 +11,7 @@ import { Package, Pencil, Plus, Trash2, Search, AlertTriangle, Boxes, TrendingUp
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct } from "@/lib/api";
+import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct, getSuppliers, type Supplier } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
 import { getExpiryStatus, formatExpiryDate } from "@/lib/inventory";
@@ -27,9 +27,22 @@ function InventoryPage() {
   const [expiryFilter, setExpiryFilter] = useState("All");
   const [stockFilter, setStockFilter] = useState("All");
   const [items, setItems] = useState<Product[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", sku: "", category: "", stock: "", price: "", costPrice: "", barcode: "", expiryDate: "" });
+  const [form, setForm] = useState({
+    name: "",
+    sku: "",
+    category: "",
+    stock: "",
+    price: "",
+    costPrice: "",
+    defaultSupplier: "",
+    minStock: "10",
+    targetStock: "50",
+    barcode: "",
+    expiryDate: ""
+  });
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,9 +55,10 @@ function InventoryPage() {
     try {
       setLoading(true);
       setError(null);
-      const [data, settings] = await Promise.all([getProducts(), getSettings()]);
+      const [data, settings, sups] = await Promise.all([getProducts(), getSettings(), getSuppliers()]);
       setItems(data);
       setLowStockThreshold(settings.lowStockThreshold);
+      setSuppliers(sups.filter(s => s.isActive));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     } finally {
@@ -102,7 +116,19 @@ function InventoryPage() {
   );
 
   const resetForm = () => {
-    setForm({ name: "", sku: "", category: "", stock: "", price: "", costPrice: "", barcode: "", expiryDate: "" });
+    setForm({
+      name: "",
+      sku: "",
+      category: "",
+      stock: "",
+      price: "",
+      costPrice: "",
+      defaultSupplier: "",
+      minStock: "10",
+      targetStock: "50",
+      barcode: "",
+      expiryDate: ""
+    });
     setEditingProductId(null);
   };
 
@@ -113,6 +139,10 @@ function InventoryPage() {
 
   const openEditDialog = (product: Product) => {
     setEditingProductId(product.id);
+    const supId = typeof product.defaultSupplier === "string"
+      ? product.defaultSupplier
+      : (product.defaultSupplier?.id || product.defaultSupplier?._id || "");
+
     setForm({
       name: product.name,
       sku: product.sku,
@@ -120,6 +150,9 @@ function InventoryPage() {
       stock: String(product.stock),
       price: String(product.price),
       costPrice: String(product.costPrice ?? ""),
+      defaultSupplier: supId,
+      minStock: String(product.minStock ?? 10),
+      targetStock: String(product.targetStock ?? 50),
       barcode: product.barcode || "",
       expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : "",
     });
@@ -185,6 +218,9 @@ function InventoryPage() {
         stock: Number(form.stock),
         price: priceNum,
         costPrice: costPriceNum,
+        defaultSupplier: form.defaultSupplier || null,
+        minStock: Number(form.minStock || 10),
+        targetStock: Number(form.targetStock || 50),
       };
       
       if (form.barcode) productData.barcode = form.barcode;
@@ -303,6 +339,29 @@ function InventoryPage() {
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label className="mb-2 block">Selling Price (₹)</Label><Input type="number" step="any" placeholder="0.00" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></div>
                       <div><Label className="mb-2 block">Barcode (Optional)</Label><Input placeholder="1234567890123" value={form.barcode} onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))} /></div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <div>
+                        <Label className="mb-2 block">Min Stock</Label>
+                        <Input type="number" min={0} value={form.minStock} onChange={(event) => setForm((current) => ({ ...current, minStock: event.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="mb-2 block">Target Stock</Label>
+                        <Input type="number" min={0} value={form.targetStock} onChange={(event) => setForm((current) => ({ ...current, targetStock: event.target.value }))} />
+                      </div>
+                      <div>
+                        <Label className="mb-2 block">Default Supplier</Label>
+                        <select
+                          value={form.defaultSupplier}
+                          onChange={(event) => setForm((current) => ({ ...current, defaultSupplier: event.target.value }))}
+                          className="w-full bg-background border border-border px-3 h-9 rounded text-sm outline-none"
+                        >
+                          <option value="">None</option>
+                          {suppliers.map(s => (
+                            <option key={s.id || s._id} value={s.id || s._id}>{s.supplierName}</option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
                     <div>
                       <Label className="mb-2 block">Expiry Date (Optional)</Label>

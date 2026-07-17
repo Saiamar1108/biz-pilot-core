@@ -370,9 +370,38 @@ async function getAnalyticsContext(req, message) {
     req,
   );
 
+  const Product = mongoose.model("Product");
+  const Supplier = mongoose.model("Supplier");
+  const PurchaseOrder = mongoose.model("PurchaseOrder");
+
+  let suppliersList = [];
+  let productSupplierMap = [];
+  let purchaseOrdersList = [];
+  try {
+    suppliersList = await Supplier.find({ shopId: req.shopId }).lean();
+    const allProducts = await Product.find({ shopId: req.shopId }).populate("defaultSupplier").lean();
+    productSupplierMap = allProducts.map(p => ({
+      name: p.name,
+      sku: p.sku,
+      category: p.category,
+      stock: p.stock,
+      minStock: p.minStock || p.minStock === 0 ? p.minStock : 10,
+      costPrice: p.costPrice,
+      sellingPrice: p.price,
+      defaultSupplierName: p.defaultSupplier?.supplierName || "None",
+      purchaseHistory: p.purchaseHistory || []
+    }));
+    purchaseOrdersList = await PurchaseOrder.find({ shopId: req.shopId }).lean();
+  } catch (err) {
+    console.error("[aiResponses] failed to fetch supplier context:", err);
+  }
+
   return {
     ...analytics,
     requestedRange: options,
+    suppliersList,
+    productSupplierMap,
+    purchaseOrdersList
   };
 }
 
@@ -472,6 +501,16 @@ function buildLiveDataBlock(intent, context) {
     `Pending invoices: ${toNumber(context.pendingInvoicesCount)}`,
     `Low stock items: ${toNumber(context.lowStockItems?.length)}`,
   ];
+
+  if (context.suppliersList && context.suppliersList.length > 0) {
+    lines.push(`Suppliers Registry: ${context.suppliersList.map(s => `${s.supplierName} (Person: ${s.contactPerson || "N/A"}, Phone: ${s.mobileNumber}, Active: ${s.isActive ? "Yes" : "No"})`).join("; ")}`);
+  }
+  if (context.productSupplierMap && context.productSupplierMap.length > 0) {
+    lines.push(`Product Supplier Mapping: ${context.productSupplierMap.map(p => `${p.name} (SKU: ${p.sku}, Stock: ${p.stock}, MinStock: ${p.minStock}, Default Supplier: ${p.defaultSupplierName}, Cost: ₹${p.costPrice})`).join("; ")}`);
+  }
+  if (context.purchaseOrdersList && context.purchaseOrdersList.length > 0) {
+    lines.push(`Purchase Orders: ${context.purchaseOrdersList.map(po => `${po.purchaseOrderNumber} to ${po.supplierName} (Total: ₹${po.totalAmount}, Status: ${po.status})`).join("; ")}`);
+  }
 
   if (intent === "inventory" || intent === "purchase_orders") {
     lines.push(

@@ -21,6 +21,7 @@ import {
   ShoppingCart,
   AlertTriangle,
   ClipboardList,
+  Truck,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
@@ -57,6 +58,7 @@ const navItems = [
   { to: "/invoices", label: "Invoices", icon: FileText },
   { to: "/inventory", label: "Inventory", icon: Package },
   { to: "/purchase-orders", label: "Purchase Orders", icon: ClipboardList },
+  { to: "/suppliers", label: "Suppliers", icon: Truck },
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/assistant", label: "AI Assistant", icon: Bot },
   { to: "/analytics", label: "Analytics", icon: BarChart3 },

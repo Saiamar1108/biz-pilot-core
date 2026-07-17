@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
+const PurchaseOrder = require("../models/PurchaseOrder");
 const env = require("../config/env");
 const { calculateFinancialSummary } = require("./financialSummary");
 const {
@@ -538,6 +539,13 @@ function emptyAnalyticsShape(label = "All time") {
     topProfitableProduct: "—",
     highestProfitInvoice: "—",
     hasHistoricalInvoices: false,
+    purchaseDashboard: {
+      pendingPurchaseOrders: 0,
+      ordersAwaitingDelivery: 0,
+      totalPurchaseValue: 0,
+      thisMonthPurchases: 0,
+      topSuppliers: []
+    },
     totalOrders: 0,
     activeCustomers: 0,
     avgOrderValue: 0,
@@ -643,6 +651,54 @@ async function buildAnalytics(options = {}, req = {}) {
     // Return a safe, zeroed shape instead of a 500.
     return emptyAnalyticsShape(label);
   }
+
+  let purchaseOrders = [];
+  try {
+    purchaseOrders = await PurchaseOrder.find(shopFilter).lean();
+  } catch (err) {
+    console.error("[analyticsService] failed to load purchase orders:", err);
+  }
+
+  const pendingPurchaseOrders = purchaseOrders.filter(po => 
+    ["Draft", "Sent", "Confirmed", "Partially Received"].includes(po.status)
+  ).length;
+
+  const ordersAwaitingDelivery = purchaseOrders.filter(po => 
+    ["Sent", "Confirmed", "Partially Received"].includes(po.status)
+  ).length;
+
+  const totalPurchaseValue = purchaseOrders
+    .filter(po => ["Received", "Partially Received"].includes(po.status))
+    .reduce((sum, po) => sum + po.totalAmount, 0);
+
+  const startOfMonthDate = new Date(now.getFullYear(), now.getMonth(), 1);
+  const thisMonthPurchases = purchaseOrders
+    .filter(po => 
+      ["Received", "Partially Received", "Confirmed", "Sent"].includes(po.status) &&
+      new Date(po.createdAt) >= startOfMonthDate
+    )
+    .reduce((sum, po) => sum + po.totalAmount, 0);
+
+  const supplierPurchaseAmounts = {};
+  purchaseOrders.forEach(po => {
+    if (["Received", "Partially Received", "Confirmed", "Sent"].includes(po.status)) {
+      const name = po.supplierName || "Unknown Supplier";
+      supplierPurchaseAmounts[name] = (supplierPurchaseAmounts[name] || 0) + po.totalAmount;
+    }
+  });
+
+  const topSuppliers = Object.entries(supplierPurchaseAmounts)
+    .map(([name, amount]) => ({ name, amount: Number(amount.toFixed(2)) }))
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 5);
+
+  const purchaseDashboard = {
+    pendingPurchaseOrders,
+    ordersAwaitingDelivery,
+    totalPurchaseValue: Number(totalPurchaseValue.toFixed(2)),
+    thisMonthPurchases: Number(thisMonthPurchases.toFixed(2)),
+    topSuppliers
+  };
 
   const products = rawProducts.map(normalizeProduct);
   const customers = rawCustomers.map(normalizeCustomer);
@@ -771,6 +827,7 @@ async function buildAnalytics(options = {}, req = {}) {
     topProfitableProduct,
     highestProfitInvoice,
     hasHistoricalInvoices,
+    purchaseDashboard,
     totalOrders: invoices.length,
     activeCustomers: new Set(
       invoices.map((inv) => String(inv?.customer?._id || inv?.customer || ""))

@@ -5,6 +5,8 @@ const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
 const Shop = require("../models/Shop");
+const Supplier = require("../models/Supplier");
+const PurchaseOrder = require("../models/PurchaseOrder");
 const { calculateInvoiceTotals } = require("./calculateInvoice");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
 
@@ -243,7 +245,13 @@ async function seed() {
   await connectDB();
 
   console.log("Clearing existing data...");
-  await Promise.all([Product.deleteMany(), Customer.deleteMany(), Invoice.deleteMany()]);
+  await Promise.all([
+    Product.deleteMany(),
+    Customer.deleteMany(),
+    Invoice.deleteMany(),
+    Supplier.deleteMany(),
+    PurchaseOrder.deleteMany()
+  ]);
 
   let shop = await Shop.findOne();
   if (!shop) {
@@ -256,11 +264,100 @@ async function seed() {
   }
   const shopId = shop._id;
 
-  const productsWithShop = products.map((p) => ({ ...p, shopId }));
-  const customersWithShop = customers.map((c) => ({ ...c, shopId }));
+  // 1. Seed suppliers
+  const suppliersList = [
+    {
+      supplierName: "Reliance Agro Wholesalers",
+      contactPerson: "Rajesh Patil",
+      mobileNumber: "+91 9876543201",
+      email: "wholesale@relianceagro.com",
+      gstNumber: "27AAACR1209B1Z2",
+      address: "Gala 12, APMC Market, Vashi",
+      city: "Navi Mumbai",
+      state: "Maharashtra",
+      pincode: "400703",
+      isActive: true,
+      preferredSupplier: true
+    },
+    {
+      supplierName: "Amul Dairy Distributing",
+      contactPerson: "Vikram Shah",
+      mobileNumber: "+91 9123456701",
+      email: "supply@amuldairy.com",
+      gstNumber: "24AAACA1290A1Z5",
+      address: "Amul Dairy Road, Anand",
+      city: "Anand",
+      state: "Gujarat",
+      pincode: "388001",
+      isActive: true,
+      preferredSupplier: true
+    },
+    {
+      supplierName: "Universal Foods & Beverages",
+      contactPerson: "Sunil Nair",
+      mobileNumber: "+91 9988776601",
+      email: "orders@universalbev.in",
+      gstNumber: "32AAACU1829C1Z0",
+      address: "18/402, Kinfra Techno Industrial Park",
+      city: "Kozhikode",
+      state: "Kerala",
+      pincode: "673635",
+      isActive: true,
+      preferredSupplier: false
+    },
+    {
+      supplierName: "Hindustan Unilever Supply",
+      contactPerson: "Nisha Sen",
+      mobileNumber: "+91 9001122301",
+      email: "distributor@hul.com",
+      gstNumber: "27AAACH1289A2Z4",
+      address: "HUL House, B.D. Sawant Marg, Chakala",
+      city: "Mumbai",
+      state: "Maharashtra",
+      pincode: "400099",
+      isActive: true,
+      preferredSupplier: false
+    }
+  ].map(s => ({ ...s, shopId }));
+
+  const createdSuppliers = await Supplier.insertMany(suppliersList);
+  const supplierMap = {
+    "Reliance Agro Wholesalers": createdSuppliers[0],
+    "Amul Dairy Distributing": createdSuppliers[1],
+    "Universal Foods & Beverages": createdSuppliers[2],
+    "Hindustan Unilever Supply": createdSuppliers[3]
+  };
+
+  // 2. Map defaultSupplier on each product and mark some low stock
+  const productsWithShop = products.map((p) => {
+    let supplierName = "Reliance Agro Wholesalers";
+    if (p.category === "Dairy") {
+      supplierName = "Amul Dairy Distributing";
+    } else if (p.category === "Snacks" || p.category === "Beverages") {
+      supplierName = "Universal Foods & Beverages";
+    } else if (p.category === "Household" || p.category === "Personal Care") {
+      supplierName = "Hindustan Unilever Supply";
+    }
+
+    const supplier = supplierMap[supplierName];
+
+    let stockVal = p.stock;
+    if (p.sku === "GRO-001") stockVal = 2; // Low Stock India Gate Rice
+    if (p.sku === "DAI-022") stockVal = 3; // Low Stock Amul Butter
+
+    return {
+      ...p,
+      shopId,
+      stock: stockVal,
+      defaultSupplier: supplier ? supplier._id : null,
+      minStock: 10,
+      targetStock: 50,
+      purchaseHistory: []
+    };
+  });
 
   const createdProducts = await Product.insertMany(productsWithShop);
-  const createdCustomers = await Customer.insertMany(customersWithShop);
+  const createdCustomers = await Customer.insertMany(customersWithShop = customers.map((c) => ({ ...c, shopId })));
   const rng = createRng();
   const weightedCustomers = [
     ...createdCustomers,
@@ -305,11 +402,75 @@ async function seed() {
     }
   }
 
+  // 3. Seed Purchase Orders and record initial purchase history logs
+  const po1 = await PurchaseOrder.create({
+    shopId,
+    purchaseOrderNumber: "PO-2026-0001",
+    supplier: createdSuppliers[0]._id,
+    supplierName: createdSuppliers[0].supplierName,
+    items: [
+      {
+        product: createdProducts[0]._id,
+        productName: createdProducts[0].name,
+        sku: createdProducts[0].sku,
+        quantity: 100,
+        unit: "units",
+        purchasePrice: 530,
+        receivedQuantity: 100,
+        expectedDeliveryDate: new Date(Date.now() - 5 * 86400000),
+        remarks: "Urgent restocking",
+        batchNumber: "BATCH-GATE-01",
+        expiryDate: new Date(Date.now() + 180 * 86400000)
+      }
+    ],
+    totalAmount: 53000,
+    status: "Received",
+    receivedDate: new Date(Date.now() - 3 * 86400000),
+    invoiceNumber: "INV-REL-9981"
+  });
+
+  const po2 = await PurchaseOrder.create({
+    shopId,
+    purchaseOrderNumber: "PO-2026-0002",
+    supplier: createdSuppliers[1]._id,
+    supplierName: createdSuppliers[1].supplierName,
+    items: [
+      {
+        product: createdProducts[4]._id,
+        productName: createdProducts[4].name,
+        sku: createdProducts[4].sku,
+        quantity: 50,
+        unit: "units",
+        purchasePrice: 200,
+        receivedQuantity: 0,
+        expectedDeliveryDate: new Date(Date.now() + 4 * 86400000),
+        remarks: "Weekly dairy delivery"
+      }
+    ],
+    totalAmount: 10000,
+    status: "Sent"
+  });
+
+  // Record initial purchase history logs on the products
+  await Product.findByIdAndUpdate(createdProducts[0]._id, {
+    $push: {
+      purchaseHistory: {
+        supplier: createdSuppliers[0]._id,
+        supplierName: createdSuppliers[0].supplierName,
+        price: 530,
+        quantity: 100,
+        purchaseDate: new Date(Date.now() - 3 * 86400000)
+      }
+    }
+  });
+
   await recalculateAllCustomerMetrics();
 
   console.log(`Seeded ${createdProducts.length} products`);
   console.log(`Seeded ${createdCustomers.length} customers`);
   console.log(`Seeded ${createdInvoices.length} invoices`);
+  console.log(`Seeded ${createdSuppliers.length} suppliers`);
+  console.log(`Seeded 2 purchase orders`);
   console.log("Done.");
 
   await mongoose.connection.close();
