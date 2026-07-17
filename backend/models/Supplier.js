@@ -7,6 +7,7 @@ const supplierSchema = new Schema(
     supplierName: { type: String, required: true, trim: true },
     contactPerson: { type: String, trim: true, default: "" },
     mobileNumber: { type: String, required: true, trim: true },
+    whatsAppNumber: { type: String, trim: true, default: "" },
     alternateNumber: { type: String, trim: true, default: "" },
     email: { type: String, trim: true, default: "" },
     gstNumber: { type: String, trim: true, default: "" },

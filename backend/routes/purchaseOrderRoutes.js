@@ -6,7 +6,9 @@ const {
   createPurchaseOrder,
   updatePurchaseOrder,
   receiveGoods,
-  getLowStockAssistant
+  getLowStockAssistant,
+  markPurchaseOrderSent,
+  emailPurchaseOrder
 } = require("../controllers/purchaseOrderController");
 
 const router = express.Router();
@@ -24,5 +26,7 @@ router.route("/:id")
   .put(updatePurchaseOrder);
 
 router.post("/:id/receive", receiveGoods);
+router.post("/:id/mark-sent", markPurchaseOrderSent);
+router.post("/:id/email", emailPurchaseOrder);
 
 module.exports = router;

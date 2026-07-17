@@ -30,6 +30,7 @@ const createSupplier = asyncHandler(async (req, res) => {
     supplierName,
     contactPerson,
     mobileNumber,
+    whatsAppNumber,
     alternateNumber,
     email,
     gstNumber,
@@ -58,6 +59,13 @@ const createSupplier = asyncHandler(async (req, res) => {
     throw new Error("Invalid mobile number format.");
   }
 
+  if (whatsAppNumber) {
+    if (!mobileRegex.test(whatsAppNumber)) {
+      res.status(400);
+      throw new Error("Invalid WhatsApp number format.");
+    }
+  }
+
   // Duplicate supplier entry check per shop
   const existing = await Supplier.findOne({
     shopId: req.shopId,
@@ -73,6 +81,7 @@ const createSupplier = asyncHandler(async (req, res) => {
     supplierName: supplierName.trim(),
     contactPerson,
     mobileNumber,
+    whatsAppNumber: whatsAppNumber || "",
     alternateNumber,
     email,
     gstNumber,
@@ -102,6 +111,7 @@ const updateSupplier = asyncHandler(async (req, res) => {
     supplierName,
     contactPerson,
     mobileNumber,
+    whatsAppNumber,
     alternateNumber,
     email,
     gstNumber,
@@ -113,6 +123,8 @@ const updateSupplier = asyncHandler(async (req, res) => {
     isActive,
     preferredSupplier
   } = req.body;
+
+  const mobileRegex = /^\+?[0-9\s\-]{7,15}$/;
 
   if (supplierName) {
     // Duplicate supplier check per shop
@@ -129,12 +141,19 @@ const updateSupplier = asyncHandler(async (req, res) => {
   }
 
   if (mobileNumber) {
-    const mobileRegex = /^\+?[0-9\s\-]{7,15}$/;
     if (!mobileRegex.test(mobileNumber)) {
       res.status(400);
       throw new Error("Invalid mobile number format.");
     }
     supplier.mobileNumber = mobileNumber;
+  }
+
+  if (whatsAppNumber !== undefined) {
+    if (whatsAppNumber && !mobileRegex.test(whatsAppNumber)) {
+      res.status(400);
+      throw new Error("Invalid WhatsApp number format.");
+    }
+    supplier.whatsAppNumber = whatsAppNumber;
   }
 
   if (contactPerson !== undefined) supplier.contactPerson = contactPerson;
@@ -219,7 +238,32 @@ const getSupplierHistory = asyncHandler(async (req, res) => {
   // Calculate Average Delivery Time (in days)
   let receivedCount = 0;
   let totalDeliveryDays = 0;
+  let whatsAppSent = 0;
+  let emailSent = 0;
+  let lastContact = null;
+  let responseCount = 0;
+  let totalResponseTimeMs = 0;
+
   purchaseOrders.forEach(po => {
+    whatsAppSent += po.whatsAppSentCount || 0;
+    emailSent += po.emailSentCount || 0;
+
+    const contactDate = po.lastContactedAt || po.sentAt || null;
+    if (contactDate) {
+      const contactTime = new Date(contactDate).getTime();
+      if (!lastContact || contactTime > new Date(lastContact).getTime()) {
+        lastContact = contactDate;
+      }
+    }
+
+    if (po.sentAt && ["Confirmed", "Partially Received", "Received"].includes(po.status)) {
+      const diff = new Date(po.updatedAt).getTime() - new Date(po.sentAt).getTime();
+      if (diff >= 0) {
+        totalResponseTimeMs += diff;
+        responseCount += 1;
+      }
+    }
+
     if (po.status === "Received" && po.receivedDate && po.createdAt) {
       const deliveryTime = new Date(po.receivedDate).getTime() - new Date(po.createdAt).getTime();
       const deliveryDays = Math.ceil(deliveryTime / (1000 * 60 * 60 * 24));
@@ -229,7 +273,19 @@ const getSupplierHistory = asyncHandler(async (req, res) => {
       }
     }
   });
+
   const averageDeliveryTime = receivedCount > 0 ? Math.round(totalDeliveryDays / receivedCount) : null;
+
+  let averageResponseTime = "—";
+  if (responseCount > 0) {
+    const avgMs = totalResponseTimeMs / responseCount;
+    const avgHours = avgMs / (1000 * 60 * 60);
+    if (avgHours < 24) {
+      averageResponseTime = `${avgHours.toFixed(1)} hrs`;
+    } else {
+      averageResponseTime = `${(avgHours / 24).toFixed(1)} days`;
+    }
+  }
 
   res.json({
     success: true,
@@ -241,7 +297,11 @@ const getSupplierHistory = asyncHandler(async (req, res) => {
         outstandingOrders,
         lastOrderDate,
         productsSupplied: suppliedProductsInfo,
-        averageDeliveryTime
+        averageDeliveryTime,
+        whatsAppSent,
+        emailSent,
+        lastContact,
+        averageResponseTime
       },
       orders: purchaseOrders
     }

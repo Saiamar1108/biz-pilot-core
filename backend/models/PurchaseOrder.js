@@ -35,6 +35,11 @@ const purchaseOrderSchema = new Schema(
     expectedDeliveryDate: { type: Date },
     receivedDate: { type: Date },
     invoiceNumber: { type: String, default: "" },
+    sentAt: { type: Date },
+    sentBy: { type: String },
+    whatsAppSentCount: { type: Number, default: 0 },
+    emailSentCount: { type: Number, default: 0 },
+    lastContactedAt: { type: Date },
   },
   { timestamps: true }
 );

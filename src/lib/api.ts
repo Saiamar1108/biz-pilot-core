@@ -643,6 +643,7 @@ export type Supplier = {
   supplierName: string;
   contactPerson?: string;
   mobileNumber: string;
+  whatsAppNumber?: string;
   alternateNumber?: string;
   email?: string;
   gstNumber?: string;
@@ -684,6 +685,11 @@ export type PurchaseOrder = {
   expectedDeliveryDate?: string;
   receivedDate?: string;
   invoiceNumber?: string;
+  sentAt?: string;
+  sentBy?: string;
+  whatsAppSentCount?: number;
+  emailSentCount?: number;
+  lastContactedAt?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -765,4 +771,14 @@ export async function receiveGoods(id: string, payload: { receivedItems: any[]; 
 export async function getLowStockAssistant() {
   const response = await api.get<ApiResponse<LowStockRecommendation[]>>("/purchase-orders/low-stock-assistant");
   return unwrap(response);
+}
+
+export async function markPurchaseOrderSent(id: string, payload: { channel: "whatsapp" | "email"; sentBy?: string }) {
+  const response = await api.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/mark-sent`, payload);
+  return unwrap(response);
+}
+
+export async function emailPurchaseOrder(id: string) {
+  const response = await api.post<{ success: boolean; message: string }>(`/purchase-orders/${id}/email`);
+  return response.data;
 }

@@ -28,6 +28,7 @@ import {
   ChevronRight,
   TrendingUp,
   Clock,
+  MessageSquare,
 } from "lucide-react";
 import { FormEvent, useEffect, useState, useMemo } from "react";
 import {
@@ -63,6 +64,7 @@ function SuppliersPage() {
     supplierName: "",
     contactPerson: "",
     mobileNumber: "",
+    whatsAppNumber: "",
     alternateNumber: "",
     email: "",
     gstNumber: "",
@@ -119,6 +121,7 @@ function SuppliersPage() {
       supplierName: "",
       contactPerson: "",
       mobileNumber: "",
+      whatsAppNumber: "",
       alternateNumber: "",
       email: "",
       gstNumber: "",
@@ -144,6 +147,7 @@ function SuppliersPage() {
       supplierName: s.supplierName,
       contactPerson: s.contactPerson || "",
       mobileNumber: s.mobileNumber,
+      whatsAppNumber: s.whatsAppNumber || "",
       alternateNumber: s.alternateNumber || "",
       email: s.email || "",
       gstNumber: s.gstNumber || "",
@@ -173,6 +177,11 @@ function SuppliersPage() {
     const mobileRegex = /^\+?[0-9\s\-]{7,15}$/;
     if (!mobileRegex.test(form.mobileNumber)) {
       toast.error("Invalid mobile number format.");
+      return;
+    }
+
+    if (form.whatsAppNumber.trim() && !mobileRegex.test(form.whatsAppNumber)) {
+      toast.error("Invalid WhatsApp number format.");
       return;
     }
 
@@ -380,6 +389,14 @@ function SuppliersPage() {
                   />
                 </div>
                 <div>
+                  <Label className="mb-2 block">WhatsApp Number</Label>
+                  <Input
+                    placeholder="E.g. 9876543210"
+                    value={form.whatsAppNumber}
+                    onChange={(e) => setForm(c => ({ ...c, whatsAppNumber: e.target.value }))}
+                  />
+                </div>
+                <div>
                   <Label className="mb-2 block">Alternate Number</Label>
                   <Input
                     placeholder="E.g. 0674-123456"
@@ -515,6 +532,34 @@ function SuppliersPage() {
                     label="Avg. Delivery (Days)"
                     value={supplierStats?.averageDeliveryTime != null ? `${supplierStats.averageDeliveryTime} d` : "—"}
                     icon={Truck}
+                    accent="primary"
+                  />
+                </div>
+
+                {/* Communication Stats cards grid */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <StatCard
+                    label="WhatsApp Sent"
+                    value={supplierStats?.whatsAppSent ?? 0}
+                    icon={MessageSquare}
+                    accent="emerald"
+                  />
+                  <StatCard
+                    label="Emails Sent"
+                    value={supplierStats?.emailSent ?? 0}
+                    icon={Mail}
+                    accent="primary"
+                  />
+                  <StatCard
+                    label="Last Contact"
+                    value={supplierStats?.lastContact ? new Date(supplierStats.lastContact).toLocaleDateString("en-IN") : "—"}
+                    icon={Clock}
+                    accent="warning"
+                  />
+                  <StatCard
+                    label="Avg Response Time"
+                    value={supplierStats?.averageResponseTime || "—"}
+                    icon={TrendingUp}
                     accent="primary"
                   />
                 </div>

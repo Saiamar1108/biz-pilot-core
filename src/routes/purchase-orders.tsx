@@ -17,6 +17,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
+import {
   ClipboardList,
   Plus,
   Search,
@@ -35,6 +42,18 @@ import {
   ArrowRight,
   Sparkles,
   Copy,
+  MessageSquare,
+  MessageCircle,
+  Mail,
+  Printer,
+  MoreVertical,
+  CheckCheck,
+  Trash,
+  Download,
+  Send,
+  Eye,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import {
   getPurchaseOrders,
@@ -45,6 +64,9 @@ import {
   getSuppliers,
   getProducts,
   getAnalytics,
+  getSettings,
+  markPurchaseOrderSent,
+  emailPurchaseOrder,
   type PurchaseOrder,
   type Supplier,
   type Product,
@@ -52,6 +74,9 @@ import {
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
+import { downloadPurchaseOrderPDF } from "@/lib/purchaseOrderPdf";
+import { printPurchaseOrder } from "@/lib/purchaseOrderPrint";
 
 export const Route = createFileRoute("/purchase-orders")({
   head: () => ({ meta: [{ title: "Purchase Orders — ShopPilot AI" }] }),
@@ -59,13 +84,21 @@ export const Route = createFileRoute("/purchase-orders")({
 });
 
 function PurchaseOrdersPage() {
+  const { user } = useAuth();
   const [purchaseOrders, setPurchaseOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [business, setBusiness] = useState<any>(null);
   
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Communication states
+  const [selectedPos, setSelectedPos] = useState<string[]>([]);
+  const [whatsAppConfirmOpen, setWhatsAppConfirmOpen] = useState(false);
+  const [whatsAppConfirmPo, setWhatsAppConfirmPo] = useState<PurchaseOrder | null>(null);
+  const [loadingAction, setLoadingAction] = useState<string | null>(null);
 
   // Filters
   const [filterSupplier, setFilterSupplier] = useState("");
@@ -103,16 +136,18 @@ function PurchaseOrdersPage() {
     try {
       setLoading(true);
       setError(null);
-      const [pos, sups, prods, stats] = await Promise.all([
+      const [pos, sups, prods, stats, settings] = await Promise.all([
         getPurchaseOrders(),
         getSuppliers(),
         getProducts(),
-        getAnalytics()
+        getAnalytics(),
+        getSettings()
       ]);
       setPurchaseOrders(pos);
       setSuppliers(sups.filter(s => s.isActive));
       setProducts(prods);
       setAnalytics(stats);
+      setBusiness(settings?.business || {});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
     } finally {
@@ -364,6 +399,251 @@ function PurchaseOrdersPage() {
     }
   };
 
+  const getSupplierInfo = (po: PurchaseOrder) => {
+    if (typeof po.supplier === "object" && po.supplier !== null) {
+      return po.supplier as Supplier;
+    }
+    const supId = typeof po.supplier === "string" ? po.supplier : (po.supplier as any)?._id || (po.supplier as any)?.id;
+    return suppliers.find(s => String(s.id || s._id) === String(supId));
+  };
+
+  const isOverdue = (po: PurchaseOrder) => {
+    if (["Received", "Cancelled"].includes(po.status)) return false;
+    if (!po.expectedDeliveryDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const expDate = new Date(po.expectedDeliveryDate);
+    expDate.setHours(0, 0, 0, 0);
+    return today.getTime() > expDate.getTime();
+  };
+
+  const generateWhatsAppMessageText = (po: PurchaseOrder, supplier?: Supplier) => {
+    const sName = supplier?.supplierName || po.supplierName;
+    const itemsText = po.items.map(item => `• ${item.productName} ${item.quantity} ${item.unit || 'units'}`).join("\n");
+    const dateText = po.expectedDeliveryDate ? new Date(po.expectedDeliveryDate).toLocaleDateString("en-IN") : "—";
+    
+    return `Hello ${sName},
+
+We would like to place the following purchase order.
+
+Purchase Order: ${po.purchaseOrderNumber}
+
+Items:
+${itemsText}
+
+Total Amount: ₹${po.totalAmount.toFixed(2)}
+
+Expected Delivery: ${dateText}
+
+Please confirm availability. Thank you.
+ShopPilot AI`;
+  };
+
+  const generateReminderText = (po: PurchaseOrder, supplier?: Supplier) => {
+    const sName = supplier?.supplierName || po.supplierName;
+    return `Hello ${sName},
+
+This is a reminder regarding Purchase Order ${po.purchaseOrderNumber}.
+
+Kindly update us on the delivery status.
+
+Thank you.
+ShopPilot AI`;
+  };
+
+  const handleSendWhatsApp = (po: PurchaseOrder) => {
+    const sup = getSupplierInfo(po);
+    const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
+    if (!num) {
+      toast.error("Supplier WhatsApp/Mobile number missing.");
+      return;
+    }
+    const msg = generateWhatsAppMessageText(po, sup);
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+    
+    setWhatsAppConfirmPo(po);
+    setWhatsAppConfirmOpen(true);
+  };
+
+  const handleSendReminder = (po: PurchaseOrder) => {
+    const sup = getSupplierInfo(po);
+    const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
+    if (!num) {
+      toast.error("Supplier WhatsApp/Mobile number missing.");
+      return;
+    }
+    const msg = generateReminderText(po, sup);
+    const encoded = encodeURIComponent(msg);
+    window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+    toast.success("Opening WhatsApp with delivery reminder.");
+  };
+
+  const handleConfirmWhatsAppSent = async () => {
+    if (!whatsAppConfirmPo) return;
+    const poId = whatsAppConfirmPo.id || whatsAppConfirmPo._id || "";
+    try {
+      const sentBy = user?.email || user?.name || "System Owner";
+      await markPurchaseOrderSent(poId, { channel: "whatsapp", sentBy });
+      toast.success("Purchase order status updated to Sent.");
+      setWhatsAppConfirmOpen(false);
+      setWhatsAppConfirmPo(null);
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to mark purchase order as sent.");
+    }
+  };
+
+  const handleSendEmail = async (po: PurchaseOrder) => {
+    const poId = po.id || po._id || "";
+    const sup = getSupplierInfo(po);
+    if (!sup?.email) {
+      toast.error("Supplier email missing. Please register an email for this supplier first.");
+      return;
+    }
+    try {
+      setLoadingAction(`email-${poId}`);
+      await emailPurchaseOrder(poId);
+      toast.success(`Purchase order emailed to ${sup.email} successfully.`);
+      await loadData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to email purchase order.");
+    } finally {
+      setLoadingAction(null);
+    }
+  };
+
+  const handleMarkSent = async (po: PurchaseOrder) => {
+    const poId = po.id || po._id || "";
+    try {
+      const sentBy = user?.email || user?.name || "System Owner";
+      await markPurchaseOrderSent(poId, { channel: "whatsapp", sentBy });
+      toast.success("Purchase order marked as Sent.");
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to update status.");
+    }
+  };
+
+  const handleDownloadPdf = async (po: PurchaseOrder) => {
+    try {
+      toast.loading("Generating PDF...", { duration: 1000 });
+      await downloadPurchaseOrderPDF({ purchaseOrder: po, business });
+      toast.success("Purchase Order PDF downloaded.");
+    } catch (err) {
+      toast.error("Failed to generate PDF.");
+    }
+  };
+
+  const handlePrint = (po: PurchaseOrder) => {
+    try {
+      printPurchaseOrder({ purchaseOrder: po, business });
+    } catch (err) {
+      toast.error("Failed to open print dialog.");
+    }
+  };
+
+  const handleCancelPo = async (id: string) => {
+    if (!confirm("Are you sure you want to cancel this purchase order?")) return;
+    await handleUpdateStatus(id, "Cancelled");
+  };
+
+  // Bulk Actions
+  const handleBulkWhatsApp = () => {
+    if (selectedPos.length === 0) return;
+    toast.info(`Opening WhatsApp windows for ${selectedPos.length} purchase orders...`);
+    selectedPos.forEach((id, idx) => {
+      const po = purchaseOrders.find(o => (o.id || o._id) === id);
+      if (!po) return;
+      setTimeout(() => {
+        const sup = getSupplierInfo(po);
+        const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
+        if (!num) return;
+        const msg = generateWhatsAppMessageText(po, sup);
+        const encoded = encodeURIComponent(msg);
+        window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+      }, idx * 1000);
+    });
+    setSelectedPos([]);
+  };
+
+  const handleBulkEmail = async () => {
+    if (selectedPos.length === 0) return;
+    const loadingToast = toast.loading(`Sending ${selectedPos.length} emails...`);
+    let successCount = 0;
+    for (const id of selectedPos) {
+      const po = purchaseOrders.find(o => (o.id || o._id) === id);
+      if (!po) continue;
+      const sup = getSupplierInfo(po);
+      if (!sup?.email) continue;
+      try {
+        await emailPurchaseOrder(id);
+        successCount++;
+      } catch (err) {
+        // ignore individual failures
+      }
+    }
+    toast.success(`Emailed ${successCount} purchase orders successfully.`, { id: loadingToast });
+    setSelectedPos([]);
+    await loadData();
+  };
+
+  const handleBulkPdf = async () => {
+    if (selectedPos.length === 0) return;
+    toast.loading(`Downloading ${selectedPos.length} PDFs...`, { duration: 1500 });
+    for (const id of selectedPos) {
+      const po = purchaseOrders.find(o => (o.id || o._id) === id);
+      if (!po) continue;
+      await downloadPurchaseOrderPDF({ purchaseOrder: po, business });
+    }
+    setSelectedPos([]);
+  };
+
+  const handleBulkPrint = () => {
+    if (selectedPos.length === 0) return;
+    selectedPos.forEach((id) => {
+      const po = purchaseOrders.find(o => (o.id || o._id) === id);
+      if (!po) return;
+      printPurchaseOrder({ purchaseOrder: po, business });
+    });
+    setSelectedPos([]);
+  };
+
+  const handleBulkCancel = async () => {
+    if (selectedPos.length === 0) return;
+    if (!confirm(`Are you sure you want to cancel the ${selectedPos.length} selected purchase order(s)?`)) return;
+    const loadingToast = toast.loading(`Cancelling ${selectedPos.length} purchase orders...`);
+    try {
+      await Promise.all(
+        selectedPos.map(id => updatePurchaseOrder(id, { status: "Cancelled" }))
+      );
+      toast.success("Selected purchase orders cancelled successfully.", { id: loadingToast });
+      setSelectedPos([]);
+      await loadData();
+    } catch (err) {
+      toast.error("Failed to cancel all selected orders.", { id: loadingToast });
+    }
+  };
+
+  const handleSendAllPending = () => {
+    const drafts = purchaseOrders.filter(po => po.status === "Draft");
+    if (drafts.length === 0) {
+      toast.info("No pending draft purchase orders to send.");
+      return;
+    }
+    toast.info(`Opening WhatsApp windows for ${drafts.length} draft purchase orders...`);
+    drafts.forEach((po, idx) => {
+      setTimeout(() => {
+        const sup = getSupplierInfo(po);
+        const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
+        if (!num) return;
+        const msg = generateWhatsAppMessageText(po, sup);
+        const encoded = encodeURIComponent(msg);
+        window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+      }, idx * 1000);
+    });
+  };
+
   const dashboardStats = analytics?.purchaseDashboard || {
     pendingPurchaseOrders: 0,
     ordersAwaitingDelivery: 0,
@@ -413,6 +693,9 @@ function PurchaseOrdersPage() {
             setCreateOpen(true);
           }}>
             <Plus className="h-4 w-4 mr-1" /> Add Purchase Order
+          </Button>
+          <Button variant="outline" onClick={handleSendAllPending} className="border-emerald-500 hover:bg-emerald-500/10 text-emerald-600">
+            <Send className="h-4 w-4 mr-1" /> Send All Pending
           </Button>
         </div>
 
@@ -471,57 +754,175 @@ function PurchaseOrdersPage() {
               description="Create a manual PO or use the Low Stock Assistant."
             />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
-                  <tr>
-                    <th className="text-left px-5 py-3 font-semibold">PO Number</th>
-                    <th className="text-left px-5 py-3 font-semibold">Supplier</th>
-                    <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Date</th>
-                    <th className="text-right px-5 py-3 font-semibold">Amount</th>
-                    <th className="text-center px-5 py-3 font-semibold">Status</th>
-                    <th className="text-right px-5 py-3 font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredOrders.map((o) => {
-                    const id = o.id || o._id || "";
-                    return (
-                      <tr key={id} className="border-t border-border hover:bg-secondary/40 transition">
-                        <td className="px-5 py-4 font-mono font-medium">{o.purchaseOrderNumber}</td>
-                        <td className="px-5 py-4">{o.supplierName}</td>
-                        <td className="px-5 py-4 text-muted-foreground hidden md:table-cell">
-                          {o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-IN") : "—"}
-                        </td>
-                        <td className="px-5 py-4 text-right font-semibold">{formatCurrency(o.totalAmount)}</td>
-                        <td className="px-5 py-4 text-center">
-                          <span className={`px-2 py-0.5 rounded text-xs font-bold ${
-                            o.status === "Received" ? "bg-emerald-500/10 text-emerald-500" :
-                            o.status === "Partially Received" ? "bg-cyan-500/10 text-cyan-500" :
-                            o.status === "Confirmed" ? "bg-blue-500/10 text-blue-500" :
-                            o.status === "Sent" ? "bg-purple-500/10 text-purple-500" :
-                            o.status === "Cancelled" ? "bg-destructive/10 text-destructive" :
-                            "bg-secondary text-muted-foreground"
-                          }`}>
-                            {o.status}
-                          </span>
-                        </td>
-                        <td className="px-5 py-4 text-right">
-                          <div className="flex justify-end items-center gap-2">
-                            <Button size="sm" variant="outline" onClick={() => handleOpenDetail(id)}>
-                              View
-                            </Button>
-                            <Button size="sm" variant="ghost" title="Duplicate Order" onClick={() => handleDuplicatePo(o)} className="h-8 w-8 p-0 text-muted-foreground">
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </td>
+            <div className="space-y-4">
+              {selectedPos.length > 0 && (
+                <div className="bg-secondary/40 border border-border p-3 rounded-lg flex items-center justify-between gap-4 transition-all">
+                  <span className="text-sm font-medium">
+                    {selectedPos.length} Purchase Order(s) selected
+                  </span>
+                  <div className="flex gap-2">
+                    <Button size="xs" variant="outline" onClick={handleBulkWhatsApp}>
+                      <MessageSquare className="h-3 w-3 mr-1 text-emerald-500" /> WhatsApp
+                    </Button>
+                    <Button size="xs" variant="outline" onClick={handleBulkEmail}>
+                      <Mail className="h-3 w-3 mr-1 text-primary" /> Email
+                    </Button>
+                    <Button size="xs" variant="outline" onClick={handleBulkPdf}>
+                      <Download className="h-3 w-3 mr-1" /> PDF
+                    </Button>
+                    <Button size="xs" variant="outline" onClick={handleBulkPrint}>
+                      <Printer className="h-3 w-3 mr-1" /> Print
+                    </Button>
+                    <Button size="xs" variant="destructive" onClick={handleBulkCancel}>
+                      Cancel
+                    </Button>
+                    <Button size="xs" variant="ghost" onClick={() => setSelectedPos([])}>
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-secondary/50 text-xs uppercase tracking-wider text-muted-foreground">
+                    <tr>
+                      <th className="text-left px-5 py-3 font-semibold w-12">
+                        <input
+                          type="checkbox"
+                          checked={filteredOrders.length > 0 && selectedPos.length === filteredOrders.length}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedPos(filteredOrders.map(o => o.id || o._id || ""));
+                            } else {
+                              setSelectedPos([]);
+                            }
+                          }}
+                          className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                        />
+                      </th>
+                      <th className="text-left px-5 py-3 font-semibold">PO Number</th>
+                      <th className="text-left px-5 py-3 font-semibold">Supplier</th>
+                      <th className="text-left px-5 py-3 font-semibold hidden md:table-cell">Date</th>
+                      <th className="text-right px-5 py-3 font-semibold">Amount</th>
+                      <th className="text-center px-5 py-3 font-semibold">Status</th>
+                      <th className="text-right px-5 py-3 font-semibold">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredOrders.map((o) => {
+                      const id = o.id || o._id || "";
+                      return (
+                        <tr key={id} className="border-t border-border hover:bg-secondary/40 transition">
+                          <td className="px-5 py-4 w-12">
+                            <input
+                              type="checkbox"
+                              checked={selectedPos.includes(id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedPos(prev => [...prev, id]);
+                                } else {
+                                  setSelectedPos(prev => prev.filter(x => x !== id));
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                          </td>
+                          <td className="px-5 py-4 font-mono font-medium">{o.purchaseOrderNumber}</td>
+                          <td className="px-5 py-4">{o.supplierName}</td>
+                          <td className="px-5 py-4 text-muted-foreground hidden md:table-cell">
+                            {o.createdAt ? new Date(o.createdAt).toLocaleDateString("en-IN") : "—"}
+                          </td>
+                          <td className="px-5 py-4 text-right font-semibold">{formatCurrency(o.totalAmount)}</td>
+                          <td className="px-5 py-4 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              <span className={`px-2 py-0.5 rounded text-xs font-bold ${
+                                o.status === "Received" ? "bg-emerald-500/10 text-emerald-500" :
+                                o.status === "Partially Received" ? "bg-cyan-500/10 text-cyan-500" :
+                                o.status === "Confirmed" ? "bg-blue-500/10 text-blue-500" :
+                                o.status === "Sent" ? "bg-purple-500/10 text-purple-500" :
+                                o.status === "Cancelled" ? "bg-destructive/10 text-destructive" :
+                                "bg-secondary text-muted-foreground"
+                              }`}>
+                                {o.status}
+                              </span>
+                              {isOverdue(o) && (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-destructive/10 text-destructive animate-pulse">
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4 text-right">
+                            <div className="flex justify-end items-center gap-2">
+                              <Button size="sm" variant="outline" onClick={() => handleOpenDetail(id)}>
+                                View
+                              </Button>
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                    <MoreVertical className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem onClick={() => handleSendWhatsApp(o)}>
+                                    <MessageSquare className="h-4 w-4 mr-2 text-emerald-500" />
+                                    Send via WhatsApp
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleSendEmail(o)}>
+                                    <Mail className="h-4 w-4 mr-2 text-primary" />
+                                    Send via Email
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleMarkSent(o)}>
+                                    <CheckCheck className="h-4 w-4 mr-2 text-blue-500" />
+                                    Mark as Sent
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleDownloadPdf(o)}>
+                                    <Download className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Download PDF
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handlePrint(o)}>
+                                    <Printer className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Print A4
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem onClick={() => handleDuplicatePo(o)}>
+                                    <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    Duplicate
+                                  </DropdownMenuItem>
+                                  {o.status !== "Received" && o.status !== "Cancelled" && (
+                                    <>
+                                      <DropdownMenuSeparator />
+                                      <DropdownMenuItem onClick={() => handleCancelPo(id)} className="text-destructive">
+                                        <Trash className="h-4 w-4 mr-2" />
+                                        Cancel PO
+                                      </DropdownMenuItem>
+                                    </>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+
+                              {isOverdue(o) && (
+                                <Button
+                                  size="xs"
+                                  variant="outline"
+                                  className="border-destructive hover:bg-destructive/10 text-destructive text-[10px] h-7 px-2"
+                                  onClick={() => handleSendReminder(o)}
+                                >
+                                  Send Reminder
+                                </Button>
+                              )}
+                            </div>
+                          </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+          </div>
           )}
         </PageSection>
 
@@ -981,6 +1382,27 @@ function PurchaseOrdersPage() {
                   {submittingReceive ? "Processing..." : "Complete Intake"}
                 </Button>
               </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* WhatsApp Confirmation Dialog */}
+        <Dialog open={whatsAppConfirmOpen} onOpenChange={setWhatsAppConfirmOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Confirm Sent Status</DialogTitle>
+              <DialogDescription>
+                Did you send the Purchase Order successfully through WhatsApp?
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 pt-4 border-t">
+              <Button variant="outline" onClick={() => {
+                setWhatsAppConfirmOpen(false);
+                setWhatsAppConfirmPo(null);
+              }}>No, Cancel</Button>
+              <Button onClick={handleConfirmWhatsAppSent} className="gradient-primary text-primary-foreground">
+                Yes, Mark as Sent
+              </Button>
             </div>
           </DialogContent>
         </Dialog>
