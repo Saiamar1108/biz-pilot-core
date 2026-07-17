@@ -1,13 +1,12 @@
-require("./env");
-
+const env = require("./env");
 const mongoose = require("mongoose");
 const { startLocalMongod } = require("../utils/localMongod");
 
 async function connectDB() {
-  let uri = process.env.MONGODB_URI;
+  let uri = process.env.MONGODB_URI || env.mongodbUri;
 
   if (!uri) {
-    console.error("MongoDB connection failed: MONGODB_URI is not set in environment variables");
+    console.error("MongoDB connection failed: MONGODB_URI is not set in environment variables and no fallback URI is configured");
     process.exit(1);
   }
 

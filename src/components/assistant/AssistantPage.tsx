@@ -1,10 +1,18 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { postAiChat, type AiChatHistoryEntry } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Bot, Mic, Paperclip, Send, Sparkles, ChevronDown, ChevronUp } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Bot,
+  ChevronDown,
+  ChevronUp,
+  Mic,
+  Paperclip,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-import { postAiChat } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type Msg = {
   role: "user" | "ai";
@@ -35,11 +43,11 @@ type SpeechRecognitionWindow = Window & {
 const initial: Msg[] = [{ role: "ai", text: "How can I help with your business today?" }];
 
 const prompts = [
-  { icon: Sparkles, text: "📈 How is my business today?" },
-  { icon: Sparkles, text: "📦 Which products should I reorder?" },
-  { icon: Sparkles, text: "💰 Who hasn't paid yet?" },
-  { icon: Sparkles, text: "📊 How can I increase profit?" },
-  { icon: Sparkles, text: "🤖 Give me today's AI insights" },
+  { icon: Sparkles, text: "How is my business today?" },
+  { icon: Sparkles, text: "Which products should I reorder?" },
+  { icon: Sparkles, text: "Who hasn't paid yet?" },
+  { icon: Sparkles, text: "How can I increase profit?" },
+  { icon: Sparkles, text: "Give me today's AI insights" },
 ];
 
 const voiceCommands = [
@@ -50,6 +58,16 @@ const voiceCommands = [
   "give me today's ai insights",
   "ask anything about your business",
 ];
+
+function buildConversationHistory(messages: Msg[], currentMessage: string): AiChatHistoryEntry[] {
+  return [...messages, { role: "user", text: currentMessage }]
+    .filter((entry) => entry.text.trim() && entry.text !== "Thinking...")
+    .slice(-8)
+    .map((entry) => ({
+      role: entry.role === "user" ? "user" : "assistant",
+      text: entry.text,
+    }));
+}
 
 export function AssistantPage() {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
@@ -79,41 +97,43 @@ export function AssistantPage() {
 
   const send = useCallback(
     async (text?: string) => {
-      const t = (text ?? input).trim();
-      if (!t || sending) return;
+      const nextMessage = (text ?? input).trim();
+      if (!nextMessage || sending) return;
 
-      setMsgs((m) => [...m, { role: "user", text: t }, { role: "ai", text: "Thinking..." }]);
+      const history = buildConversationHistory(msgs, nextMessage);
+
+      setMsgs((current) => [
+        ...current,
+        { role: "user", text: nextMessage },
+        { role: "ai", text: "Thinking..." },
+      ]);
       setInput("");
       setSending(true);
 
       try {
-        const response = await postAiChat(t);
+        const response = await postAiChat(nextMessage, history);
         const reply =
           response.reply ?? response.message ?? "I couldn't generate a response right now.";
+        const isCollapsible = reply.split("\n").length > 5;
 
-        // Check if response is too long (more than 5 lines)
-        const lineCount = reply.split("\n").length;
-        const isCollapsible = lineCount > 5;
-
-        setMsgs((m) => {
-          const next = m.slice(0, -1);
+        setMsgs((current) => {
+          const next = current.slice(0, -1);
           return [...next, { role: "ai", text: reply, collapsible: isCollapsible }];
         });
       } catch {
-        const fallbackReply = "Ask anything about your business.";
+        const fallbackReply =
+          "I couldn't reach the assistant right now. Ask about sales, inventory, customers, invoices, suppliers, payments, analytics, products, or revenue.";
+        const isCollapsible = fallbackReply.split("\n").length > 5;
 
-        const lineCount = fallbackReply.split("\n").length;
-        const isCollapsible = lineCount > 5;
-
-        setMsgs((m) => {
-          const next = m.slice(0, -1);
+        setMsgs((current) => {
+          const next = current.slice(0, -1);
           return [...next, { role: "ai", text: fallbackReply, collapsible: isCollapsible }];
         });
       } finally {
         setSending(false);
       }
     },
-    [input, sending],
+    [input, msgs, sending],
   );
 
   useEffect(() => {
@@ -182,8 +202,7 @@ export function AssistantPage() {
       recognition.stop?.();
       recognitionRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [processingVoice]);
+  }, [processingVoice, send]);
 
   const toggleVoice = () => {
     if (!recognitionSupported) {
@@ -213,59 +232,62 @@ export function AssistantPage() {
               <div className="font-display font-bold">ShopPilot Assistant</div>
               <div className="text-xs text-accent-brand flex items-center gap-1.5">
                 <span className="h-2 w-2 rounded-full bg-accent-brand animate-pulse" /> Online ·
-                GPT-powered
+                live business data
               </div>
             </div>
           </div>
 
           <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            {msgs.map((m, i) => (
-              <div key={i} className={m.role === "user" ? "flex justify-end" : "flex gap-3"}>
-                {m.role === "ai" && (
+            {msgs.map((message, index) => (
+              <div
+                key={index}
+                className={message.role === "user" ? "flex justify-end" : "flex gap-3"}
+              >
+                {message.role === "ai" && (
                   <div className="grid h-8 w-8 shrink-0 place-items-center rounded-xl gradient-primary">
                     <Bot className="h-4 w-4 text-primary-foreground" />
                   </div>
                 )}
                 <div
                   className={
-                    m.role === "user"
+                    message.role === "user"
                       ? "gradient-primary text-primary-foreground rounded-2xl rounded-tr-sm px-4 py-2.5 max-w-lg shadow-md"
                       : "max-w-lg space-y-3"
                   }
                 >
-                  <div className="text-sm leading-relaxed">
-                    {m.collapsible && !expandedMessages.has(i) ? (
+                  <div className="text-sm leading-relaxed whitespace-pre-wrap">
+                    {message.collapsible && !expandedMessages.has(index) ? (
                       <div>
-                        {m.text.split("\n").slice(0, 5).join("\n")}
+                        {message.text.split("\n").slice(0, 5).join("\n")}
                         <button
-                          onClick={() => toggleExpand(i)}
+                          onClick={() => toggleExpand(index)}
                           className="text-xs text-primary mt-2 flex items-center gap-1 hover:underline"
                         >
                           <ChevronDown className="h-3 w-3" /> Show details
                         </button>
                       </div>
-                    ) : m.collapsible && expandedMessages.has(i) ? (
+                    ) : message.collapsible && expandedMessages.has(index) ? (
                       <div>
-                        {m.text}
+                        {message.text}
                         <button
-                          onClick={() => toggleExpand(i)}
+                          onClick={() => toggleExpand(index)}
                           className="text-xs text-primary mt-2 flex items-center gap-1 hover:underline"
                         >
                           <ChevronUp className="h-3 w-3" /> Show less
                         </button>
                       </div>
                     ) : (
-                      m.text
+                      message.text
                     )}
                   </div>
-                  {m.card && (
+                  {message.card && (
                     <div className="glass-card rounded-xl p-4 flex items-center gap-3">
                       <div className="grid h-10 w-10 place-items-center rounded-lg bg-accent-brand/10 text-accent-brand">
-                        <m.card.icon className="h-5 w-5" />
+                        <message.card.icon className="h-5 w-5" />
                       </div>
                       <div>
-                        <div className="text-xs text-muted-foreground">{m.card.title}</div>
-                        <div className="font-semibold">{m.card.value}</div>
+                        <div className="text-xs text-muted-foreground">{message.card.title}</div>
+                        <div className="font-semibold">{message.card.value}</div>
                       </div>
                     </div>
                   )}
@@ -277,73 +299,73 @@ export function AssistantPage() {
 
           <div className="p-4 border-t border-border">
             <div className="flex flex-wrap gap-2 mb-3">
-              {prompts.map((p) => (
+              {prompts.map((prompt) => (
                 <button
-                  key={p.text}
-                  onClick={() => send(p.text)}
+                  key={prompt.text}
+                  onClick={() => send(prompt.text)}
                   disabled={sending}
                   className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border bg-secondary/60 hover:bg-accent hover:border-primary/40 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <p.icon className="h-3 w-3 text-primary" /> {p.text}
+                  <prompt.icon className="h-3 w-3 text-primary" /> {prompt.text}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2 p-2 rounded-xl border border-border bg-background focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition">
-               <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
-               <Button
-                 variant="ghost"
-                 size="icon"
-                 className="h-9 w-9 shrink-0"
-                 onClick={() => fileRef.current?.click()}
-                 disabled={sending}
-               >
-                 <Paperclip className="h-4 w-4" />
-               </Button>
-               <div className="relative flex items-center">
-                 <Button
-                   variant="ghost"
-                   size="icon"
-                   className={`h-9 w-9 shrink-0 ${listening ? "text-destructive shadow-glow" : "text-primary"}`}
-                   onClick={toggleVoice}
-                   disabled={sending || !recognitionSupported}
-                   title={recognitionSupported ? "Start voice input" : "Voice not supported"}
-                 >
-                   <Mic className="h-4 w-4" />
-                 </Button>
-                 {listening && (
-                   <span className="absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
-                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                     <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-ping" />
-                     <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
-                   </span>
-                 )}
-               </div>
-               <div className="flex-1">
-                 <Input
-                   value={input}
-                   onChange={(e) => setInput(e.target.value)}
-                   onKeyDown={(e) => e.key === "Enter" && send()}
-                   placeholder="Ask anything about your business..."
-                   disabled={sending}
-                   className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
-                 />
-                 {(voiceStatus || sendError || processingVoice) && (
-                   <div className="text-[11px] mt-1 text-muted-foreground">
-                     {processingVoice ? "Processing..." : sendError || voiceStatus}
-                   </div>
-                 )}
-               </div>
-               <Button
-                 size="icon"
-                 onClick={() => send()}
-                 className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground"
-                 disabled={sending}
-               >
-                 <Send className="h-4 w-4" />
-               </Button>
+              <input ref={fileRef} type="file" className="hidden" accept=".csv,.pdf,.xlsx" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 shrink-0"
+                onClick={() => fileRef.current?.click()}
+                disabled={sending}
+              >
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <div className="relative flex items-center">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={`h-9 w-9 shrink-0 ${listening ? "text-destructive shadow-glow" : "text-primary"}`}
+                  onClick={toggleVoice}
+                  disabled={sending || !recognitionSupported}
+                  title={recognitionSupported ? "Start voice input" : "Voice not supported"}
+                >
+                  <Mic className="h-4 w-4" />
+                </Button>
+                {listening && (
+                  <span className="absolute -right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/80 animate-ping" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse delay-150" />
+                  </span>
+                )}
               </div>
+              <div className="flex-1">
+                <Input
+                  value={input}
+                  onChange={(event) => setInput(event.target.value)}
+                  onKeyDown={(event) => event.key === "Enter" && send()}
+                  placeholder="Ask anything about your business..."
+                  disabled={sending}
+                  className="border-0 shadow-none focus-visible:ring-0 focus-visible:border-0 bg-transparent"
+                />
+                {(voiceStatus || sendError || processingVoice) && (
+                  <div className="text-[11px] mt-1 text-muted-foreground">
+                    {processingVoice ? "Processing..." : sendError || voiceStatus}
+                  </div>
+                )}
+              </div>
+              <Button
+                size="icon"
+                onClick={() => send()}
+                className="h-9 w-9 shrink-0 gradient-primary text-primary-foreground"
+                disabled={sending}
+              >
+                <Send className="h-4 w-4" />
+              </Button>
             </div>
           </div>
+        </div>
 
         <div className="hidden lg:block space-y-4">
           <div className="glass-card rounded-2xl p-5">
@@ -351,15 +373,15 @@ export function AssistantPage() {
               Suggested Prompts
             </div>
             <div className="space-y-2">
-              {prompts.map((p) => (
+              {prompts.map((prompt) => (
                 <button
-                  key={p.text}
-                  onClick={() => send(p.text)}
+                  key={prompt.text}
+                  onClick={() => send(prompt.text)}
                   disabled={sending}
                   className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-secondary transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <p.icon className="h-3.5 w-3.5 text-primary shrink-0" />
-                  {p.text}
+                  <prompt.icon className="h-3.5 w-3.5 text-primary shrink-0" />
+                  {prompt.text}
                 </button>
               ))}
             </div>

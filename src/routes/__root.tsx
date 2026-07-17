@@ -7,7 +7,9 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, type ReactNode, lazy, Suspense } from "react";
+
+const OnboardingFlow = lazy(() => import("@/components/onboarding/OnboardingFlow"));
 
 import appCss from "../styles.css?url";
 import { reportShopPilotError } from "../lib/error-reporting";
@@ -127,6 +129,9 @@ function RootComponent() {
       <ThemeProvider>
         <AuthProvider>
           <Outlet />
+          <Suspense fallback={null}>
+            <OnboardingFlow />
+          </Suspense>
         </AuthProvider>
       </ThemeProvider>
     </QueryClientProvider>

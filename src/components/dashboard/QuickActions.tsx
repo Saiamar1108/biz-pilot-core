@@ -13,7 +13,7 @@ export function QuickActions() {
   return (
     <div className="flex flex-wrap gap-3">
       {actions.map((a) => (
-        <Link key={a.label} to={a.to}>
+        <Link key={a.label} to={a.to} id={a.label === "New Invoice" ? "tour-new-invoice" : undefined}>
           <Button
             variant={a.variant === "primary" ? "default" : "outline"}
             className={

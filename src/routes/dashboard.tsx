@@ -87,6 +87,7 @@ function DashboardPage() {
 
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <StatCard
+            id="tour-revenue-card"
             label="Revenue Collected"
             value={statValue(analytics?.revenueReceived, formatCurrency)}
             icon={DollarSign}
@@ -206,11 +207,13 @@ function DashboardPage() {
             </div>
           </PageSection>
 
-          <AIInsightsWidget
-            headline={analytics?.recommendations[0]}
-            insights={analytics?.recommendations.slice(1, 4)}
-            loading={loading}
-          />
+          <div id="tour-ai-insights">
+            <AIInsightsWidget
+              headline={analytics?.recommendations[0]}
+              insights={analytics?.recommendations.slice(1, 4)}
+              loading={loading}
+            />
+          </div>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">

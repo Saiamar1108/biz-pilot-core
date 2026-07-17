@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { type FormEvent, useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ type Profile = {
 };
 
 function SettingsPage() {
+  const navigate = useNavigate();
   const [profile, setProfile] = useState<Profile>({});
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [upiId, setUpiId] = useState("");
@@ -166,6 +167,33 @@ function SettingsPage() {
                   <Label>Tax</Label>
                   <Input value={taxRate} readOnly className="mt-1" />
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border bg-card p-6 space-y-4 lg:col-span-2">
+              <h2 className="text-lg font-semibold">Help</h2>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Interactive Product Tour</p>
+                  <p className="text-sm text-muted-foreground">
+                    Restart the guided tour to learn how to navigate and manage your store's operations.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    localStorage.removeItem("sp_onboarding_completed");
+                    localStorage.removeItem("sp_welcome_seen");
+                    toast.success("Tour restarted", {
+                      description: "Welcome back! Starting the product tour.",
+                    });
+                    void navigate({ to: "/dashboard" });
+                  }}
+                  className="shrink-0 sm:w-auto w-full"
+                >
+                  Restart Tour
+                </Button>
               </div>
             </div>
           </div>

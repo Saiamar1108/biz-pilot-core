@@ -9,6 +9,7 @@ export function StatCard({
   icon: Icon,
   accent = "primary",
   comparisonLabel,
+  id,
 }: {
   label: string;
   value: string;
@@ -16,6 +17,7 @@ export function StatCard({
   icon: LucideIcon;
   accent?: "primary" | "emerald" | "warning" | "destructive";
   comparisonLabel?: string;
+  id?: string;
 }) {
   const accents = {
     primary: "from-primary/15 to-primary/5 text-primary shadow-primary/20",
@@ -25,7 +27,7 @@ export function StatCard({
   };
   const up = (change ?? 0) >= 0;
   return (
-    <div className="glass-card card-hover rounded-2xl p-6">
+    <div id={id} className="glass-card card-hover rounded-2xl p-6">
       <div className="flex items-start justify-between mb-5">
         <div
           className={cn(

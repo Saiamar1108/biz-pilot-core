@@ -6,7 +6,7 @@ import { AuthSubmitButton } from "@/components/auth/AuthFormExtras";
 import { redirectIfAuthenticated } from "@/lib/auth-guard";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { WelcomeModal, markWelcomeSeen } from "@/components/onboarding/WelcomeModal";
+
 
 export const Route = createFileRoute("/register")({
   beforeLoad: () => redirectIfAuthenticated(),
@@ -22,7 +22,7 @@ function RegisterPage() {
   const [password, setPassword] = useState("");
   const [shopName, setShopName] = useState("");
   const [loading, setLoading] = useState(false);
-  const [welcomeOpen, setWelcomeOpen] = useState(false);
+
   const [touched, setTouched] = useState({
     name: false,
     email: false,
@@ -59,24 +59,11 @@ function RegisterPage() {
       toast.success("Account created", {
         description: "Your shop workspace is ready.",
       });
-      setWelcomeOpen(true);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Registration failed");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleExplore = () => {
-    markWelcomeSeen();
-    setWelcomeOpen(false);
-    void navigate({ to: "/dashboard" });
-  };
-
-  const handleGotIt = () => {
-    markWelcomeSeen();
-    setWelcomeOpen(false);
-    void navigate({ to: "/dashboard" });
   };
 
   return (
@@ -161,7 +148,7 @@ function RegisterPage() {
         </form>
       </div>
 
-      <WelcomeModal open={welcomeOpen} onExplore={handleExplore} onGotIt={handleGotIt} />
+
     </AuthLayout>
   );
 }

@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { getAccessToken, refreshAccessToken, setAccessToken } from "./auth-store";
+import { resolveApiBaseUrl } from "./api-base-url";
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -9,7 +10,7 @@ export type ApiResponse<T> = {
   count?: number;
 };
 
-const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:5001";
+const apiBaseUrl = resolveApiBaseUrl();
 
 type RetriableRequestConfig = InternalAxiosRequestConfig & { _retry?: boolean };
 
@@ -388,6 +389,11 @@ export type PurchaseOrder = {
   [key: string]: any;
 };
 
+export type AiChatHistoryEntry = {
+  role: "user" | "assistant";
+  text: string;
+};
+
 export const EMPTY_ANALYTICS: AnalyticsSummary = {
   totalSales: 0,
   totalBilled: 0,
@@ -588,11 +594,12 @@ export async function getProductByBarcode(barcode: string) {
   };
 }
 
-export async function postAiChat(message: string) {
+export async function postAiChat(message: string, history: AiChatHistoryEntry[] = []) {
   const response = await api.post<ApiResponse<{ reply: string; message: string; context?: any }>>(
     "/ai/chat",
     {
       message,
+      history,
     },
   );
   return unwrap(response);
