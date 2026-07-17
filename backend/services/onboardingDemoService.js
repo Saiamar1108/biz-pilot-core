@@ -45,6 +45,7 @@ function buildLineItem(product, quantity) {
     quantity,
     unitPrice: product.price,
     costPrice: product.costPrice,
+    sellingPrice: product.price,
     lineTotal,
   };
 }

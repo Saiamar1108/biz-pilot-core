@@ -102,9 +102,200 @@ async function compareRevenuePeriods(storeId, period1 = {}, period2 = {}) {
 }
 
 async function calculateFinancialSummary(filter = {}) {
+  const groupStage = {
+    _id: null,
+    totalBilled: { $sum: { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] } },
+    collectedRevenue: { $sum: { $ifNull: ["$paidAmount", 0] } },
+    pendingRevenue: {
+      $sum: {
+        $cond: [
+          {
+            $and: [
+              { $in: ["$status", ["pending", "partial", "overdue", "sent"]] },
+              { $gt: [{ $ifNull: ["$pendingAmount", 0] }, 0] }
+            ]
+          },
+          { $ifNull: ["$pendingAmount", 0] },
+          0
+        ]
+      }
+    },
+    profit: {
+      $sum: {
+        $sum: {
+          $map: {
+            input: "$lineItems",
+            as: "item",
+            in: {
+              $cond: [
+                { $gt: [{ $ifNull: ["$$item.costPrice", 0] }, 0] },
+                {
+                  $multiply: [
+                    { $subtract: [{ $ifNull: ["$$item.sellingPrice", { $ifNull: ["$$item.unitPrice", 0] }] }, { $ifNull: ["$$item.costPrice", 0] }] },
+                    { $ifNull: ["$$item.quantity", 0] }
+                  ]
+                },
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    totalRevenue: {
+      $sum: {
+        $sum: {
+          $map: {
+            input: "$lineItems",
+            as: "item",
+            in: {
+              $cond: [
+                { $gt: [{ $ifNull: ["$$item.costPrice", 0] }, 0] },
+                {
+                  $multiply: [
+                    { $ifNull: ["$$item.sellingPrice", { $ifNull: ["$$item.unitPrice", 0] }] },
+                    { $ifNull: ["$$item.quantity", 0] }
+                  ]
+                },
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    totalCost: {
+      $sum: {
+        $sum: {
+          $map: {
+            input: "$lineItems",
+            as: "item",
+            in: {
+              $cond: [
+                { $gt: [{ $ifNull: ["$$item.costPrice", 0] }, 0] },
+                {
+                  $multiply: [
+                    { $ifNull: ["$$item.costPrice", 0] },
+                    { $ifNull: ["$$item.quantity", 0] }
+                  ]
+                },
+                0
+              ]
+            }
+          }
+        }
+      }
+    },
+    totalInvoices: { $sum: 1 },
+    paidInvoices: {
+      $sum: {
+        $cond: [{ $eq: ["$status", "paid"] }, 1, 0]
+      }
+    },
+    pendingInvoices: {
+      $sum: {
+        $cond: [
+          {
+            $and: [
+              { $in: ["$status", ["pending", "partial", "overdue", "sent"]] },
+              { $gt: [{ $ifNull: ["$pendingAmount", 0] }, 0] }
+            ]
+          },
+          1,
+          0
+        ]
+      }
+    }
+  };
+
+  const overallResults = await Invoice.aggregate([
+    { $match: filter },
+    { $group: groupStage }
+  ]);
+
+  const summary = overallResults[0] || {
+    totalBilled: 0,
+    collectedRevenue: 0,
+    pendingRevenue: 0,
+    profit: 0,
+    totalRevenue: 0,
+    totalCost: 0,
+    totalInvoices: 0,
+    paidInvoices: 0,
+    pendingInvoices: 0
+  };
+
+  // Calculate the monthly series using aggregation
+  const monthlyResults = await Invoice.aggregate([
+    { $match: filter },
+    {
+      $project: {
+        month: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+        total: { $ifNull: ["$total", { $ifNull: ["$amount", 0] }] },
+        paidAmount: { $ifNull: ["$paidAmount", 0] },
+        pendingAmount: { $ifNull: ["$pendingAmount", 0] },
+        status: 1,
+        invoiceProfit: {
+          $sum: {
+            $map: {
+              input: "$lineItems",
+              as: "item",
+              in: {
+                $cond: [
+                  { $gt: [{ $ifNull: ["$$item.costPrice", 0] }, 0] },
+                  {
+                    $multiply: [
+                      { $subtract: [{ $ifNull: ["$$item.sellingPrice", { $ifNull: ["$$item.unitPrice", 0] }] }, { $ifNull: ["$$item.costPrice", 0] }] },
+                      { $ifNull: ["$$item.quantity", 0] }
+                    ]
+                  },
+                  0
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      $group: {
+        _id: "$month",
+        collected: { $sum: "$paidAmount" },
+        pending: {
+          $sum: {
+            $cond: [
+              {
+                $and: [
+                  { $in: ["$status", ["pending", "partial", "overdue", "sent"]] },
+                  { $gt: ["$pendingAmount", 0] }
+                ]
+              },
+              "$pendingAmount",
+              0
+            ]
+          }
+        },
+        profit: { $sum: "$invoiceProfit" }
+      }
+    },
+    { $sort: { _id: 1 } }
+  ]);
+
+  const monthlyCollectedRevenue = [];
+  const monthlyPendingRevenue = [];
+  const monthlyProfit = [];
+
+  for (const row of monthlyResults) {
+    if (row._id) {
+      monthlyCollectedRevenue.push({ month: row._id, revenue: Number(row.collected.toFixed(2)) });
+      monthlyPendingRevenue.push({ month: row._id, revenue: Number(row.pending.toFixed(2)) });
+      monthlyProfit.push({ month: row._id, revenue: Number(row.profit.toFixed(2)) });
+    }
+  }
+
+  // Fetch invoices for downstream processing like aging, activity feed, customer intelligence
   const invoices = await Invoice.find(filter)
-    .select(
-      `
+    .select(`
       invoiceNumber
       customer
       customerName
@@ -116,87 +307,36 @@ async function calculateFinancialSummary(filter = {}) {
       paidAmount
       pendingAmount
       lineItems
-    `
-    )
+    `)
+    .sort({ createdAt: -1 })
     .lean();
 
-  let totalBilled = 0;
-  let collectedRevenue = 0;
-  let pendingRevenue = 0;
-  let profit = 0;
-  let paidInvoices = 0;
-  let pendingInvoices = 0;
-
-  const monthlyCollected = {};
-  const monthlyPending = {};
-  const monthlyProfit = {};
-
+  // Attach pre-calculated profit to each invoice object
   for (const invoice of invoices) {
-    const total = numberOrZero(invoice.total ?? invoice.amount);
-    const paidAmount = numberOrZero(invoice.paidAmount);
-    const outstanding = getOutstandingAmount(invoice);
-
-    totalBilled += total;
-
-    const monthKey = getDateKey(invoice.createdAt);
-
-    // Collected revenue includes all partial and full payments
-    if (paidAmount > 0) {
-      collectedRevenue += paidAmount;
-
-      if (monthKey) {
-        monthlyCollected[monthKey] =
-          numberOrZero(monthlyCollected[monthKey]) + paidAmount;
-      }
-    }
-
-    // Pending revenue includes overdue invoices and outstanding amounts
-    if (PENDING_BUCKET_STATUSES.has(String(invoice.status)) && outstanding > 0) {
-      pendingRevenue += outstanding;
-      pendingInvoices += 1;
-
-      if (monthKey) {
-        monthlyPending[monthKey] =
-          numberOrZero(monthlyPending[monthKey]) + outstanding;
-      }
-    }
-
-    if (String(invoice.status) === "paid") {
-      paidInvoices += 1;
-    }
-
     let invoiceProfit = 0;
-
+    let hasCost = false;
     for (const item of invoice.lineItems || []) {
-      const quantity = numberOrZero(item.quantity);
-      const sellingPrice = numberOrZero(item.unitPrice ?? item.price);
-      const costPrice = numberOrZero(item.costPrice ?? sellingPrice * 0.7);
-      invoiceProfit += (sellingPrice - costPrice) * quantity;
+      if (item.costPrice && item.costPrice > 0) {
+        hasCost = true;
+        invoiceProfit += (Number(item.sellingPrice ?? item.unitPrice ?? item.price) - Number(item.costPrice)) * Number(item.quantity);
+      }
     }
-
-    profit += invoiceProfit;
-
-    if (monthKey) {
-      monthlyProfit[monthKey] =
-        numberOrZero(monthlyProfit[monthKey]) + invoiceProfit;
-    }
+    invoice.profit = hasCost ? Number(invoiceProfit.toFixed(2)) : 0;
   }
 
-  // Ensure consistency: Total Billed = Collected + Pending
-  const calculatedTotal = Number((collectedRevenue + pendingRevenue).toFixed(2));
-  const finalTotalBilled = Math.abs(totalBilled - calculatedTotal) < 0.01 ? calculatedTotal : totalBilled;
-
   return {
-    totalBilled: Number(finalTotalBilled.toFixed(2)),
-    collectedRevenue: Number(collectedRevenue.toFixed(2)),
-    pendingRevenue: Number(pendingRevenue.toFixed(2)),
-    profit: Number(profit.toFixed(2)),
-    totalInvoices: invoices.length,
-    paidInvoices,
-    pendingInvoices,
-    monthlyCollectedRevenue: toMonthlySeries(monthlyCollected),
-    monthlyPendingRevenue: toMonthlySeries(monthlyPending),
-    monthlyProfit: toMonthlySeries(monthlyProfit),
+    totalBilled: Number((summary.totalBilled || 0).toFixed(2)),
+    collectedRevenue: Number((summary.collectedRevenue || 0).toFixed(2)),
+    pendingRevenue: Number((summary.pendingRevenue || 0).toFixed(2)),
+    profit: Number((summary.profit || 0).toFixed(2)),
+    totalRevenue: Number((summary.totalRevenue || 0).toFixed(2)),
+    totalCost: Number((summary.totalCost || 0).toFixed(2)),
+    totalInvoices: summary.totalInvoices || 0,
+    paidInvoices: summary.paidInvoices || 0,
+    pendingInvoices: summary.pendingInvoices || 0,
+    monthlyCollectedRevenue,
+    monthlyPendingRevenue,
+    monthlyProfit,
     invoices,
   };
 }

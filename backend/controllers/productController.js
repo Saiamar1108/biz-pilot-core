@@ -24,12 +24,22 @@ exports.getProducts = asyncHandler(async (req, res) => {
 });
 
 exports.createProduct = asyncHandler(async (req, res) => {
-  const price = Number(req.body.price || 0);
-  const costPrice =
-    req.body.costPrice == null ? Number((price * 0.7).toFixed(2)) : Number(req.body.costPrice);
+  const price = Number(req.body.price);
+  const costPrice = Number(req.body.costPrice);
+
+  if (req.body.price == null || isNaN(price) || price <= 0) {
+    res.status(400);
+    throw new Error("Selling Price is required and must be greater than 0");
+  }
+  if (req.body.costPrice == null || isNaN(costPrice) || costPrice <= 0) {
+    res.status(400);
+    throw new Error("Cost Price is required and must be greater than 0");
+  }
+
   const product = await Product.create({
     ...req.body,
     shopId: req.shopId,
+    price,
     costPrice,
     stockMovements: [
       {
@@ -50,14 +60,25 @@ exports.updateProduct = asyncHandler(async (req, res) => {
     throw new Error("Product not found");
   }
 
+  if (req.body.price !== undefined) {
+    const price = Number(req.body.price);
+    if (isNaN(price) || price <= 0) {
+      res.status(400);
+      throw new Error("Selling Price must be greater than 0");
+    }
+  }
+
+  if (req.body.costPrice !== undefined) {
+    const costPrice = Number(req.body.costPrice);
+    if (isNaN(costPrice) || costPrice <= 0) {
+      res.status(400);
+      throw new Error("Cost Price must be greater than 0");
+    }
+  }
+
   const nextStock = req.body.stock == null ? existing.stock : Number(req.body.stock);
-  const nextPrice = req.body.price == null ? Number(existing.price || 0) : Number(req.body.price);
-  const nextCostPrice =
-    req.body.costPrice == null
-      ? Number(existing.costPrice || Number((nextPrice * 0.7).toFixed(2)))
-      : Number(req.body.costPrice);
   const stockDelta = nextStock - existing.stock;
-  const update = { ...req.body, costPrice: nextCostPrice };
+  const update = { ...req.body };
   if (stockDelta !== 0) {
     update.$push = {
       stockMovements: {

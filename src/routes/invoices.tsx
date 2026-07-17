@@ -413,7 +413,7 @@ function InvoicesPage() {
                           {invoice.items === 1 ? "" : "s"}
                         </div>
                         <div className="text-xs text-muted-foreground mt-0.5">
-                          Profit: {formatCurrency(profit)} · Paid: {invoice.paidAt || "—"}
+                          Profit: {profit === null ? "Profit unavailable for historical invoices." : formatCurrency(profit)} · Paid: {invoice.paidAt || "—"}
                         </div>
                       </div>
 

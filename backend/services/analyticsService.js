@@ -1,3 +1,4 @@
+const mongoose = require("mongoose");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
@@ -144,6 +145,7 @@ function normalizeProduct(product = {}) {
     category: product.category || "General",
     stock: safeNumber(product.stock),
     price: safeNumber(product.price),
+    costPrice: safeNumber(product.costPrice),
     sold: safeNumber(product.sold),
     createdAt: safeDate(product.createdAt),
   };
@@ -194,10 +196,9 @@ function aggregateLineItems(invoices, productsById) {
         item?.lineTotal !== undefined && item?.lineTotal !== null
           ? safeNumber(item.lineTotal)
           : safeNumber(unitPrice * quantity);
-      const costPrice = safeNumber(
-        item?.costPrice ?? catalog?.costPrice ?? unitPrice * 0.7
-      );
-      const itemProfit = (unitPrice - costPrice) * quantity;
+      const costPrice = safeNumber(item?.costPrice);
+      const isHistorical = !item?.costPrice || item.costPrice <= 0;
+      const itemProfit = isHistorical ? 0 : (unitPrice - costPrice) * quantity;
 
       const productKey = productId || name;
       const productRow = byProduct.get(productKey) || {
@@ -474,6 +475,47 @@ function buildRecommendations({ lowStockItems, pendingAgingAlerts, topProducts }
   ];
 }
 
+async function calculateProfitForDateRange(shopId, startDate, endDate) {
+  if (!shopId) return 0;
+  const filter = { shopId: new mongoose.Types.ObjectId(shopId) };
+  if (startDate || endDate) {
+    filter.createdAt = {};
+    if (startDate) filter.createdAt.$gte = startDate;
+    if (endDate) filter.createdAt.$lte = endDate;
+  }
+  const result = await Invoice.aggregate([
+    { $match: filter },
+    {
+      $group: {
+        _id: null,
+        profit: {
+          $sum: {
+            $sum: {
+              $map: {
+                input: "$lineItems",
+                as: "item",
+                in: {
+                  $cond: [
+                    { $gt: [{ $ifNull: ["$$item.costPrice", 0] }, 0] },
+                    {
+                      $multiply: [
+                        { $subtract: [{ $ifNull: ["$$item.sellingPrice", { $ifNull: ["$$item.unitPrice", 0] }] }, { $ifNull: ["$$item.costPrice", 0] }] },
+                        { $ifNull: ["$$item.quantity", 0] }
+                      ]
+                    },
+                    0
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ]);
+  return result[0]?.profit || 0;
+}
+
 /** Shape returned when analytics genuinely cannot be computed (e.g. an
  *  unexpected exception deep in a dependency). Keeps the endpoint at a
  *  200 with empty/zeroed data instead of a 500. */
@@ -486,6 +528,16 @@ function emptyAnalyticsShape(label = "All time") {
     pendingRevenue: 0,
     collectionEfficiency: 0,
     profit: 0,
+    totalRevenue: 0,
+    totalCost: 0,
+    profitMargin: 0,
+    todayProfit: 0,
+    weeklyProfit: 0,
+    monthlyProfit: 0,
+    highestProfitProduct: "—",
+    topProfitableProduct: "—",
+    highestProfitInvoice: "—",
+    hasHistoricalInvoices: false,
     totalOrders: 0,
     activeCustomers: 0,
     avgOrderValue: 0,
@@ -559,16 +611,30 @@ async function buildAnalytics(options = {}, req = {}) {
   let rawProducts = [];
   let rawCustomers = [];
   let financialSummary = {};
+  let todayProfit = 0;
+  let weeklyProfit = 0;
+  let monthlyProfit = 0;
+
+  const now = new Date();
+  const todayStart = startOfDay(now);
+  const last7Start = startOfDay(new Date(now.getTime() - 6 * 86400000));
+  const thisMonthStart = startOfDay(new Date(now.getFullYear(), now.getMonth(), 1));
 
   try {
     const results = await Promise.all([
       Product.find(shopFilter).lean(),
       Customer.find(shopFilter).lean(),
       calculateFinancialSummary(invoiceFilter),
+      calculateProfitForDateRange(req.shopId, todayStart, endOfDay(now)),
+      calculateProfitForDateRange(req.shopId, last7Start, endOfDay(now)),
+      calculateProfitForDateRange(req.shopId, thisMonthStart, endOfDay(now))
     ]);
     rawProducts = toArray(results[0]);
     rawCustomers = toArray(results[1]);
     financialSummary = results[2] || {};
+    todayProfit = results[3] || 0;
+    weeklyProfit = results[4] || 0;
+    monthlyProfit = results[5] || 0;
   } catch (err) {
     console.error("[analyticsService] failed to load core analytics data:", err);
     if (strictMode) {
@@ -667,6 +733,22 @@ async function buildAnalytics(options = {}, req = {}) {
     .sort((a, b) => a.units - b.units || a.revenue - b.revenue)
     .slice(0, 10);
 
+  const highestProfitProductObj = mostProfitableProducts[0];
+  const highestProfitProduct = highestProfitProductObj
+    ? `${highestProfitProductObj.name} (Profit: ₹${highestProfitProductObj.profit.toFixed(2)})`
+    : "—";
+  const topProfitableProduct = highestProfitProduct;
+
+  const invoicesWithProfit = invoices.filter(inv => inv.profit > 0);
+  const highestProfitInvoiceObj = [...invoicesWithProfit].sort((a, b) => b.profit - a.profit)[0];
+  const highestProfitInvoice = highestProfitInvoiceObj
+    ? `Invoice ${highestProfitInvoiceObj.invoiceNumber || highestProfitInvoiceObj.id} for ${highestProfitInvoiceObj.customerName} (Profit: ₹${highestProfitInvoiceObj.profit.toFixed(2)})`
+    : "—";
+
+  const hasHistoricalInvoices = invoices.some(invoice => 
+    invoice.lineItems.some(item => !item.costPrice || item.costPrice <= 0)
+  );
+
   return {
     dateRange: {
       label,
@@ -679,6 +761,16 @@ async function buildAnalytics(options = {}, req = {}) {
     pendingRevenue,
     collectionEfficiency,
     profit,
+    totalRevenue: Number((financialSummary.totalRevenue || 0).toFixed(2)),
+    totalCost: Number((financialSummary.totalCost || 0).toFixed(2)),
+    profitMargin: financialSummary.totalRevenue > 0 ? Number(((financialSummary.profit / financialSummary.totalRevenue) * 100).toFixed(2)) : 0,
+    todayProfit: Number(todayProfit.toFixed(2)),
+    weeklyProfit: Number(weeklyProfit.toFixed(2)),
+    monthlyProfit: Number(monthlyProfit.toFixed(2)),
+    highestProfitProduct,
+    topProfitableProduct,
+    highestProfitInvoice,
+    hasHistoricalInvoices,
     totalOrders: invoices.length,
     activeCustomers: new Set(
       invoices.map((inv) => String(inv?.customer?._id || inv?.customer || ""))

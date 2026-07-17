@@ -4,6 +4,7 @@ const env = require("../config/env");
 const Product = require("../models/Product");
 const Customer = require("../models/Customer");
 const Invoice = require("../models/Invoice");
+const Shop = require("../models/Shop");
 const { calculateInvoiceTotals } = require("./calculateInvoice");
 const { recalculateAllCustomerMetrics } = require("../services/customerMetrics");
 
@@ -14,24 +15,26 @@ const products = [
     category: "Grocery",
     stock: 320,
     price: 760,
+    costPrice: 530,
   },
-  { sku: "GRO-002", name: "Aashirvaad Atta 5kg", category: "Grocery", stock: 280, price: 315 },
-  { sku: "GRO-003", name: "Fortune Sunflower Oil 1L", category: "Grocery", stock: 260, price: 165 },
-  { sku: "DAI-014", name: "Amul Taaza Milk 1L", category: "Dairy", stock: 420, price: 68 },
-  { sku: "DAI-022", name: "Amul Butter 500g", category: "Dairy", stock: 180, price: 285 },
-  { sku: "SNK-091", name: "Haldiram's Namkeen 400g", category: "Snacks", stock: 220, price: 145 },
-  { sku: "SNK-102", name: "Britannia Good Day 600g", category: "Snacks", stock: 240, price: 130 },
-  { sku: "BEV-030", name: "Tata Tea Premium 1kg", category: "Beverages", stock: 150, price: 520 },
-  { sku: "BEV-041", name: "Nescafe Classic 200g", category: "Beverages", stock: 120, price: 610 },
+  { sku: "GRO-002", name: "Aashirvaad Atta 5kg", category: "Grocery", stock: 280, price: 315, costPrice: 220 },
+  { sku: "GRO-003", name: "Fortune Sunflower Oil 1L", category: "Grocery", stock: 260, price: 165, costPrice: 115 },
+  { sku: "DAI-014", name: "Amul Taaza Milk 1L", category: "Dairy", stock: 420, price: 68, costPrice: 48 },
+  { sku: "DAI-022", name: "Amul Butter 500g", category: "Dairy", stock: 180, price: 285, costPrice: 200 },
+  { sku: "SNK-091", name: "Haldiram's Namkeen 400g", category: "Snacks", stock: 220, price: 145, costPrice: 100 },
+  { sku: "SNK-102", name: "Britannia Good Day 600g", category: "Snacks", stock: 240, price: 130, costPrice: 90 },
+  { sku: "BEV-030", name: "Tata Tea Premium 1kg", category: "Beverages", stock: 150, price: 520, costPrice: 360 },
+  { sku: "BEV-041", name: "Nescafe Classic 200g", category: "Beverages", stock: 120, price: 610, costPrice: 420 },
   {
     sku: "HH-118",
     name: "Surf Excel Detergent 2kg",
     category: "Household",
     stock: 170,
     price: 430,
+    costPrice: 300,
   },
-  { sku: "HH-224", name: "Vim Dishwash Gel 750ml", category: "Household", stock: 210, price: 185 },
-  { sku: "PC-301", name: "Dove Soap Pack of 4", category: "Personal Care", stock: 190, price: 220 },
+  { sku: "HH-224", name: "Vim Dishwash Gel 750ml", category: "Household", stock: 210, price: 185, costPrice: 130 },
+  { sku: "PC-301", name: "Dove Soap Pack of 4", category: "Personal Care", stock: 190, price: 220, costPrice: 150 },
 ];
 
 const customers = [
@@ -172,11 +175,13 @@ function lineItem(product, quantity) {
     sku: product.sku,
     quantity,
     unitPrice: product.price,
+    costPrice: product.costPrice,
+    sellingPrice: product.price,
     lineTotal: parseFloat((quantity * product.price).toFixed(2)),
   };
 }
 
-function buildInvoice({ invoiceNumber, customer, lineItems, status, createdAt }) {
+function buildInvoice({ invoiceNumber, customer, lineItems, status, createdAt, shopId }) {
   const { subtotal, taxRate, tax, total } = calculateInvoiceTotals(lineItems, env.taxRate);
 
   return {
@@ -191,6 +196,7 @@ function buildInvoice({ invoiceNumber, customer, lineItems, status, createdAt })
     status,
     createdAt,
     updatedAt: createdAt,
+    shopId,
   };
 }
 
@@ -239,8 +245,22 @@ async function seed() {
   console.log("Clearing existing data...");
   await Promise.all([Product.deleteMany(), Customer.deleteMany(), Invoice.deleteMany()]);
 
-  const createdProducts = await Product.insertMany(products);
-  const createdCustomers = await Customer.insertMany(customers);
+  let shop = await Shop.findOne();
+  if (!shop) {
+    shop = await Shop.create({
+      shopName: "Demo Store",
+      name: "Demo Store",
+      email: "demo@shoppilot.ai",
+      currency: "INR",
+    });
+  }
+  const shopId = shop._id;
+
+  const productsWithShop = products.map((p) => ({ ...p, shopId }));
+  const customersWithShop = customers.map((c) => ({ ...c, shopId }));
+
+  const createdProducts = await Product.insertMany(productsWithShop);
+  const createdCustomers = await Customer.insertMany(customersWithShop);
   const rng = createRng();
   const weightedCustomers = [
     ...createdCustomers,
@@ -263,6 +283,7 @@ async function seed() {
         lineItems: buildLineItemsForTarget(createdProducts, targetTotal, rng),
         status,
         createdAt,
+        shopId,
       }),
     );
   }

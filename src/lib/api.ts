@@ -141,6 +141,7 @@ function normalizeInvoice(invoice: any): Invoice {
       quantity: Number.isFinite(quantity) ? quantity : 0,
       unitPrice: Number.isFinite(unitPrice) ? unitPrice : 0,
       costPrice: Number(item?.costPrice ?? 0),
+      sellingPrice: Number(item?.sellingPrice ?? unitPrice),
       lineTotal: Number(
         (Number.isFinite(quantity) ? quantity : 0) * (Number.isFinite(unitPrice) ? unitPrice : 0),
       ),
@@ -255,6 +256,7 @@ export type InvoiceLineItem = {
   quantity: number;
   unitPrice: number;
   costPrice?: number;
+  sellingPrice?: number;
   lineTotal: number;
   [key: string]: any;
 };
@@ -328,6 +330,16 @@ export type AnalyticsSummary = {
   pendingRevenue: number;
   collectionEfficiency: number;
   profit: number;
+  totalRevenue?: number;
+  totalCost?: number;
+  profitMargin?: number;
+  todayProfit?: number;
+  weeklyProfit?: number;
+  monthlyProfit?: number;
+  highestProfitProduct?: string;
+  topProfitableProduct?: string;
+  highestProfitInvoice?: string;
+  hasHistoricalInvoices?: boolean;
   totalOrders: number;
   activeCustomers: number;
   avgOrderValue: number;
@@ -401,6 +413,16 @@ export const EMPTY_ANALYTICS: AnalyticsSummary = {
   pendingRevenue: 0,
   collectionEfficiency: 0,
   profit: 0,
+  totalRevenue: 0,
+  totalCost: 0,
+  profitMargin: 0,
+  todayProfit: 0,
+  weeklyProfit: 0,
+  monthlyProfit: 0,
+  highestProfitProduct: "—",
+  topProfitableProduct: "—",
+  highestProfitInvoice: "—",
+  hasHistoricalInvoices: false,
   totalOrders: 0,
   activeCustomers: 0,
   avgOrderValue: 0,

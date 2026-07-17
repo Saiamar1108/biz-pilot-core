@@ -8,6 +8,7 @@ const lineItemSchema = new mongoose.Schema(
     quantity: { type: Number, required: true, min: 1 },
     unitPrice: { type: Number, required: true, min: 0 },
     costPrice: { type: Number, min: 0, default: 0 },
+    sellingPrice: { type: Number, min: 0 },
     lineTotal: { type: Number, required: true, min: 0 },
   },
   { _id: false }

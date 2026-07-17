@@ -369,8 +369,8 @@ async function getCategoryPerformance(products, invoices) {
       const category = product.category;
       const revenue = numberOrZero(item.lineTotal);
       const quantity = numberOrZero(item.quantity);
-      const costPrice = numberOrZero(item.costPrice || item.unitPrice * 0.7);
-      const profit = revenue - (costPrice * quantity);
+      const costPrice = numberOrZero(item.costPrice);
+      const profit = costPrice > 0 ? revenue - (costPrice * quantity) : 0;
 
       categoryRevenue.set(category, (categoryRevenue.get(category) || 0) + revenue);
       categoryProfit.set(category, (categoryProfit.get(category) || 0) + profit);
@@ -403,14 +403,14 @@ async function getStockTurnoverRatio(products, invoices) {
       const product = products.find(p => String(p._id) === String(item.product));
       if (!product) continue;
       const quantity = numberOrZero(item.quantity);
-      const costPrice = numberOrZero(item.costPrice || item.unitPrice * 0.7);
+      const costPrice = numberOrZero(item.costPrice);
       invoiceCOGS += costPrice * quantity;
     }
     return sum + invoiceCOGS;
   }, 0);
 
   const averageInventoryValue = products.reduce((sum, product) => {
-    const costPrice = numberOrZero(product.costPrice || product.price * 0.7);
+    const costPrice = numberOrZero(product.costPrice);
     return sum + (product.stock * costPrice);
   }, 0) / products.length;
 

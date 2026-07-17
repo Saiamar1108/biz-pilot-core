@@ -457,7 +457,17 @@ function buildLiveDataBlock(intent, context) {
     `Active customers: ${toNumber(context.activeCustomers)}`,
     `Average order value: ${formatMoney(context.avgOrderValue)}`,
     `Collection efficiency: ${formatPercent(context.collectionEfficiency)}`,
+    `Total Revenue: ${formatMoney(context.totalRevenue)}`,
+    `Total Cost: ${formatMoney(context.totalCost)}`,
     `Profit: ${formatMoney(context.profit)}`,
+    `Profit Margin: ${formatPercent(context.profitMargin)}`,
+    `Today's Profit: ${formatMoney(context.todayProfit)}`,
+    `Weekly Profit (7d): ${formatMoney(context.weeklyProfit)}`,
+    `Monthly Profit (30d): ${formatMoney(context.monthlyProfit)}`,
+    `Highest Profit Product: ${context.highestProfitProduct || "—"}`,
+    `Top Profitable Product: ${context.topProfitableProduct || "—"}`,
+    `Highest Profit Invoice: ${context.highestProfitInvoice || "—"}`,
+    `Has Historical Invoices: ${context.hasHistoricalInvoices ? "Yes" : "No"}`,
     `Growth rate: ${formatPercent(context.growthRate)}`,
     `Pending invoices: ${toNumber(context.pendingInvoicesCount)}`,
     `Low stock items: ${toNumber(context.lowStockItems?.length)}`,
@@ -616,15 +626,25 @@ function buildDeterministicReply(intent, context) {
       break;
     case "profit":
       lines.push(
-        `Profit for ${rangeLabel}: ${formatMoney(context.profit)} on ${formatMoney(context.totalBilled)} billed revenue.`,
+        `Profit for ${rangeLabel}: ${formatMoney(context.profit)} (Margin: ${formatPercent(context.profitMargin)}) on ${formatMoney(context.totalRevenue)} total revenue.`,
       );
       lines.push(
-        context.mostProfitable.length
-          ? `Most profitable product: ${context.mostProfitable[0].name} with ${formatMoney(
-              context.mostProfitable[0].profit,
-            )} profit contribution.`
-          : "No product-level profit ranking is available yet.",
+        `Total Cost: ${formatMoney(context.totalCost)}.`
       );
+      lines.push(
+        `Today's Profit: ${formatMoney(context.todayProfit)} | Weekly Profit: ${formatMoney(context.weeklyProfit)} | Monthly Profit: ${formatMoney(context.monthlyProfit)}.`
+      );
+      lines.push(
+        `Highest Profit Product: ${context.highestProfitProduct || "—"}.`
+      );
+      lines.push(
+        `Highest Profit Invoice: ${context.highestProfitInvoice || "—"}.`
+      );
+      if (context.hasHistoricalInvoices) {
+        lines.push(
+          `Note: Historical invoices without recorded cost price data are excluded from profit calculations.`
+        );
+      }
       break;
     case "forecasting":
       lines.push(

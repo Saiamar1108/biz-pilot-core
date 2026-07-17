@@ -466,6 +466,64 @@ function AnalyticsPage() {
           />
         </div>
 
+        {safeAnalytics.hasHistoricalInvoices && (
+          <div className="rounded-2xl border border-warning/20 bg-warning/5 p-4 flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-warning shrink-0" />
+            <p className="text-sm text-warning-foreground">
+              Some historical invoices in this period lack Cost Price data. Profit metrics reflect only transactions with recorded costs.
+            </p>
+          </div>
+        )}
+
+        <PageSection title="Profitability Snapshot" description="Real profit analysis based on actual cost prices">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard
+              label="Total Revenue"
+              value={loading ? "…" : formatCurrency(safeAnalytics.totalRevenue ?? 0)}
+              icon={DollarSign}
+              accent="primary"
+            />
+            <StatCard
+              label="Total Cost"
+              value={loading ? "…" : formatCurrency(safeAnalytics.totalCost ?? 0)}
+              icon={TrendingUp}
+              accent="destructive"
+            />
+            <StatCard
+              label="Actual Profit"
+              value={loading ? "…" : formatCurrency(safeAnalytics.profit ?? 0)}
+              icon={Award}
+              accent="emerald"
+            />
+            <StatCard
+              label="Profit Margin"
+              value={loading ? "…" : `${safeAnalytics.profitMargin ?? 0}%`}
+              icon={TrendingUp}
+              accent="emerald"
+            />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
+            <StatCard
+              label="Today's Profit"
+              value={loading ? "…" : formatCurrency(safeAnalytics.todayProfit ?? 0)}
+              icon={Clock}
+              accent="primary"
+            />
+            <StatCard
+              label="Weekly Profit (7d)"
+              value={loading ? "…" : formatCurrency(safeAnalytics.weeklyProfit ?? 0)}
+              icon={Clock}
+              accent="warning"
+            />
+            <StatCard
+              label="Monthly Profit (30d)"
+              value={loading ? "…" : formatCurrency(safeAnalytics.monthlyProfit ?? 0)}
+              icon={Calendar}
+              accent="emerald"
+            />
+          </div>
+        </PageSection>
+
         <div className="grid lg:grid-cols-3 gap-6">
           <PageSection
             title="Cashflow Chart"

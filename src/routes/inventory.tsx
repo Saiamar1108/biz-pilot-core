@@ -29,7 +29,7 @@ function InventoryPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: "", sku: "", category: "", stock: "", price: "", barcode: "", expiryDate: "" });
+  const [form, setForm] = useState({ name: "", sku: "", category: "", stock: "", price: "", costPrice: "", barcode: "", expiryDate: "" });
   const [submitting, setSubmitting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -102,7 +102,7 @@ function InventoryPage() {
   );
 
   const resetForm = () => {
-    setForm({ name: "", sku: "", category: "", stock: "", price: "" });
+    setForm({ name: "", sku: "", category: "", stock: "", price: "", costPrice: "", barcode: "", expiryDate: "" });
     setEditingProductId(null);
   };
 
@@ -119,6 +119,7 @@ function InventoryPage() {
       category: product.category,
       stock: String(product.stock),
       price: String(product.price),
+      costPrice: String(product.costPrice ?? ""),
       barcode: product.barcode || "",
       expiryDate: product.expiryDate ? product.expiryDate.split('T')[0] : "",
     });
@@ -154,8 +155,21 @@ function InventoryPage() {
   const handleSaveProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!form.name || !form.sku || !form.category || form.stock === "" || form.price === "") {
+    if (!form.name || !form.sku || !form.category || form.stock === "" || form.price === "" || form.costPrice === "") {
       setError("Please complete all required product fields.");
+      return;
+    }
+
+    const priceNum = Number(form.price);
+    const costPriceNum = Number(form.costPrice);
+
+    if (isNaN(priceNum) || priceNum <= 0) {
+      setError("Selling Price must be greater than 0.");
+      return;
+    }
+
+    if (isNaN(costPriceNum) || costPriceNum <= 0) {
+      setError("Cost Price must be greater than 0.");
       return;
     }
 
@@ -169,7 +183,8 @@ function InventoryPage() {
         sku: form.sku,
         category: form.category,
         stock: Number(form.stock),
-        price: Number(form.price),
+        price: priceNum,
+        costPrice: costPriceNum,
       };
       
       if (form.barcode) productData.barcode = form.barcode;
@@ -283,11 +298,15 @@ function InventoryPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div><Label className="mb-2 block">Stock</Label><Input type="number" placeholder="0" value={form.stock} onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))} /></div>
-                      <div><Label className="mb-2 block">Price</Label><Input type="number" placeholder="0.00" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></div>
+                      <div><Label className="mb-2 block">Cost Price (₹)</Label><Input type="number" step="any" placeholder="0.00" value={form.costPrice} onChange={(event) => setForm((current) => ({ ...current, costPrice: event.target.value }))} /></div>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
+                      <div><Label className="mb-2 block">Selling Price (₹)</Label><Input type="number" step="any" placeholder="0.00" value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></div>
                       <div><Label className="mb-2 block">Barcode (Optional)</Label><Input placeholder="1234567890123" value={form.barcode} onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))} /></div>
-                      <div><Label className="mb-2 block">Expiry Date (Optional)</Label><Input type="date" value={form.expiryDate} onChange={(event) => setForm((current) => ({ ...current, expiryDate: event.target.value }))} /></div>
+                    </div>
+                    <div>
+                      <Label className="mb-2 block">Expiry Date (Optional)</Label>
+                      <Input type="date" value={form.expiryDate} onChange={(event) => setForm((current) => ({ ...current, expiryDate: event.target.value }))} />
                     </div>
                     <DialogFooter>
                       <Button type="submit" className="gradient-primary text-primary-foreground" disabled={submitting}>{submitting ? (editingProductId ? "Saving..." : "Adding...") : editingProductId ? "Save Changes" : "Add Product"}</Button>
@@ -309,7 +328,8 @@ function InventoryPage() {
                   <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Barcode</th>
                   <th className="text-left px-5 py-3 font-semibold hidden lg:table-cell">Expiry</th>
                   <th className="text-right px-5 py-3 font-semibold">Stock</th>
-                  <th className="text-right px-5 py-3 font-semibold">Price</th>
+                  <th className="text-right px-5 py-3 font-semibold hidden sm:table-cell">Cost Price</th>
+                  <th className="text-right px-5 py-3 font-semibold">Selling Price</th>
                   <th className="text-right px-5 py-3 font-semibold hidden lg:table-cell">Sold</th>
                   <th className="text-right px-5 py-3 font-semibold">Actions</th>
                 </tr>
@@ -354,6 +374,7 @@ function InventoryPage() {
                           i.stock
                         )}
                       </td>
+                      <td className="px-5 py-4 text-right hidden sm:table-cell">{formatCurrency(i.costPrice ?? 0)}</td>
                       <td className="px-5 py-4 text-right">{formatCurrency(i.price)}</td>
                       <td className="px-5 py-4 text-right text-muted-foreground hidden lg:table-cell">{i.sold}</td>
                       <td className="px-5 py-4 text-right">

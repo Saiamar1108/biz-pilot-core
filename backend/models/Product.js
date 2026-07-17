@@ -16,8 +16,8 @@ const productSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     category: { type: String, required: true, trim: true },
     stock: { type: Number, required: true, min: 0, default: 0 },
-    price: { type: Number, required: true, min: 0 },
-    costPrice: { type: Number, min: 0, default: 0 },
+    price: { type: Number, required: true, min: 0.01 },
+    costPrice: { type: Number, required: true, min: 0.01 },
     sold: { type: Number, default: 0, min: 0 },
     stockMovements: { type: [movementSchema], default: [] },
     shopId: { 

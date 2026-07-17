@@ -1,8 +1,14 @@
 import type { Customer, Invoice } from "@/lib/api";
 
-export function calculateInvoiceProfit(invoice: Invoice) {
+export function calculateInvoiceProfit(invoice: Invoice): number | null {
+  const hasHistorical = invoice.lineItems.some(
+    (item) => item.costPrice === undefined || item.costPrice === null || item.costPrice <= 0,
+  );
+  if (hasHistorical) {
+    return null;
+  }
   return invoice.lineItems.reduce((sum, item) => {
-    const cost = item.costPrice > 0 ? item.costPrice : item.unitPrice * 0.7;
+    const cost = item.costPrice ?? 0;
     return sum + (item.unitPrice - cost) * item.quantity;
   }, 0);
 }
@@ -106,7 +112,10 @@ export function exportInvoicesCsv(invoices: Invoice[]) {
       : invoice.status === "partial"
         ? invoice.pendingAmount
         : invoice.amount,
-    calculateInvoiceProfit(invoice).toFixed(2),
+    (() => {
+      const profit = calculateInvoiceProfit(invoice);
+      return profit === null ? "Profit unavailable for historical invoices." : profit.toFixed(2);
+    })(),
   ]);
 
   const csv = [header, ...rows]
