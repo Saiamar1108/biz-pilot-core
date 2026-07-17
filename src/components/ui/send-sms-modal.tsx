@@ -29,8 +29,10 @@ export default function SendSmsModal({ open, onOpenChange, customerName, custome
 
     const phone = customerPhone.replace(/[^0-9+]/g, "");
     const body = encodeURIComponent(message || "");
-    // Use sms: URL scheme; ?body is widely supported
-    const url = `sms:${phone}?body=${body}`;
+    // Use sms: URL scheme. iOS expects '&' between number and body, Android/others support '?'
+    const isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const sep = isIos ? "&" : "?";
+    const url = `sms:${phone}${sep}body=${body}`;
     // Close modal and open SMS app
     onOpenChange(false);
     try {
