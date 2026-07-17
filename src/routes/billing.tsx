@@ -1153,7 +1153,7 @@ function BillingPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-2 mt-4">
+            <div className="grid grid-cols-3 gap-2 mt-4">
               <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={!invoiceCreated}>
                 <Download className="h-4 w-4 mr-1" /> PDF
               </Button>
@@ -1164,6 +1164,25 @@ function BillingPage() {
                 disabled={!selectedCustomer || !hasPhone || payloadLines.length === 0 || submitting}
               >
                 <Send className="h-4 w-4 mr-1" /> Send
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  if (!selectedCustomer) {
+                    toast.error("Select a customer to send SMS.");
+                    return;
+                  }
+                  if (!hasPhone) {
+                    toast.error("Customer phone number is missing.");
+                    return;
+                  }
+                  setSmsTarget({ name: selectedCustomer?.name, phone: selectedCustomer?.phone });
+                  setSmsOpen(true);
+                }}
+                disabled={!invoiceCreated || !selectedCustomer || !hasPhone}
+              >
+                <Send className="h-4 w-4 mr-1" /> SMS
               </Button>
             </div>
 
