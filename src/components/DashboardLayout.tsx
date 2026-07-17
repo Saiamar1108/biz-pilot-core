@@ -178,7 +178,14 @@ export function DashboardLayout({
               <div className="grid h-10 w-10 place-items-center rounded-xl gradient-primary shadow-glow transition-transform duration-300 hover:scale-105">
                 <Zap className="h-5.5 w-5.5 text-primary-foreground" fill="currentColor" />
               </div>
-              <span className="font-display text-xl font-bold tracking-tight">ShopPilot AI</span>
+              <div className="flex flex-col">
+                <span className="font-display text-base font-bold tracking-tight leading-none">ShopPilot AI</span>
+                {user?.email === "demo@shoppilot.ai" && (
+                  <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 w-fit mt-1">
+                    Demo Mode
+                  </span>
+                )}
+              </div>
             </Link>
             <button className="lg:hidden" onClick={() => setMobileOpen(false)}>
               <X className="h-5.5 w-5.5" />
@@ -327,14 +334,38 @@ export function DashboardLayout({
               <button className="lg:hidden" onClick={() => setMobileOpen(true)}>
                 <Menu className="h-5 w-5" />
               </button>
-              <div className="min-w-0 md:hidden">
+              <div className="min-w-0 md:hidden flex items-center gap-2">
                 <h1 className="font-display text-lg font-bold truncate">{title ?? "Dashboard"}</h1>
+                {user?.email === "demo@shoppilot.ai" && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                    Demo Mode
+                  </span>
+                )}
               </div>
               <div className="hidden md:block min-w-0">
-                <h1 className="font-display text-xl font-bold truncate">{title ?? "Dashboard"}</h1>
+                <div className="flex items-center gap-3">
+                  <h1 className="font-display text-xl font-bold truncate">{title ?? "Dashboard"}</h1>
+                  {user?.email === "demo@shoppilot.ai" && (
+                    <span className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Demo Mode
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              {user?.email === "demo@shoppilot.ai" && (
+                <div className="hidden sm:flex flex-col items-end mr-2.5 select-none">
+                  <span className="text-xs font-bold text-emerald-500 flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Demo Mode
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-medium">
+                    Using Sample Business Data
+                  </span>
+                </div>
+              )}
               <Button variant="outline" size="icon" onClick={toggleTheme} className="relative">
                 <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
                 <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />

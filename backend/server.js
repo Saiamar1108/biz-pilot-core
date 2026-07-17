@@ -10,6 +10,7 @@ const env = require("./config/env");
 const Setting = require("./models/Setting");
 const { notFound, errorHandler } = require("./middlewares/errorHandler");
 const { runTenancyMigration } = require("./utils/migrateTenancy");
+const { seedDemoAccount } = require("./utils/demoAccountSeeder");
 
 const authRoutes = require("./routes/authRoutes");
 const productRoutes = require("./routes/productRoutes");
@@ -100,6 +101,7 @@ async function startServer() {
     await connectDB();
     await Setting.syncIndexes();
     await runTenancyMigration();
+    await seedDemoAccount();
 
     app.listen(env.port, () => {
       console.log(`ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`);

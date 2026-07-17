@@ -34,6 +34,12 @@ function LoginPage() {
     return next;
   }, [email, password, touched]);
 
+  const handleUseDemo = () => {
+    setEmail("demo@shoppilot.ai");
+    setPassword("Demo@123");
+    setTouched({ email: false, password: false });
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setTouched({ email: true, password: true });
@@ -140,6 +146,28 @@ function LoginPage() {
             </Link>
           </p>
         </form>
+
+        <div className="mt-6 pt-6 border-t border-border/40 space-y-4">
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            <span className="h-px flex-1 bg-border/40" />
+            <span>🚀 Demo Account</span>
+            <span className="h-px flex-1 bg-border/40" />
+          </div>
+          
+          <div className="bg-secondary/40 border border-border/30 rounded-xl p-4 text-sm space-y-2">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 text-xs">
+              <span className="text-muted-foreground">Email: <strong className="text-foreground select-all">demo@shoppilot.ai</strong></span>
+              <span className="text-muted-foreground">Password: <strong className="text-foreground select-all">Demo@123</strong></span>
+            </div>
+            <button
+              type="button"
+              className="w-full h-9 rounded-md bg-secondary border border-border text-foreground hover:bg-primary hover:text-primary-foreground transition-all duration-200 text-sm font-medium cursor-pointer"
+              onClick={handleUseDemo}
+            >
+              Use Demo Account
+            </button>
+          </div>
+        </div>
       </div>
     </AuthLayout>
   );
