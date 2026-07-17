@@ -29,6 +29,7 @@ import {
   MapPin,
 } from "lucide-react";
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import SendSmsModal from "@/components/ui/send-sms-modal";
 import {
   createCustomer,
   getCustomers,
@@ -67,6 +68,8 @@ function CustomersPage() {
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [isCustomerDialogOpen, setIsCustomerDialogOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsTarget, setSmsTarget] = useState<{ name?: string; phone?: string } | null>(null);
   const [form, setForm] = useState<CustomerPayload>({
     name: "",
     phone: "",
@@ -536,6 +539,12 @@ function CustomersPage() {
           </PageSection>
         </div>
       </div>
+      <SendSmsModal
+        open={smsOpen}
+        onOpenChange={(v) => setSmsOpen(v)}
+        customerName={smsTarget?.name}
+        customerPhone={smsTarget?.phone}
+      />
       <Dialog open={isCustomerDialogOpen} onOpenChange={setIsCustomerDialogOpen}>
         <DialogContent>
           <DialogHeader>

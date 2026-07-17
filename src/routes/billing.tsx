@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import SendSmsModal from "@/components/ui/send-sms-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { QuantityControl } from "@/components/dashboard/QuantityControl";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -94,6 +95,8 @@ function BillingPage() {
   const [business, setBusiness] = useState<BusinessProfile | null>(null);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [smsOpen, setSmsOpen] = useState(false);
+  const [smsTarget, setSmsTarget] = useState<{ name?: string; phone?: string } | null>(null);
   const [customerForm, setCustomerForm] = useState<CustomerPayload>({
     name: "",
     phone: "",
@@ -376,6 +379,25 @@ function BillingPage() {
   const openCreateCustomer = (prefillName = "") => {
     setCustomerForm((current) => ({ ...current, name: prefillName || current.name }));
     setCustomerDialogOpen(true);
+  };
+
+  const openSendSms = () => {
+    if (!customer) {
+      // no customer selected in billing
+      toast.error("Please select a customer.");
+      return;
+    }
+    const sel = customers.find((c) => c.id === customer);
+    if (!sel) {
+      toast.error("Please select a customer.");
+      return;
+    }
+    if (!sel.phone) {
+      toast.error("Customer phone number is missing.");
+      return;
+    }
+    setSmsTarget({ name: sel.name, phone: sel.phone });
+    setSmsOpen(true);
   };
 
   const saveInlineCustomer = async (event: FormEvent<HTMLFormElement>) => {
@@ -764,9 +786,14 @@ function BillingPage() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <Label>Customer</Label>
-                <Button type="button" variant="outline" size="sm" onClick={() => openCreateCustomer()}>
-                  <UserPlus className="h-4 w-4 mr-1" /> Add Customer
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => openCreateCustomer()}>
+                    <UserPlus className="h-4 w-4 mr-1" /> Add Customer
+                  </Button>
+                  <Button type="button" variant="outline" size="sm" onClick={openSendSms}>
+                    Send SMS
+                  </Button>
+                </div>
               </div>
               <CustomerSearchCombobox
                 customers={customers}
@@ -1102,8 +1129,6 @@ function BillingPage() {
                       <SelectContent>
                         <SelectItem value="Cash">Cash</SelectItem>
                         <SelectItem value="UPI">UPI</SelectItem>
-                        <SelectItem value="Card">Card</SelectItem>
-                        <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
                       </SelectContent>
                     </Select>
                     <Button
@@ -1150,6 +1175,13 @@ function BillingPage() {
           </div>
         </div>
       </div>
+
+      <SendSmsModal
+        open={smsOpen}
+        onOpenChange={(v) => setSmsOpen(v)}
+        customerName={smsTarget?.name ?? selectedCustomer?.name}
+        customerPhone={smsTarget?.phone ?? selectedCustomer?.phone}
+      />
 
       <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
         <DialogContent>

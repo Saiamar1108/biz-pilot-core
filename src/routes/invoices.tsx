@@ -540,8 +540,7 @@ function InvoicesPage() {
                                   <SelectContent>
                                     <SelectItem value="Cash">Cash</SelectItem>
                                     <SelectItem value="UPI">UPI</SelectItem>
-                                    <SelectItem value="Card">Card</SelectItem>
-                                    <SelectItem value="Bank Transfer">Bank Transfer</SelectItem>
+                                    
                                   </SelectContent>
                                 </Select>
                               </div>
