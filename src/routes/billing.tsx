@@ -291,6 +291,7 @@ function BillingPage() {
   const remainingAmount = completedInvoice
     ? Math.max(0, completedInvoice.total - paidAmount)
     : total;
+  const showBillingEmptyState = !invoiceCreated && payloadLines.length === 0;
 
   const refreshCatalog = async () => {
     setCustomersLoading(true);
