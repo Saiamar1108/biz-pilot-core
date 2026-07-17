@@ -1,6 +1,7 @@
 import { Calendar, AlertTriangle, TrendingUp, Package, ShoppingBag } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { PageSection } from "@/components/dashboard/PageSection";
+import { EmptyState } from "@/components/ui/empty-state";
 import { formatCurrency } from "@/lib/currency";
 import { getInventoryInsights } from "@/lib/api";
 import { useEffect, useState } from "react";
@@ -155,7 +156,12 @@ export function InventoryWidgets({ businessName }: InventoryWidgetsProps) {
       <PageSection title="Fastest Selling Products" description="Top performers by sales volume">
         <div className="space-y-2">
           {topSellers.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No sales data yet.</p>
+            <EmptyState
+              icon={TrendingUp}
+              title="Sales insights will appear here."
+              description="Top sellers surface once your first sales are recorded."
+              className="p-6"
+            />
           ) : (
             topSellers.map((item: any, index: number) => (
               <div key={item.id} className="flex items-center justify-between p-2 rounded-lg bg-secondary/30 border border-border/40">

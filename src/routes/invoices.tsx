@@ -7,6 +7,7 @@ import { InvoiceActions } from "@/components/billing/InvoiceActions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   Select,
   SelectContent,
@@ -272,7 +273,11 @@ function InvoicesPage() {
         <div className="grid lg:grid-cols-2 gap-6">
           <PageSection title="Top Unpaid Customers" description="Highest outstanding balances">
             {topUnpaid.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No unpaid balances.</p>
+              <EmptyState
+                icon={AlertTriangle}
+                title="No payments yet."
+                description="Outstanding balances will appear here once invoices start to be paid."
+              />
             ) : (
               <div className="space-y-2">
                 {topUnpaid.map((row) => (
@@ -289,7 +294,11 @@ function InvoicesPage() {
 
           <PageSection title="Most Purchased Products" description="From filtered invoices">
             {topProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No product sales yet.</p>
+              <EmptyState
+                icon={Receipt}
+                title="Generate your first invoice."
+                description="Once invoices are created, your most purchased products will appear here."
+              />
             ) : (
               <div className="space-y-2">
                 {topProducts.map((product) => (
@@ -361,7 +370,13 @@ function InvoicesPage() {
           {loading ? (
             <div className="py-8 text-sm text-muted-foreground">Loading invoices…</div>
           ) : filtered.length === 0 ? (
-            <div className="py-8 text-sm text-muted-foreground text-center">No invoices found.</div>
+            <EmptyState
+              icon={Receipt}
+              title="Generate your first invoice."
+              description="Your invoice history will appear here as soon as you send your first bill."
+              actionLabel="Create First Invoice"
+              onAction={() => navigate({ to: "/billing" })}
+            />
           ) : (
             <div className="space-y-3">
               {filtered.map((invoice) => {

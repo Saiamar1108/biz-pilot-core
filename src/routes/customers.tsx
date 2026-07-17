@@ -5,6 +5,7 @@ import { PageSection } from "@/components/dashboard/PageSection";
 import { StatusBadge } from "@/components/dashboard/StatusBadge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -332,6 +333,14 @@ function CustomersPage() {
 
           {loading ? (
             <div className="py-8 text-sm text-muted-foreground">Loading customers…</div>
+          ) : customers.length === 0 ? (
+            <EmptyState
+              icon={Users}
+              title="Add your first customer."
+              description="Invite your first customer and start building recurring relationships from day one."
+              actionLabel="Add Customer"
+              onAction={openAddCustomer}
+            />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((customer) => (

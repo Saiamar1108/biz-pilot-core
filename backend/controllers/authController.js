@@ -119,12 +119,12 @@ exports.register = asyncHandler(async (req, res) => {
     await shop.save();
   }
 
-  // Seed demo data (10 products + 10 customers)
+  // Seed the inventory demo products for the new workspace.
   try {
     await seedDemoData(shop._id);
-    console.log("Demo data seeded successfully");
+    console.log("Inventory demo products seeded successfully");
   } catch (error) {
-    console.error("Demo data seed failed:", error.message);
+    console.error("Inventory demo product seed failed:", error.message);
   }
 
   const { accessToken, refreshToken } = await issueAuthTokens(user, {

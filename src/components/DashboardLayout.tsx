@@ -335,7 +335,13 @@ export function DashboardLayout({
                   </div>
                   <div className="max-h-80 overflow-y-auto">
                     {notifications.length === 0 ? (
-                      <div className="p-4 text-sm text-muted-foreground">No notifications yet.</div>
+                      <div className="p-4 text-sm text-muted-foreground">
+                        <div className="flex min-h-[120px] flex-col items-center justify-center rounded-xl border border-dashed border-border/70 bg-background/60 px-4 py-6 text-center">
+                          <Bell className="mb-3 h-6 w-6 text-muted-foreground" />
+                          <div className="font-medium">You&apos;re all caught up.</div>
+                          <div className="mt-1 text-xs text-muted-foreground">Notifications will appear here once activity starts.</div>
+                        </div>
+                      </div>
                     ) : (
                       notifications.map((item) => (
                         <button

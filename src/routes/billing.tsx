@@ -4,6 +4,7 @@ import { CustomerSearchCombobox } from "@/components/billing/CustomerSearchCombo
 import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
 import { ProductSearchCombobox } from "@/components/billing/ProductSearchCombobox";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -842,6 +843,23 @@ function BillingPage() {
                     ))}
                   </div>
                 )}
+              </div>
+            )}
+
+            {showBillingEmptyState && (
+              <div className="mb-6">
+                <EmptyState
+                  icon={FileText}
+                  title="Create your first invoice."
+                  description="Start from a blank slate and turn your first cart into a polished bill."
+                  actionLabel="Create First Invoice"
+                  onAction={() => {
+                    addLine();
+                    if (customers.length === 1) {
+                      setCustomer(customers[0].id);
+                    }
+                  }}
+                />
               </div>
             )}
 

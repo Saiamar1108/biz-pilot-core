@@ -5,6 +5,7 @@ import { PageSection } from "@/components/dashboard/PageSection";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   LineChart,
   Line,
@@ -109,7 +110,14 @@ function ProductTable({
   const safeRows = rows?.filter(Boolean) ?? [];
 
   if (!safeRows.length) {
-    return <p className="text-sm text-muted-foreground">No product data for this period.</p>;
+    return (
+      <EmptyState
+        icon={TrendingUp}
+        title="Sales performance will appear here."
+        description="This product table populates once you have invoice activity in the selected period."
+        className="p-6"
+      />
+    );
   }
 
   return (
@@ -150,7 +158,14 @@ function CustomerList({
   const safeRows = rows?.filter(Boolean) ?? [];
 
   if (!safeRows.length) {
-    return <p className="text-sm text-muted-foreground">No customer data yet.</p>;
+    return (
+      <EmptyState
+        icon={Users}
+        title="Customer intelligence will appear here."
+        description="Top paying customers show up once your first invoice is issued."
+        className="p-6"
+      />
+    );
   }
 
   return (
@@ -459,9 +474,11 @@ function AnalyticsPage() {
           >
             <div className="h-80">
               {revenue.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  No monthly revenue data yet.
-                </div>
+                <EmptyState
+                  icon={TrendingUp}
+                  title="Start selling to unlock insights."
+                  description="Once you create your first invoice, this chart will begin showing sales momentum and cashflow."
+                />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={revenue}>
@@ -493,9 +510,11 @@ function AnalyticsPage() {
           <PageSection title="Outstanding Receivables" description="Pending by invoice month">
             <div className="h-80">
               {receivables.length === 0 ? (
-                <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                  No outstanding receivables yet.
-                </div>
+                <EmptyState
+                  icon={TrendingUp}
+                  title="Start selling to unlock insights."
+                  description="Outstanding receivables will appear here once your invoice flow starts moving."
+                />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={receivables}>
@@ -519,9 +538,11 @@ function AnalyticsPage() {
         <PageSection title="Profit Trends" description="Revenue vs Profit vs Pending (monthly)">
           <div className="h-80">
             {profitTrends.length === 0 ? (
-              <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                No profit trend data yet.
-              </div>
+              <EmptyState
+                icon={TrendingUp}
+                title="Start selling to unlock insights."
+                description="Profit trends will appear as your storefront starts generating revenue."
+              />
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={profitTrends}>
@@ -552,7 +573,11 @@ function AnalyticsPage() {
               <TabsContent value="category" className="mt-0 space-y-4">
                 <div className="h-64">
                   {categoryPie.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No category sales yet.</p>
+                    <EmptyState
+                      icon={TrendingUp}
+                      title="Start selling to unlock insights."
+                      description="Category performance will appear as soon as your first sales start flowing in."
+                    />
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
@@ -586,7 +611,11 @@ function AnalyticsPage() {
               <TabsContent value="product" className="mt-0 space-y-4">
                 <div className="h-64">
                   {categoryBar.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No product sales yet.</p>
+                    <EmptyState
+                      icon={TrendingUp}
+                      title="Start selling to unlock insights."
+                      description="Your top products will appear here once the first sales roll in."
+                    />
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={categoryBar}>
@@ -668,7 +697,11 @@ function AnalyticsPage() {
           <PageSection title="Invoice Aging" description="Pending amounts by age bucket">
             <div className="h-64 mb-4">
               {(safeAnalytics.invoiceAging ?? []).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No pending invoices to age.</p>
+                <EmptyState
+                  icon={TrendingUp}
+                  title="Start selling to unlock insights."
+                  description="Aging summary will appear once you have paid and unpaid invoices in motion."
+                />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={safeAnalytics.invoiceAging ?? []}>
@@ -702,9 +735,11 @@ function AnalyticsPage() {
         <PageSection title="Smart Predictions" description="AI-powered business forecasts">
           <div className="grid md:grid-cols-3 gap-4">
             {predictions.length === 0 ? (
-              <p className="text-sm text-muted-foreground md:col-span-3">
-                Predictions will appear as your store accumulates data.
-              </p>
+              <EmptyState
+                icon={TrendingUp}
+                title="Start selling to unlock insights."
+                description="AI forecasts will appear as your business starts generating activity."
+              />
             ) : (
               predictions?.filter(Boolean)?.map((prediction, index) => {
                 const icons = [Package, TrendingUp, Users];
@@ -733,7 +768,11 @@ function AnalyticsPage() {
         <PageSection title="Top Products">
           <div className="space-y-3">
             {analyticsArrays.topProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No product sales data yet.</p>
+              <EmptyState
+                icon={TrendingUp}
+                title="Start selling to unlock insights."
+                description="Your top products will appear here once your first sales start rolling in."
+              />
             ) : (
               analyticsArrays.topProducts
                 ?.filter(Boolean)

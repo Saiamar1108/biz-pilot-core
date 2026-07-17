@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { StatCard } from "@/components/StatCard";
 import { PageSection } from "@/components/dashboard/PageSection";
@@ -7,9 +7,10 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RecentInvoices } from "@/components/dashboard/RecentInvoices";
 import { LowStockAlerts } from "@/components/dashboard/LowStockAlerts";
 import { InventoryWidgets } from "@/components/inventory/InventoryWidgets";
-import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp } from "lucide-react";
+import { DollarSign, ShoppingCart, AlertTriangle, Users, TrendingUp, FileText } from "lucide-react";
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from "recharts";
 import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { useEffect, useMemo, useState } from "react";
 import { getAnalytics, getInvoices, getProducts, getSettings, type AnalyticsSummary, type Invoice, type Product } from "@/lib/api";
 import { formatGrowthRate } from "@/lib/analytics";
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
+  const navigate = useNavigate();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [analytics, setAnalytics] = useState<AnalyticsSummary | null>(null);
@@ -149,6 +151,13 @@ function DashboardPage() {
                 <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
                   Loading sales…
                 </div>
+              ) : salesData.length === 0 ? (
+                <EmptyState
+                  icon={FileText}
+                  title="No sales data yet"
+                  description="Once you have sales, they will appear here."
+                  className="h-full"
+                />
               ) : (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={salesData}>
@@ -221,7 +230,13 @@ function DashboardPage() {
             {loading ? (
               <div className="py-8 text-sm text-muted-foreground">Loading invoices…</div>
             ) : recentInvoices.length === 0 ? (
-              <div className="py-8 text-center text-sm text-muted-foreground">No invoices received yet.</div>
+              <EmptyState
+                icon={FileText}
+                title="Start your first sale."
+                description="Create your first invoice and your dashboard will begin telling the story of your business."
+                actionLabel="Create First Invoice"
+                onAction={() => navigate({ to: "/billing" })}
+              />
             ) : (
               <RecentInvoices invoices={recentInvoices} />
             )}
