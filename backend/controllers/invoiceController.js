@@ -83,7 +83,7 @@ exports.createInvoice = asyncHandler(async (req, res) => {
   const rate = numberOrZero(taxRate ?? env.taxRate);
   const { subtotal, tax, total } = calculateInvoiceTotals(lineItems, rate);
 
-  const invoiceNumber = await generateInvoiceNumber();
+  const invoiceNumber = await generateInvoiceNumber(req.shopId);
 
   const invoice = await Invoice.create({
     invoiceNumber,

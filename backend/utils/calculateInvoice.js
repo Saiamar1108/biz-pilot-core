@@ -123,15 +123,33 @@ async function buildLineItems(rawItems, shopId) {
   return lineItems;
 }
 
-async function generateInvoiceNumber() {
+async function generateInvoiceNumber(shopId) {
   const Invoice = require("../models/Invoice");
+  const Shop = require("../models/Shop");
+  
+  let prefix = "SP";
+  if (shopId) {
+    try {
+      const shop = await Shop.findById(shopId).lean();
+      if (shop?.invoicePrefix) {
+        prefix = shop.invoicePrefix.trim().replace(/[^a-zA-Z0-9-]/g, ""); // sanitize
+        if (prefix.endsWith("-")) {
+          prefix = prefix.slice(0, -1);
+        }
+      }
+    } catch (err) {
+      console.error("[calculateInvoice] Failed to fetch invoicePrefix for sequence generator:", err);
+    }
+  }
+
   const year = new Date().getFullYear();
-  const latest = await Invoice.findOne({ invoiceNumber: new RegExp(`^SP-${year}-`) })
+  const pattern = new RegExp(`^${prefix}-${year}-`);
+  const latest = await Invoice.findOne({ invoiceNumber: pattern, shopId })
     .sort({ invoiceNumber: -1 })
     .select("invoiceNumber")
     .lean();
   const latestSequence = latest?.invoiceNumber ? Number(latest.invoiceNumber.split("-").at(-1)) : 0;
-  return `SP-${year}-${String(latestSequence + 1).padStart(4, "0")}`;
+  return `${prefix}-${year}-${String(latestSequence + 1).padStart(4, "0")}`;
 }
 
 module.exports = { calculateInvoiceTotals, buildLineItems, generateInvoiceNumber };

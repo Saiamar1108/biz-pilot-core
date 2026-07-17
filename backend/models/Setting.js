@@ -2,10 +2,14 @@ const mongoose = require("mongoose");
 
 const notificationSchema = new mongoose.Schema(
   {
-    invoiceNotifications: { type: Boolean, default: true },
-    stockAlerts: { type: Boolean, default: true },
-    paymentReminders: { type: Boolean, default: true },
-    aiInsightsAlerts: { type: Boolean, default: false },
+    email: { type: Boolean, default: true },
+    whatsapp: { type: Boolean, default: true },
+    desktop: { type: Boolean, default: true },
+    push: { type: Boolean, default: false },
+    lowStock: { type: Boolean, default: true },
+    invoicePaid: { type: Boolean, default: true },
+    purchaseOrders: { type: Boolean, default: true },
+    aiAlerts: { type: Boolean, default: false },
   },
   { _id: false },
 );

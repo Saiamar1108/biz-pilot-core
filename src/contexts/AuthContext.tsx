@@ -62,6 +62,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await fetchCurrentSession();
       setUser(session.user);
       setShop(session.shop);
+      if (session.shop?.currency) {
+        localStorage.setItem("sp_currency", session.shop.currency);
+      }
     } catch {
       setAccessToken(null);
       setUser(null);
@@ -77,7 +80,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const session = await loginAccount({ email, password, rememberMe });
     setUser(session.user);
     setShop(session.shop);
-    void navigate({ to: "/dashboard" });
+    if (session.shop?.currency) {
+      localStorage.setItem("sp_currency", session.shop.currency);
+    }
+    const startPage = localStorage.getItem("sp_start_page") || "/dashboard";
+    void navigate({ to: startPage as any });
   }, []);
 
   const register = useCallback(
@@ -91,7 +98,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const session = await registerAccount(payload);
       setUser(session.user);
       setShop(session.shop);
-      void navigate({ to: "/dashboard" });
+      if (session.shop?.currency) {
+        localStorage.setItem("sp_currency", session.shop.currency);
+      }
+      const startPage = localStorage.getItem("sp_start_page") || "/dashboard";
+      void navigate({ to: startPage as any });
     },
     [],
   );

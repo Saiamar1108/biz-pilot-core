@@ -124,6 +124,29 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    if (typeof window !== "undefined" && !(window as any).__date_patched) {
+      (window as any).__date_patched = true;
+      const originalToLocaleDateString = Date.prototype.toLocaleDateString;
+      Date.prototype.toLocaleDateString = function (locales, options) {
+        const dateFormat = localStorage.getItem("sp_date_format") || "DD/MM/YYYY";
+        if (!options) {
+          const day = String(this.getDate()).padStart(2, "0");
+          const month = String(this.getMonth() + 1).padStart(2, "0");
+          const year = this.getFullYear();
+          if (dateFormat === "MM/DD/YYYY") {
+            return `${month}/${day}/${year}`;
+          }
+          if (dateFormat === "YYYY-MM-DD") {
+            return `${year}-${month}-${day}`;
+          }
+          return `${day}/${month}/${year}`;
+        }
+        return originalToLocaleDateString.call(this, locales || "en-IN", options);
+      };
+    }
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
