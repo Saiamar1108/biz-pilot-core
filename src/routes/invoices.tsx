@@ -275,8 +275,8 @@ function InvoicesPage() {
             {topUnpaid.length === 0 ? (
               <EmptyState
                 icon={AlertTriangle}
-                title="No payments yet."
-                description="Outstanding balances will appear here once invoices start to be paid."
+                title={loading ? "Loading invoices..." : "No payments yet."}
+                description={loading ? "" : "Outstanding balances will appear here once invoices start to be paid."}
               />
             ) : (
               <div className="space-y-2">
@@ -296,8 +296,8 @@ function InvoicesPage() {
             {topProducts.length === 0 ? (
               <EmptyState
                 icon={Receipt}
-                title="Generate your first invoice."
-                description="Once invoices are created, your most purchased products will appear here."
+                title={loading ? "Loading invoices..." : "Generate your first invoice."}
+                description={loading ? "" : "Once invoices are created, your most purchased products will appear here."}
               />
             ) : (
               <div className="space-y-2">
