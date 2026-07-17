@@ -113,6 +113,8 @@ function BillingPage() {
   const [voiceParseResult, setVoiceParseResult] = useState<ParsedVoiceInvoice | null>(null);
   const [barcodeInput, setBarcodeInput] = useState("");
   const [scanningBarcode, setScanningBarcode] = useState(false);
+  const [allInvoices, setAllInvoices] = useState<Invoice[]>([]);
+  const [allInvoicesLoading, setAllInvoicesLoading] = useState(true);
   const recognitionRef = useRef<{ start: () => void; stop: () => void } | null>(null);
   const customersRef = useRef(customers);
   const productsRef = useRef(products);
@@ -226,6 +228,25 @@ function BillingPage() {
     };
   }, [customer, completedInvoice?.id]);
 
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        setAllInvoicesLoading(true);
+        const invoices = await getInvoices({});
+        if (active) setAllInvoices(invoices);
+      } catch (err) {
+        if (active) setAllInvoices([]);
+      } finally {
+        if (active) setAllInvoicesLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, [completedInvoice?.id]);
+
   const displayInvoiceNumber = completedInvoice?.id ?? "Pending";
   const effectiveTaxRate = Number.isFinite(taxRate) ? taxRate : 0;
   const taxPercentLabel = `${Math.round(effectiveTaxRate * 100)}%`;
@@ -294,18 +315,21 @@ function BillingPage() {
   const remainingAmount = completedInvoice
     ? Math.max(0, completedInvoice.total - paidAmount)
     : total;
-  const showBillingEmptyState = !invoiceCreated && payloadLines.length === 0;
+  const showBillingEmptyState = !allInvoicesLoading && allInvoices.length === 0 && !invoiceCreated && payloadLines.length === 0;
 
   const refreshCatalog = async () => {
     setCustomersLoading(true);
     setProductsLoading(true);
+    setAllInvoicesLoading(true);
     try {
-      const [customerData, productData] = await Promise.all([getCustomers(), getProducts()]);
+      const [customerData, productData, invoices] = await Promise.all([getCustomers(), getProducts(), getInvoices({})]);
       setCustomers(customerData);
       setProducts(productData);
+      setAllInvoices(invoices);
     } finally {
       setCustomersLoading(false);
       setProductsLoading(false);
+      setAllInvoicesLoading(false);
     }
   };
 
