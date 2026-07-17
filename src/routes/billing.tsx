@@ -96,7 +96,7 @@ function BillingPage() {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
   const [smsOpen, setSmsOpen] = useState(false);
-  const [smsTarget, setSmsTarget] = useState<{ name?: string; phone?: string } | null>(null);
+  const [smsTarget, setSmsTarget] = useState<{ name?: string; phone?: string; invoice?: Invoice; business?: BusinessProfile } | null>(null);
   const [customerForm, setCustomerForm] = useState<CustomerPayload>({
     name: "",
     phone: "",
@@ -420,7 +420,7 @@ function BillingPage() {
       toast.error("Customer phone number is missing.");
       return;
     }
-    setSmsTarget({ name: sel.name, phone: sel.phone });
+    setSmsTarget({ name: sel.name, phone: sel.phone, invoice: completedInvoice ?? undefined, business: business ?? undefined });
     setSmsOpen(true);
   };
 
@@ -1224,6 +1224,9 @@ function BillingPage() {
         onOpenChange={(v) => setSmsOpen(v)}
         customerName={smsTarget?.name ?? selectedCustomer?.name}
         customerPhone={smsTarget?.phone ?? selectedCustomer?.phone}
+        invoice={smsTarget?.invoice ?? completedInvoice ?? undefined}
+        business={smsTarget?.business ?? business ?? undefined}
+        customer={selectedCustomer}
       />
 
       <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>

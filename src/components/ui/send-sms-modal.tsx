@@ -2,20 +2,51 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { toast } from "sonner";
+import { generateInvoiceWhatsAppMessage } from "@/lib/invoice/messages";
+import type { Invoice, BusinessProfile, Customer } from "@/lib/api";
+import { Copy } from "lucide-react";
 
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customerName?: string | null;
   customerPhone?: string | null;
+  invoice?: Invoice;
+  business?: BusinessProfile;
+  customer?: Customer | null;
 };
 
-export default function SendSmsModal({ open, onOpenChange, customerName, customerPhone }: Props) {
+export default function SendSmsModal({ open, onOpenChange, customerName, customerPhone, invoice, business, customer }: Props) {
   const [message, setMessage] = useState("");
 
+  // Generate invoice message when modal opens with invoice data
+  useEffect(() => {
+    if (open && invoice && business) {
+      try {
+        const generatedMessage = generateInvoiceWhatsAppMessage({
+          invoice,
+          business,
+          customer: customer || undefined,
+        });
+        setMessage(generatedMessage);
+      } catch (err) {
+        // If generation fails, keep message empty
+        setMessage("");
+      }
+    }
+  }, [open, invoice, business, customer]);
+
   const charCount = useMemo(() => message.length, [message]);
+
+  const handleCopyMessage = () => {
+    navigator.clipboard.writeText(message).then(() => {
+      toast.success("Message copied to clipboard");
+    }).catch(() => {
+      toast.error("Failed to copy message");
+    });
+  };
 
   const handleSend = () => {
     if (!customerName && !customerPhone) {
@@ -70,7 +101,20 @@ export default function SendSmsModal({ open, onOpenChange, customerName, custome
           <div>
             <label className="text-xs text-muted-foreground">Message</label>
             <Textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={6} />
-            <div className="text-right text-xs text-muted-foreground">{charCount} characters</div>
+            <div className="flex justify-between items-center text-xs text-muted-foreground mt-1">
+              <span>{charCount} characters</span>
+              {message && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyMessage}
+                  className="h-6 px-2"
+                >
+                  <Copy className="h-3 w-3 mr-1" /> Copy
+                </Button>
+              )}
+            </div>
           </div>
 
           <div className="flex justify-end gap-2">
