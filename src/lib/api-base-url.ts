@@ -5,7 +5,7 @@ function trimTrailingSlash(value: string) {
 }
 
 export function resolveApiBaseUrl() {
-  const configured = trimTrailingSlash(import.meta.env.VITE_API_BASE_URL || "");
+  const configured = trimTrailingSlash(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || "");
 
   if (configured) {
     return configured;
