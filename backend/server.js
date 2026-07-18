@@ -103,6 +103,11 @@ async function startServer() {
     await runTenancyMigration();
     await seedDemoAccount();
 
+    // Verify SMTP config exists
+    if (!env.smtpHost || !env.smtpUser || !env.smtpPass) {
+      console.warn("\n⚠️ WARNING: SMTP email provider is not configured! Password resets will fail to deliver emails. Please set SMTP_HOST, SMTP_USER, and SMTP_PASS in backend/.env.\n");
+    }
+
     app.listen(env.port, () => {
       console.log(`ShopPilot AI API running on http://localhost:${env.port} [${env.nodeEnv}]`);
     });

@@ -25,6 +25,12 @@ const env = {
   refreshRememberCookieMaxAgeMs: thirtyDaysMs,
   googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+  smtpHost: process.env.SMTP_HOST || "",
+  smtpPort: parseInt(process.env.SMTP_PORT, 10) || 587,
+  smtpUser: process.env.SMTP_USER || "",
+  smtpPass: process.env.SMTP_PASS || "",
+  emailFrom: process.env.EMAIL_FROM || "ShopPilot AI <no-reply@shoppilot.ai>",
+  frontendUrl: process.env.FRONTEND_URL || "http://localhost:5173",
 };
 
 module.exports = env;

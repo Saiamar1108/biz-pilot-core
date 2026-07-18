@@ -343,9 +343,18 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
 
     devToken = raw;
 
-    // Send simulated branded password reset email
-    const { sendPasswordResetEmail } = require("../utils/emailService");
-    await sendPasswordResetEmail(user, raw);
+    try {
+      const { sendPasswordResetEmail } = require("../utils/emailService");
+      await sendPasswordResetEmail(user, raw);
+    } catch (mailError) {
+      // Invalidate reset token so it can't be used if it was not sent
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+      await user.save();
+
+      res.status(500);
+      throw new Error(`We couldn't send the password reset email. Please try again later. (Error: ${mailError.message})`);
+    }
   }
 
   res.json({
