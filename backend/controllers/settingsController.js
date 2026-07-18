@@ -36,6 +36,7 @@ exports.getSettings = asyncHandler(async (req, res) => {
         timezone: user.timezone || "Asia/Kolkata",
         language: user.language || "en",
         imageDataUrl: user.imageDataUrl || "",
+        hasPassword: !!user.passwordHash && user.passwordHash !== "no-password",
       },
       business: {
         logoDataUrl: shop.logoDataUrl || "",

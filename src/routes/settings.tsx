@@ -18,6 +18,7 @@ import {
   changePassword,
   api,
 } from "@/lib/api";
+import { setAccessToken } from "@/lib/auth-store";
 import { toast } from "sonner";
 import { subscribeToCache } from "@/lib/apiCache";
 import {
@@ -35,6 +36,8 @@ import {
   Laptop,
   Database,
   Download,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
@@ -63,6 +66,7 @@ function SettingsPage() {
     timezone: "Asia/Kolkata",
     language: "en",
     imageDataUrl: "",
+    hasPassword: false,
   });
 
   const [business, setBusiness] = useState({
@@ -292,30 +296,54 @@ function SettingsPage() {
     }
   };
 
+  const [showCurrent, setShowCurrent] = useState(false);
+  const [showNew, setShowNew] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const getPasswordErrors = (password: string, confirm: string) => {
+    const errs = [];
+    if (password.length < 8) errs.push("Minimum 8 characters");
+    if (!/[A-Z]/.test(password)) errs.push("At least 1 uppercase letter");
+    if (!/[a-z]/.test(password)) errs.push("At least 1 lowercase letter");
+    if (!/[0-9]/.test(password)) errs.push("At least 1 number");
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(password)) errs.push("At least 1 special character");
+    if (confirm && password !== confirm) errs.push("Confirm password must match");
+    return errs;
+  };
+
   const handlePasswordChange = async (e: FormEvent) => {
     e.preventDefault();
-    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      toast.error("New passwords do not match.");
-      return;
-    }
-    if (passwordForm.newPassword.length < 8) {
-      toast.error("Password must be at least 8 characters long.");
+    
+    const errors = getPasswordErrors(passwordForm.newPassword, passwordForm.confirmPassword);
+    if (errors.length > 0) {
+      toast.error(`Invalid Password: ${errors.join(", ")}`);
       return;
     }
 
     try {
       setSavingSection("security");
-      await changePassword({
-        currentPassword: passwordForm.currentPassword,
+      const res = await api.post("/auth/change-password", {
+        currentPassword: profile.hasPassword ? passwordForm.currentPassword : undefined,
         newPassword: passwordForm.newPassword,
       });
-      toast.success("Password changed successfully. Please log in again.");
+      
+      const isFirstTime = !profile.hasPassword;
+      
+      setProfile((prev: any) => ({ ...prev, hasPassword: true }));
       setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
-      setTimeout(() => {
-        void auth.logout().then(() => navigate({ to: "/login" }));
-      }, 1500);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to change password.");
+      
+      if (res.data?.accessToken) {
+        setAccessToken(res.data.accessToken);
+      }
+
+      if (isFirstTime) {
+        toast.success("Password Created Successfully");
+      } else {
+        toast.success("Password Updated Successfully");
+      }
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || "Failed to update password.";
+      toast.error(errMsg);
     } finally {
       setSavingSection(null);
     }
@@ -852,80 +880,190 @@ function SettingsPage() {
               )}
 
               {/* Security Card */}
-              {activeTab === "security" && (
-                <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8 shadow-sm backdrop-blur-md space-y-6">
-                  <div className="flex flex-col gap-2">
-                    <h2 className="text-xl font-bold tracking-tight text-foreground">
-                      Security & Password
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      Update your account security password parameters.
-                    </p>
-                  </div>
+              {activeTab === "security" && (() => {
+                const newPass = passwordForm.newPassword;
+                const isMinLength = newPass.length >= 8;
+                const hasUpper = /[A-Z]/.test(newPass);
+                const hasLower = /[a-z]/.test(newPass);
+                const hasNum = /[0-9]/.test(newPass);
+                const hasSpec = /[!@#$%^&*(),.?":{}|<>]/.test(newPass);
+                const isMatching = newPass && newPass === passwordForm.confirmPassword;
 
-                  <form onSubmit={handlePasswordChange} className="space-y-4">
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div className="space-y-1">
-                        <Label htmlFor="sec-curr">Current Password</Label>
-                        <Input
-                          id="sec-curr"
-                          type="password"
-                          value={passwordForm.currentPassword}
-                          onChange={(e) =>
-                            setPasswordForm((prev) => ({
-                              ...prev,
-                              currentPassword: e.target.value,
-                            }))
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="sec-new">New Password</Label>
-                        <Input
-                          id="sec-new"
-                          type="password"
-                          value={passwordForm.newPassword}
-                          onChange={(e) =>
-                            setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
-                          }
-                          required
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label htmlFor="sec-conf">Confirm New Password</Label>
-                        <Input
-                          id="sec-conf"
-                          type="password"
-                          value={passwordForm.confirmPassword}
-                          onChange={(e) =>
-                            setPasswordForm((prev) => ({
-                              ...prev,
-                              confirmPassword: e.target.value,
-                            }))
-                          }
-                          required
-                        />
-                      </div>
+                return (
+                  <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8 shadow-sm backdrop-blur-md space-y-6">
+                    <div className="flex flex-col gap-2">
+                      <h2 className="text-xl font-bold tracking-tight text-foreground">
+                        {profile.hasPassword ? "Security & Password" : "Create Password"}
+                      </h2>
+                      <p className="text-sm text-muted-foreground">
+                        {profile.hasPassword
+                          ? "Update your account security password parameters."
+                          : "Secure your ShopPilot account by creating a password."}
+                      </p>
+                      {!profile.hasPassword && (
+                        <p className="text-xs text-primary font-medium bg-primary/10 p-3 rounded-lg border border-primary/20 mt-1">
+                          🛡️ Adding a password helps protect your business data and account.
+                        </p>
+                      )}
                     </div>
-                    <div className="flex justify-end pt-2">
-                      <Button
-                        type="submit"
-                        disabled={savingSection === "security"}
-                        className="cursor-pointer gap-2 font-semibold"
-                      >
-                        {savingSection === "security" ? (
-                          <>
-                            <Loader2 className="h-4 w-4 animate-spin" /> Updating...
-                          </>
-                        ) : (
-                          "Update Password"
+
+                    <form onSubmit={handlePasswordChange} className="space-y-4">
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        {profile.hasPassword && (
+                          <div className="space-y-1">
+                            <Label htmlFor="sec-curr">Current Password</Label>
+                            <div className="relative">
+                              <Input
+                                id="sec-curr"
+                                type={showCurrent ? "text" : "password"}
+                                value={passwordForm.currentPassword}
+                                onChange={(e) =>
+                                  setPasswordForm((prev) => ({
+                                    ...prev,
+                                    currentPassword: e.target.value,
+                                  }))
+                                }
+                                required
+                                className="pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowCurrent(!showCurrent)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
+                          </div>
                         )}
-                      </Button>
-                    </div>
-                  </form>
-                </div>
-              )}
+                        
+                        <div className="space-y-1">
+                          <Label htmlFor="sec-new">New Password</Label>
+                          <div className="relative">
+                            <Input
+                              id="sec-new"
+                              type={showNew ? "text" : "password"}
+                              value={passwordForm.newPassword}
+                              onChange={(e) =>
+                                setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                              }
+                              required
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowNew(!showNew)}
+                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1">
+                          <Label htmlFor="sec-conf">Confirm New Password</Label>
+                          <div className="relative">
+                            <Input
+                              id="sec-conf"
+                              type={showConfirm ? "text" : "password"}
+                              value={passwordForm.confirmPassword}
+                              onChange={(e) =>
+                                setPasswordForm((prev) => ({
+                                  ...prev,
+                                  confirmPassword: e.target.value,
+                                }))
+                              }
+                              required
+                              className="pr-10"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowConfirm(!showConfirm)}
+                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                            >
+                              {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Real-time Checklist */}
+                        {newPass && (
+                          <div className="sm:col-span-3 space-y-2 p-3 rounded-lg bg-secondary/20 border border-border/40 text-xs mt-2">
+                            <div className="font-semibold text-muted-foreground mb-1">Password Requirements:</div>
+                            <div className="grid gap-1.5 sm:grid-cols-2">
+                              <div className="flex items-center gap-1.5">
+                                <span className={isMinLength ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                  {isMinLength ? "✓" : "○"}
+                                </span>
+                                <span className={isMinLength ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                  Minimum 8 characters
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={hasUpper ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                  {hasUpper ? "✓" : "○"}
+                                </span>
+                                <span className={hasUpper ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                  At least 1 uppercase letter
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={hasLower ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                  {hasLower ? "✓" : "○"}
+                                </span>
+                                <span className={hasLower ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                  At least 1 lowercase letter
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={hasNum ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                  {hasNum ? "✓" : "○"}
+                                </span>
+                                <span className={hasNum ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                  At least 1 number
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className={hasSpec ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                  {hasSpec ? "✓" : "○"}
+                                </span>
+                                <span className={hasSpec ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                  At least 1 special character
+                                </span>
+                              </div>
+                              {passwordForm.confirmPassword && (
+                                <div className="flex items-center gap-1.5">
+                                  <span className={isMatching ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {isMatching ? "✓" : "○"}
+                                  </span>
+                                  <span className={isMatching ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    Passwords match
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          type="submit"
+                          disabled={savingSection === "security"}
+                          className="cursor-pointer gap-2 font-semibold"
+                        >
+                          {savingSection === "security" ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+                            </>
+                          ) : (
+                            profile.hasPassword ? "Update Password" : "Create Password"
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                );
+              })()}
 
               {/* Preferences Card */}
               {activeTab === "preferences" && (

@@ -403,11 +403,37 @@ exports.changePassword = asyncHandler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  const valid = await user.comparePassword(currentPassword);
+  const userHasPassword = !!user.passwordHash && user.passwordHash !== "no-password";
 
-  if (!valid) {
-    res.status(401);
-    throw new Error("Current password is incorrect");
+  if (userHasPassword) {
+    if (!currentPassword) {
+      res.status(400);
+      throw new Error("Current password is required");
+    }
+    const valid = await user.comparePassword(currentPassword);
+    if (!valid) {
+      res.status(401);
+      throw new Error("Current password is incorrect");
+    }
+    const samePassword = await user.comparePassword(newPassword);
+    if (samePassword) {
+      res.status(400);
+      throw new Error("New password cannot be the same as the current password");
+    }
+  }
+
+  // Enforce password strength on the backend
+  if (!newPassword || newPassword.length < 8) {
+    res.status(400);
+    throw new Error("Password must be at least 8 characters");
+  }
+  const hasUppercase = /[A-Z]/.test(newPassword);
+  const hasLowercase = /[a-z]/.test(newPassword);
+  const hasNumber = /[0-9]/.test(newPassword);
+  const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(newPassword);
+  if (!hasUppercase || !hasLowercase || !hasNumber || !hasSpecial) {
+    res.status(400);
+    throw new Error("Password must contain uppercase, lowercase, number, and special character");
   }
 
   user.passwordHash = await User.hashPassword(newPassword);
@@ -418,6 +444,7 @@ exports.changePassword = asyncHandler(async (req, res) => {
 
   res.json({
     success: true,
-    message: "Password changed successfully. Please log in again.",
+    message: userHasPassword ? "Password updated successfully" : "Password created successfully",
+    hasPassword: true
   });
 });
