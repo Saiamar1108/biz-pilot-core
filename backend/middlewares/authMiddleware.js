@@ -38,7 +38,7 @@ const authMiddleware = async (req, res, next) => {
     }
 
     const user = await User.findById(payload.sub).select(
-      "name email role shopId isVerified onboardingCompleted lastLogin lockUntil phone timezone language imageDataUrl",
+      "name email role shopId isVerified onboardingCompleted lastLogin lockUntil phone timezone language imageDataUrl dashboardLockEnabled autoLockTimeout",
     );
     console.log("[authMiddleware] User found:", user ? user.email : null);
 
@@ -74,7 +74,7 @@ const optionalAuthMiddleware = async (req, res, next) => {
   try {
     const payload = verifyAccessToken(token);
     const user = await User.findById(payload.sub).select(
-      "name email role shopId isVerified onboardingCompleted phone timezone language imageDataUrl",
+      "name email role shopId isVerified onboardingCompleted phone timezone language imageDataUrl dashboardLockEnabled autoLockTimeout",
     );
     if (user) {
       req.user = user;

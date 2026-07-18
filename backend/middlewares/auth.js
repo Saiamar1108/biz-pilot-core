@@ -26,7 +26,7 @@ exports.protect = asyncHandler(async (req, res, next) => {
     console.log("[auth.js] Decoded payload:", payload);
     
     const user = await User.findById(payload.sub).select(
-      "name email role shopId isVerified onboardingCompleted lastLogin lockUntil",
+      "name email role shopId isVerified onboardingCompleted lastLogin lockUntil dashboardLockEnabled autoLockTimeout",
     );
     console.log("[auth.js] User found:", user ? user.email : null);
     
