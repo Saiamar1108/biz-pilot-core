@@ -56,6 +56,14 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  failedPasswordRecoveryAttempts: {
+    type: Number,
+    default: 0,
+  },
+  passwordRecoveryLockUntil: {
+    type: Date,
+    default: null,
+  },
   role: {
     type: String,
     enum: ["owner", "staff"],
@@ -120,6 +128,8 @@ userSchema.methods.toJSON = function () {
   delete user.pinHash;
   delete user.failedPinAttempts;
   delete user.pinLockUntil;
+  delete user.failedPasswordRecoveryAttempts;
+  delete user.passwordRecoveryLockUntil;
   return user;
 };
 

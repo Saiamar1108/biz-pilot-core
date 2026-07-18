@@ -198,3 +198,130 @@ exports.updateLockSettings = asyncHandler(async (req, res) => {
     }
   });
 });
+
+const jwt = require("jsonwebtoken");
+const env = require("../config/env");
+
+// 🔒 POST /auth/lock/recover/verify -> Verify account password for PIN recovery
+exports.verifyPasswordForRecovery = asyncHandler(async (req, res) => {
+  const { password } = req.body;
+
+  const user = await User.findById(req.user._id).select("+passwordHash");
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Check lockout
+  if (user.passwordRecoveryLockUntil && user.passwordRecoveryLockUntil > Date.now()) {
+    const secondsLeft = Math.ceil((user.passwordRecoveryLockUntil - Date.now()) / 1000);
+    res.status(429);
+    throw new Error(`Too many incorrect attempts. Try again in ${secondsLeft} seconds.`);
+  }
+
+  if (!password) {
+    res.status(400);
+    throw new Error("Account password is required");
+  }
+
+  const isPasswordValid = await user.comparePassword(password);
+
+  if (!isPasswordValid) {
+    user.failedPasswordRecoveryAttempts = (user.failedPasswordRecoveryAttempts || 0) + 1;
+    if (user.failedPasswordRecoveryAttempts >= 5) {
+      user.passwordRecoveryLockUntil = new Date(Date.now() + 30 * 1000); // 30s lockout
+      user.failedPasswordRecoveryAttempts = 0;
+    }
+    await user.save();
+
+    if (user.passwordRecoveryLockUntil) {
+      res.status(429);
+      throw new Error("Too many incorrect attempts. PIN verification disabled for 30 seconds.");
+    } else {
+      res.status(401);
+      throw new Error("Incorrect password. Please try again.");
+    }
+  }
+
+  // Success: reset attempts
+  user.failedPasswordRecoveryAttempts = 0;
+  user.passwordRecoveryLockUntil = null;
+  await user.save();
+
+  // Generate recovery token (signed JWT token expiring in 5 minutes)
+  const recoveryToken = jwt.sign(
+    { sub: user._id, type: "pin_recovery" },
+    env.jwtAccessSecret,
+    { expiresIn: "5m" }
+  );
+
+  res.json({
+    success: true,
+    message: "Identity verified. You can reset your PIN now.",
+    recoveryToken
+  });
+});
+
+// 🔒 POST /auth/lock/recover/reset -> Reset PIN with recovery token
+exports.resetPinWithRecoveryToken = asyncHandler(async (req, res) => {
+  const { pin, confirmPin, recoveryToken } = req.body;
+
+  if (!recoveryToken) {
+    res.status(400);
+    throw new Error("Recovery token is required");
+  }
+
+  let decoded;
+  try {
+    decoded = jwt.verify(recoveryToken, env.jwtAccessSecret);
+  } catch (err) {
+    res.status(401);
+    throw new Error("Invalid or expired recovery token");
+  }
+
+  if (decoded.type !== "pin_recovery" || String(decoded.sub) !== String(req.user._id)) {
+    res.status(401);
+    throw new Error("Unauthorized PIN recovery session");
+  }
+
+  // Validate new PIN
+  if (!pin || pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+    res.status(400);
+    throw new Error("PIN must be exactly 4 digits");
+  }
+
+  if (pin !== confirmPin) {
+    res.status(400);
+    throw new Error("PINs do not match");
+  }
+
+  const user = await User.findById(req.user._id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Prevent using the same PIN again (if feasible)
+  if (user.pinHash) {
+    const isSamePin = await bcrypt.compare(pin, user.pinHash);
+    if (isSamePin) {
+      res.status(400);
+      throw new Error("New PIN cannot be the same as your current PIN");
+    }
+  }
+
+  user.pinHash = await hashPin(pin);
+  user.dashboardLockEnabled = true; // Make sure lock is enabled!
+  user.failedPinAttempts = 0;
+  user.pinLockUntil = null;
+  await user.save();
+
+  res.json({
+    success: true,
+    message: "PIN reset successfully",
+    data: {
+      dashboardLockEnabled: user.dashboardLockEnabled,
+      autoLockTimeout: user.autoLockTimeout,
+    }
+  });
+});
