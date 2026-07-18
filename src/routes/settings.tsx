@@ -300,6 +300,94 @@ function SettingsPage() {
   const [showNew, setShowNew] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
 
+  const [pinForm, setPinForm] = useState({
+    pin: "",
+    confirmPin: "",
+    oldPin: "",
+  });
+  const [showPin, setShowPin] = useState(false);
+  const [showConfirmPin, setShowConfirmPin] = useState(false);
+  const [showOldPin, setShowOldPin] = useState(false);
+  const [savingLock, setSavingLock] = useState(false);
+
+  const { updateUserFields } = auth;
+
+  const handleSetupPin = async (e: FormEvent) => {
+    e.preventDefault();
+    if (pinForm.pin.length !== 4 || !/^\d{4}$/.test(pinForm.pin)) {
+      toast.error("PIN must be exactly 4 digits.");
+      return;
+    }
+    if (pinForm.pin !== pinForm.confirmPin) {
+      toast.error("PINs do not match.");
+      return;
+    }
+
+    setSavingLock(true);
+    try {
+      const res = await api.post("/auth/lock/setup", {
+        pin: pinForm.pin,
+        confirmPin: pinForm.confirmPin,
+        oldPin: auth.user?.dashboardLockEnabled ? pinForm.oldPin : undefined,
+      });
+      if (res.data?.success) {
+        toast.success(auth.user?.dashboardLockEnabled ? "PIN Updated Successfully" : "PIN Created Successfully");
+        setPinForm({ pin: "", confirmPin: "", oldPin: "" });
+        updateUserFields({
+          dashboardLockEnabled: true,
+          ...res.data.data
+        });
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Failed to setup PIN.");
+    } finally {
+      setSavingLock(false);
+    }
+  };
+
+  const handleRemovePin = async () => {
+    const enteredPin = prompt("Enter your 4-digit PIN to disable ShopPilot Lock:");
+    if (enteredPin === null) return;
+    if (enteredPin.length !== 4 || !/^\d{4}$/.test(enteredPin)) {
+      toast.error("Invalid PIN format.");
+      return;
+    }
+
+    setSavingLock(true);
+    try {
+      const res = await api.post("/auth/lock/remove", { pin: enteredPin });
+      if (res.data?.success) {
+        toast.success("PIN Removed Successfully");
+        updateUserFields({
+          dashboardLockEnabled: false,
+          ...res.data.data
+        });
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Failed to remove PIN.");
+    } finally {
+      setSavingLock(false);
+    }
+  };
+
+  const handleUpdateLockSettings = async (enabled: boolean, timeout: string) => {
+    setSavingLock(true);
+    try {
+      const res = await api.put("/auth/lock/settings", {
+        dashboardLockEnabled: enabled,
+        autoLockTimeout: timeout,
+      });
+      if (res.data?.success) {
+        toast.success("Lock Settings Updated");
+        updateUserFields(res.data.data);
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || err.message || "Failed to update lock settings.");
+    } finally {
+      setSavingLock(false);
+    }
+  };
+
   const getPasswordErrors = (password: string, confirm: string) => {
     const errs = [];
     if (password.length < 8) errs.push("Minimum 8 characters");
@@ -890,37 +978,88 @@ function SettingsPage() {
                 const isMatching = newPass && newPass === passwordForm.confirmPassword;
 
                 return (
-                  <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8 shadow-sm backdrop-blur-md space-y-6">
-                    <div className="flex flex-col gap-2">
-                      <h2 className="text-xl font-bold tracking-tight text-foreground">
-                        {profile.hasPassword ? "Security & Password" : "Create Password"}
-                      </h2>
-                      <p className="text-sm text-muted-foreground">
-                        {profile.hasPassword
-                          ? "Update your account security password parameters."
-                          : "Secure your ShopPilot account by creating a password."}
-                      </p>
-                      {!profile.hasPassword && (
-                        <p className="text-xs text-primary font-medium bg-primary/10 p-3 rounded-lg border border-primary/20 mt-1">
-                          🛡️ Adding a password helps protect your business data and account.
+                  <div className="space-y-6">
+                    <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8 shadow-sm backdrop-blur-md space-y-6">
+                      <div className="flex flex-col gap-2">
+                        <h2 className="text-xl font-bold tracking-tight text-foreground">
+                          {profile.hasPassword ? "Security & Password" : "Create Password"}
+                        </h2>
+                        <p className="text-sm text-muted-foreground">
+                          {profile.hasPassword
+                            ? "Update your account security password parameters."
+                            : "Secure your ShopPilot account by creating a password."}
                         </p>
-                      )}
-                    </div>
+                        {!profile.hasPassword && (
+                          <p className="text-xs text-primary font-medium bg-primary/10 p-3 rounded-lg border border-primary/20 mt-1">
+                            🛡️ Adding a password helps protect your business data and account.
+                          </p>
+                        )}
+                      </div>
 
-                    <form onSubmit={handlePasswordChange} className="space-y-4">
-                      <div className="grid gap-4 sm:grid-cols-3">
-                        {profile.hasPassword && (
+                      <form onSubmit={handlePasswordChange} className="space-y-4">
+                        <div className="grid gap-4 sm:grid-cols-3">
+                          {profile.hasPassword && (
+                            <div className="space-y-1">
+                              <Label htmlFor="sec-curr">Current Password</Label>
+                              <div className="relative">
+                                <Input
+                                  id="sec-curr"
+                                  type={showCurrent ? "text" : "password"}
+                                  value={passwordForm.currentPassword}
+                                  onChange={(e) =>
+                                    setPasswordForm((prev) => ({
+                                      ...prev,
+                                      currentPassword: e.target.value,
+                                    }))
+                                  }
+                                  required
+                                  className="pr-10"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setShowCurrent(!showCurrent)}
+                                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                >
+                                  {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                          
                           <div className="space-y-1">
-                            <Label htmlFor="sec-curr">Current Password</Label>
+                            <Label htmlFor="sec-new">New Password</Label>
                             <div className="relative">
                               <Input
-                                id="sec-curr"
-                                type={showCurrent ? "text" : "password"}
-                                value={passwordForm.currentPassword}
+                                id="sec-new"
+                                type={showNew ? "text" : "password"}
+                                value={passwordForm.newPassword}
+                                onChange={(e) =>
+                                  setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
+                                }
+                                required
+                                className="pr-10"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowNew(!showNew)}
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                              >
+                                {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1">
+                            <Label htmlFor="sec-conf">Confirm New Password</Label>
+                            <div className="relative">
+                              <Input
+                                id="sec-conf"
+                                type={showConfirm ? "text" : "password"}
+                                value={passwordForm.confirmPassword}
                                 onChange={(e) =>
                                   setPasswordForm((prev) => ({
                                     ...prev,
-                                    currentPassword: e.target.value,
+                                    confirmPassword: e.target.value,
                                   }))
                                 }
                                 required
@@ -928,139 +1067,313 @@ function SettingsPage() {
                               />
                               <button
                                 type="button"
-                                onClick={() => setShowCurrent(!showCurrent)}
+                                onClick={() => setShowConfirm(!showConfirm)}
                                 className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
                               >
-                                {showCurrent ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                               </button>
                             </div>
                           </div>
-                        )}
-                        
-                        <div className="space-y-1">
-                          <Label htmlFor="sec-new">New Password</Label>
-                          <div className="relative">
-                            <Input
-                              id="sec-new"
-                              type={showNew ? "text" : "password"}
-                              value={passwordForm.newPassword}
-                              onChange={(e) =>
-                                setPasswordForm((prev) => ({ ...prev, newPassword: e.target.value }))
-                              }
-                              required
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowNew(!showNew)}
-                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
-                            >
-                              {showNew ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <Label htmlFor="sec-conf">Confirm New Password</Label>
-                          <div className="relative">
-                            <Input
-                              id="sec-conf"
-                              type={showConfirm ? "text" : "password"}
-                              value={passwordForm.confirmPassword}
-                              onChange={(e) =>
-                                setPasswordForm((prev) => ({
-                                  ...prev,
-                                  confirmPassword: e.target.value,
-                                }))
-                              }
-                              required
-                              className="pr-10"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => setShowConfirm(!showConfirm)}
-                              className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
-                            >
-                              {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                            </button>
-                          </div>
-                        </div>
 
-                        {/* Real-time Checklist */}
-                        {newPass && (
-                          <div className="sm:col-span-3 space-y-2 p-3 rounded-lg bg-secondary/20 border border-border/40 text-xs mt-2">
-                            <div className="font-semibold text-muted-foreground mb-1">Password Requirements:</div>
-                            <div className="grid gap-1.5 sm:grid-cols-2">
-                              <div className="flex items-center gap-1.5">
-                                <span className={isMinLength ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                  {isMinLength ? "✓" : "○"}
-                                </span>
-                                <span className={isMinLength ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                  Minimum 8 characters
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={hasUpper ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                  {hasUpper ? "✓" : "○"}
-                                </span>
-                                <span className={hasUpper ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                  At least 1 uppercase letter
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={hasLower ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                  {hasLower ? "✓" : "○"}
-                                </span>
-                                <span className={hasLower ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                  At least 1 lowercase letter
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={hasNum ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                  {hasNum ? "✓" : "○"}
-                                </span>
-                                <span className={hasNum ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                  At least 1 number
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className={hasSpec ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                  {hasSpec ? "✓" : "○"}
-                                </span>
-                                <span className={hasSpec ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                  At least 1 special character
-                                </span>
-                              </div>
-                              {passwordForm.confirmPassword && (
+                          {/* Real-time Checklist */}
+                          {newPass && (
+                            <div className="sm:col-span-3 space-y-2 p-3 rounded-lg bg-secondary/20 border border-border/40 text-xs mt-2">
+                              <div className="font-semibold text-muted-foreground mb-1">Password Requirements:</div>
+                              <div className="grid gap-1.5 sm:grid-cols-2">
                                 <div className="flex items-center gap-1.5">
-                                  <span className={isMatching ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
-                                    {isMatching ? "✓" : "○"}
+                                  <span className={isMinLength ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {isMinLength ? "✓" : "○"}
                                   </span>
-                                  <span className={isMatching ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
-                                    Passwords match
+                                  <span className={isMinLength ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    Minimum 8 characters
                                   </span>
                                 </div>
-                              )}
+                                <div className="flex items-center gap-1.5">
+                                  <span className={hasUpper ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {hasUpper ? "✓" : "○"}
+                                  </span>
+                                  <span className={hasUpper ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    At least 1 uppercase letter
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={hasLower ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {hasLower ? "✓" : "○"}
+                                  </span>
+                                  <span className={hasLower ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    At least 1 lowercase letter
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={hasNum ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {hasNum ? "✓" : "○"}
+                                  </span>
+                                  <span className={hasNum ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    At least 1 number
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <span className={hasSpec ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                    {hasSpec ? "✓" : "○"}
+                                  </span>
+                                  <span className={hasSpec ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                    At least 1 special character
+                                  </span>
+                                </div>
+                                {passwordForm.confirmPassword && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={isMatching ? "text-emerald-500 font-bold" : "text-muted-foreground"}>
+                                      {isMatching ? "✓" : "○"}
+                                    </span>
+                                    <span className={isMatching ? "text-emerald-600 dark:text-emerald-400 font-medium" : "text-muted-foreground"}>
+                                      Passwords match
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex justify-end pt-2">
-                        <Button
-                          type="submit"
-                          disabled={savingSection === "security"}
-                          className="cursor-pointer gap-2 font-semibold"
-                        >
-                          {savingSection === "security" ? (
-                            <>
-                              <Loader2 className="h-4 w-4 animate-spin" /> Saving...
-                            </>
-                          ) : (
-                            profile.hasPassword ? "Update Password" : "Create Password"
                           )}
-                        </Button>
+                        </div>
+                        <div className="flex justify-end pt-2">
+                          <Button
+                            type="submit"
+                            disabled={savingSection === "security"}
+                            className="cursor-pointer gap-2 font-semibold"
+                          >
+                            {savingSection === "security" ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+                              </>
+                            ) : (
+                              profile.hasPassword ? "Update Password" : "Create Password"
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </div>
+
+                    {/* ShopPilot Lock Card */}
+                    <div className="rounded-2xl border border-border/50 bg-card p-6 md:p-8 shadow-sm backdrop-blur-md space-y-6">
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center gap-2 text-foreground">
+                          <span className="text-lg">🔒</span>
+                          <h2 className="text-xl font-bold tracking-tight">
+                            ShopPilot Lock
+                          </h2>
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          Protect your business dashboard with a secure 4-digit PIN.
+                        </p>
                       </div>
-                    </form>
+
+                      <div className="flex items-center justify-between p-4 border border-border/30 rounded-xl hover:bg-muted/30 transition-colors">
+                        <div className="space-y-0.5">
+                          <Label className="text-sm font-semibold">Enable ShopPilot Lock</Label>
+                          <p className="text-xs text-muted-foreground">
+                            Require a 4-digit PIN to access any dashboard views.
+                          </p>
+                        </div>
+                        <Switch
+                          checked={auth.user?.dashboardLockEnabled || false}
+                          onCheckedChange={(checked) => {
+                            if (!checked) {
+                              void handleRemovePin();
+                            } else {
+                              toast.info("Please set up a 4-digit PIN to enable the lock.");
+                            }
+                          }}
+                        />
+                      </div>
+
+                      {auth.user?.dashboardLockEnabled && (
+                        <div className="space-y-6 pt-4 border-t border-border/40">
+                          <div className="space-y-2 max-w-xs">
+                            <Label htmlFor="lock-timeout" className="text-sm font-semibold">Auto Lock Timeout</Label>
+                            <select
+                              id="lock-timeout"
+                              value={auth.user?.autoLockTimeout || "never"}
+                              onChange={(e) => handleUpdateLockSettings(true, e.target.value)}
+                              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
+                            >
+                              <option value="immediately">Immediately after login</option>
+                              <option value="5">5 minutes</option>
+                              <option value="10">10 minutes</option>
+                              <option value="15">15 minutes</option>
+                              <option value="30">30 minutes</option>
+                              <option value="never">Never</option>
+                            </select>
+                          </div>
+
+                          <form onSubmit={handleSetupPin} className="space-y-4 pt-2">
+                            <h3 className="text-sm font-bold text-foreground">
+                              Update / Change 4-digit PIN
+                            </h3>
+                            <div className="grid gap-4 sm:grid-cols-3">
+                              <div className="space-y-1">
+                                <Label htmlFor="pin-old">Old PIN</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="pin-old"
+                                    type={showOldPin ? "text" : "password"}
+                                    maxLength={4}
+                                    value={pinForm.oldPin}
+                                    onChange={(e) => setPinForm(prev => ({ ...prev, oldPin: e.target.value.replace(/\D/g, "") }))}
+                                    required
+                                    className="pr-10"
+                                    placeholder="••••"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowOldPin(!showOldPin)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    {showOldPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label htmlFor="pin-new">New PIN</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="pin-new"
+                                    type={showPin ? "text" : "password"}
+                                    maxLength={4}
+                                    value={pinForm.pin}
+                                    onChange={(e) => setPinForm(prev => ({ ...prev, pin: e.target.value.replace(/\D/g, "") }))}
+                                    required
+                                    className="pr-10"
+                                    placeholder="••••"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPin(!showPin)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label htmlFor="pin-conf">Confirm New PIN</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="pin-conf"
+                                    type={showConfirmPin ? "text" : "password"}
+                                    maxLength={4}
+                                    value={pinForm.confirmPin}
+                                    onChange={(e) => setPinForm(prev => ({ ...prev, confirmPin: e.target.value.replace(/\D/g, "") }))}
+                                    required
+                                    className="pr-10"
+                                    placeholder="••••"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPin(!showConfirmPin)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    {showConfirmPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                              <Button
+                                type="submit"
+                                disabled={savingLock || pinForm.pin.length !== 4}
+                                className="cursor-pointer gap-2 font-semibold"
+                              >
+                                {savingLock ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+                                  </>
+                                ) : (
+                                  "Update PIN"
+                                )}
+                              </Button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+
+                      {!auth.user?.dashboardLockEnabled && (
+                        <div className="space-y-6 pt-4 border-t border-border/40">
+                          <form onSubmit={handleSetupPin} className="space-y-4">
+                            <h3 className="text-sm font-bold text-foreground">
+                              Set up a new 4-digit PIN to enable Lock
+                            </h3>
+                            <p className="text-xs text-muted-foreground">
+                              Adding a PIN secures your dashboard session when you step away from the device.
+                            </p>
+                            <div className="grid gap-4 sm:grid-cols-2 max-w-md">
+                              <div className="space-y-1">
+                                <Label htmlFor="pin-setup">4-digit PIN</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="pin-setup"
+                                    type={showPin ? "text" : "password"}
+                                    maxLength={4}
+                                    value={pinForm.pin}
+                                    onChange={(e) => setPinForm(prev => ({ ...prev, pin: e.target.value.replace(/\D/g, "") }))}
+                                    required
+                                    className="pr-10"
+                                    placeholder="••••"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowPin(!showPin)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    {showPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <Label htmlFor="pin-setup-conf">Confirm 4-digit PIN</Label>
+                                <div className="relative">
+                                  <Input
+                                    id="pin-setup-conf"
+                                    type={showConfirmPin ? "text" : "password"}
+                                    maxLength={4}
+                                    value={pinForm.confirmPin}
+                                    onChange={(e) => setPinForm(prev => ({ ...prev, confirmPin: e.target.value.replace(/\D/g, "") }))}
+                                    required
+                                    className="pr-10"
+                                    placeholder="••••"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => setShowConfirmPin(!showConfirmPin)}
+                                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-muted-foreground hover:text-foreground cursor-pointer"
+                                  >
+                                    {showConfirmPin ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end pt-2 max-w-md">
+                              <Button
+                                type="submit"
+                                disabled={savingLock || pinForm.pin.length !== 4 || pinForm.pin !== pinForm.confirmPin}
+                                className="cursor-pointer gap-2 font-semibold"
+                              >
+                                {savingLock ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" /> Saving...
+                                  </>
+                                ) : (
+                                  "Setup PIN & Enable Lock"
+                                )}
+                              </Button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 );
               })()}

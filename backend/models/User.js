@@ -36,6 +36,26 @@ const userSchema = new mongoose.Schema({
   passwordHash: {
     type: String,
   },
+  pinHash: {
+    type: String,
+    default: null,
+  },
+  dashboardLockEnabled: {
+    type: Boolean,
+    default: false,
+  },
+  autoLockTimeout: {
+    type: String,
+    default: "never",
+  },
+  failedPinAttempts: {
+    type: Number,
+    default: 0,
+  },
+  pinLockUntil: {
+    type: Date,
+    default: null,
+  },
   role: {
     type: String,
     enum: ["owner", "staff"],
@@ -97,6 +117,9 @@ userSchema.methods.toJSON = function () {
   const user = this.toObject();
   delete user.passwordHash;
   delete user.passwordResetToken;
+  delete user.pinHash;
+  delete user.failedPinAttempts;
+  delete user.pinLockUntil;
   return user;
 };
 

@@ -9,6 +9,12 @@ const {
   resetPassword,
   changePassword,
 } = require("../controllers/authController");
+const {
+  setupPin,
+  removePin,
+  verifyPin,
+  updateLockSettings,
+} = require("../controllers/lockController");
 const { protect } = require("../middlewares/auth");
 const { loginRateLimiter, authActionRateLimiter, passwordUpdateLimiter } = require("../middlewares/rateLimitMiddleware");
 
@@ -25,5 +31,11 @@ router.post("/refresh", refresh);
 router.get("/me", protect, me);
 router.post("/logout", protect, logout);
 router.post("/change-password", protect, passwordUpdateLimiter, changePassword);
+
+// ShopPilot Lock routes
+router.post("/lock/setup", protect, setupPin);
+router.post("/lock/remove", protect, removePin);
+router.post("/lock/verify", protect, verifyPin);
+router.put("/lock/settings", protect, updateLockSettings);
 
 module.exports = router;

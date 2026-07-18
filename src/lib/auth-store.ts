@@ -13,6 +13,8 @@ export type AuthUser = {
   isVerified: boolean;
   onboardingCompleted: boolean;
   lastLogin?: string | null;
+  dashboardLockEnabled?: boolean;
+  autoLockTimeout?: string;
 };
 
 export type AuthShop = {

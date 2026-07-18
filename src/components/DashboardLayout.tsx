@@ -49,7 +49,7 @@ import {
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { LogOut, Lock } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { subscribeToCache } from "@/lib/apiCache";
 
@@ -75,7 +75,7 @@ export function DashboardLayout({
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const navigate = useNavigate();
-  const { user, shop, logout } = useAuth();
+  const { user, shop, logout, isLocked, lockDashboard } = useAuth();
   const { toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -93,6 +93,12 @@ export function DashboardLayout({
     () => (unreadCount > 99 ? "99+" : String(unreadCount)),
     [unreadCount],
   );
+
+  useEffect(() => {
+    if (isLocked && pathname !== "/shopilot-lock") {
+      void navigate({ to: "/shopilot-lock" as any });
+    }
+  }, [isLocked, pathname, navigate]);
 
   useEffect(() => {
     let active = true;
@@ -275,6 +281,16 @@ export function DashboardLayout({
                 </div>
               </div>
             </div>
+            {user?.dashboardLockEnabled && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full mb-2 transition-all duration-200"
+                onClick={lockDashboard}
+              >
+                <Lock className="h-4.5 w-4.5 mr-2" /> Lock Dashboard
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
