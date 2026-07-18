@@ -336,11 +336,16 @@ exports.forgotPassword = asyncHandler(async (req, res) => {
     const { raw, hash } = generateResetToken();
 
     user.passwordResetToken = hash;
-    user.passwordResetExpires = new Date(Date.now() + 60 * 60 * 1000);
+    // Expire in 15 minutes per security requirements
+    user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000);
 
     await user.save();
 
     devToken = raw;
+
+    // Send simulated branded password reset email
+    const { sendPasswordResetEmail } = require("../utils/emailService");
+    await sendPasswordResetEmail(user, raw);
   }
 
   res.json({
@@ -363,16 +368,32 @@ exports.resetPassword = asyncHandler(async (req, res) => {
     throw new Error("Token and new password are required");
   }
 
+  // Enforce password strength server-side
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+  if (!passwordRegex.test(password)) {
+    res.status(400);
+    throw new Error("Password must be at least 8 characters long and contain at least one uppercase letter, one lowercase letter, one number, and one special character");
+  }
+
   const tokenHash = require("../utils/tokens").hashToken(token);
 
   const user = await User.findOne({
     passwordResetToken: tokenHash,
     passwordResetExpires: { $gt: new Date() },
-  }).select("+passwordResetToken +passwordResetExpires");
+  }).select("+passwordResetToken +passwordResetExpires +passwordHash");
 
   if (!user) {
     res.status(400);
     throw new Error("Invalid or expired reset token");
+  }
+
+  // Prevent reusing current password
+  if (user.passwordHash && user.passwordHash !== "no-password") {
+    const isSamePassword = await user.comparePassword(password);
+    if (isSamePassword) {
+      res.status(400);
+      throw new Error("New password cannot be the same as your current password");
+    }
   }
 
   user.passwordHash = await User.hashPassword(password);
