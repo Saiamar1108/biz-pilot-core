@@ -78,6 +78,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { downloadPurchaseOrderPDF } from "@/lib/purchaseOrderPdf";
 import { printPurchaseOrder } from "@/lib/purchaseOrderPrint";
+import { sanitizeAndValidateWhatsAppNumber } from "@/lib/purchaseOrder";
 
 export const Route = createFileRoute("/purchase-orders")({
   head: () => ({ meta: [{ title: "Purchase Orders — ShopPilot AI" }] }),
@@ -469,13 +470,14 @@ ShopPilot AI`;
   const handleSendWhatsApp = (po: PurchaseOrder) => {
     const sup = getSupplierInfo(po);
     const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
-    if (!num) {
-      toast.error("Supplier WhatsApp/Mobile number missing.");
+    const validation = sanitizeAndValidateWhatsAppNumber(num);
+    if (!validation.isValid) {
+      toast.error(validation.error || "Invalid supplier number.");
       return;
     }
     const msg = generateWhatsAppMessageText(po, sup);
     const encoded = encodeURIComponent(msg);
-    window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+    window.open(`https://wa.me/${validation.sanitized}?text=${encoded}`, "_blank", "noopener,noreferrer");
     
     setWhatsAppConfirmPo(po);
     setWhatsAppConfirmOpen(true);
@@ -484,13 +486,14 @@ ShopPilot AI`;
   const handleSendReminder = (po: PurchaseOrder) => {
     const sup = getSupplierInfo(po);
     const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
-    if (!num) {
-      toast.error("Supplier WhatsApp/Mobile number missing.");
+    const validation = sanitizeAndValidateWhatsAppNumber(num);
+    if (!validation.isValid) {
+      toast.error(validation.error || "Invalid supplier number.");
       return;
     }
     const msg = generateReminderText(po, sup);
     const encoded = encodeURIComponent(msg);
-    window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+    window.open(`https://wa.me/${validation.sanitized}?text=${encoded}`, "_blank", "noopener,noreferrer");
     toast.success("Opening WhatsApp with delivery reminder.");
   };
 
@@ -573,10 +576,14 @@ ShopPilot AI`;
       setTimeout(() => {
         const sup = getSupplierInfo(po);
         const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
-        if (!num) return;
+        const validation = sanitizeAndValidateWhatsAppNumber(num);
+        if (!validation.isValid) {
+          toast.error(`Supplier ${po.supplierName}: ${validation.error}`);
+          return;
+        }
         const msg = generateWhatsAppMessageText(po, sup);
         const encoded = encodeURIComponent(msg);
-        window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+        window.open(`https://wa.me/${validation.sanitized}?text=${encoded}`, "_blank", "noopener,noreferrer");
       }, idx * 1000);
     });
     setSelectedPos([]);
@@ -651,10 +658,14 @@ ShopPilot AI`;
       setTimeout(() => {
         const sup = getSupplierInfo(po);
         const num = sup?.whatsAppNumber || sup?.mobileNumber || "";
-        if (!num) return;
+        const validation = sanitizeAndValidateWhatsAppNumber(num);
+        if (!validation.isValid) {
+          toast.error(`Supplier ${po.supplierName}: ${validation.error}`);
+          return;
+        }
         const msg = generateWhatsAppMessageText(po, sup);
         const encoded = encodeURIComponent(msg);
-        window.open(`https://wa.me/${num}?text=${encoded}`, "_blank");
+        window.open(`https://wa.me/${validation.sanitized}?text=${encoded}`, "_blank", "noopener,noreferrer");
       }, idx * 1000);
     });
   };

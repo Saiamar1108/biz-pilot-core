@@ -1,5 +1,23 @@
 import type { PurchaseOrder } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
+import { toast } from "sonner";
+
+export function sanitizeAndValidateWhatsAppNumber(phone: string): { isValid: boolean; error?: string; sanitized?: string } {
+  if (!phone) {
+    return { isValid: false, error: "Supplier phone number is missing." };
+  }
+  const sanitized = phone.replace(/[\+\s\-\(\)]/g, "");
+  if (!sanitized) {
+    return { isValid: false, error: "Supplier phone number is empty." };
+  }
+  if (!/^\d+$/.test(sanitized)) {
+    return { isValid: false, error: "Supplier phone number contains invalid characters." };
+  }
+  if (sanitized.length <= 10) {
+    return { isValid: false, error: "Country code is missing in supplier number (e.g., +91 for India)." };
+  }
+  return { isValid: true, sanitized };
+}
 
 export function generatePurchaseOrderMessage(purchaseOrder: PurchaseOrder, businessName: string): string {
   const lines = [
@@ -56,9 +74,10 @@ export function generatePurchaseOrderMessage(purchaseOrder: PurchaseOrder, busin
 
 export function openWhatsAppWithPurchaseOrder(purchaseOrder: PurchaseOrder, businessName: string, supplierPhone: string) {
   const message = generatePurchaseOrderMessage(purchaseOrder, businessName);
-  const normalizedPhone = supplierPhone.replace(/\D/g, "");
-  if (normalizedPhone.length >= 10) {
-    const whatsappNumber = normalizedPhone.length === 10 ? `91${normalizedPhone}` : normalizedPhone;
-    window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`, "_blank");
+  const validation = sanitizeAndValidateWhatsAppNumber(supplierPhone);
+  if (validation.isValid) {
+    window.open(`https://wa.me/${validation.sanitized}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
+  } else {
+    toast.error(validation.error || "Invalid supplier number.");
   }
 }
