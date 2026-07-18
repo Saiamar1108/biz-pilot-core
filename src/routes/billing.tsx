@@ -710,7 +710,39 @@ function BillingPage() {
 
     if (parsed.customerId) setCustomer(parsed.customerId);
 
-    if (parsed.lines.length) {
+    const addProductById = (productId: string, qty: number) => {
+      const product = productsRef.current.find((item) => item.id === productId);
+      if (!product) return;
+      
+      setLines((current) => {
+        const next = current.filter((line) => line.productId);
+        const available = Math.max(0, product.stock ?? 0);
+        const safeQty = Math.max(1, Math.min(qty, available || 1));
+        
+        const existing = next.find((item) => item.productId === productId);
+        if (existing) {
+          existing.qty = Math.min(existing.qty + safeQty, available || existing.qty + safeQty);
+        } else {
+          next.push({
+            id: Date.now() + Math.random(),
+            productId: product.id,
+            product: product.name,
+            qty: safeQty,
+            price: product.price,
+          });
+        }
+        return next.length ? next : [emptyLine()];
+      });
+      setInvoiceCreated(false);
+      setCompletedInvoice(null);
+      toast.success(`Added ${product.name} from suggestion.`);
+    };
+
+    let processedAny = false;
+
+    // 1. Process Auto-added lines (>90% confidence)
+    if (parsed.lines && parsed.lines.length > 0) {
+      processedAny = true;
       const adjustments: string[] = [];
       setLines((current) => {
         const next = current.filter((line) => line.productId);
@@ -744,15 +776,44 @@ function BillingPage() {
       if (adjustments.length) {
         toast.warning(adjustments.join(" "));
       }
-      return;
     }
 
-    if (parsed.customerId) {
+    // 2. Process Suggestions (60% - 90% confidence)
+    if (parsed.suggestions && parsed.suggestions.length > 0) {
+      processedAny = true;
+      for (const suggestion of parsed.suggestions) {
+        const topCandidates = suggestion.candidates.slice(0, 3);
+        topCandidates.forEach((candidate) => {
+          toast(`Add: ${candidate.productName}?`, {
+            description: `Heard: "${suggestion.originalSegment}" (${candidate.confidence}% match)`,
+            action: {
+              label: `Add ${suggestion.qty}x`,
+              onClick: () => addProductById(candidate.productId, suggestion.qty),
+            },
+            duration: 10000,
+          });
+        });
+      }
+    }
+
+    // 3. Process Clarifications (<60% confidence)
+    if (parsed.clarifications && parsed.clarifications.length > 0) {
+      processedAny = true;
+      for (const segment of parsed.clarifications) {
+        toast.error(`Could not match "${segment}". Please say the product name more clearly.`, {
+          duration: 6000,
+        });
+      }
+    }
+
+    if (parsed.customerId && !parsed.lines.length && (!parsed.suggestions || !parsed.suggestions.length) && (!parsed.clarifications || !parsed.clarifications.length)) {
       toast.success(`Selected customer ${parsed.customerName ?? "match"}.`);
       return;
     }
 
-    toast.error("Could not match voice input. Try again or add manually.");
+    if (!processedAny && !parsed.customerId) {
+      toast.error("Could not match voice input. Try again or add manually.");
+    }
   };
 
   voiceHandlersRef.current = {
