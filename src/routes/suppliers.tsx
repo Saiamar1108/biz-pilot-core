@@ -84,21 +84,25 @@ function SuppliersPage() {
   const [supplierStats, setSupplierStats] = useState<any>(null);
   const [supplierOrders, setSupplierOrders] = useState<PurchaseOrder[]>([]);
 
-  const loadSuppliers = async () => {
+  const loadSuppliers = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const data = await getSuppliers();
       setSuppliers(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load suppliers");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadSuppliers();
+    void loadSuppliers(true);
+    const unsubSuppliers = subscribeToCache("suppliers", () => void loadSuppliers(false));
+    return () => {
+      unsubSuppliers();
+    };
   }, []);
 
   const filtered = useMemo(() => {

@@ -1,4 +1,3 @@
-import { jsPDF } from "jspdf";
 import type { BusinessProfile, PurchaseOrder, Supplier } from "@/lib/api";
 
 export type PurchaseOrderPdfOptions = {
@@ -18,6 +17,7 @@ function formatPdfDate(value?: string) {
 }
 
 export async function generatePurchaseOrderPDF({ purchaseOrder, business }: PurchaseOrderPdfOptions) {
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const margin = 40;

@@ -86,9 +86,9 @@ function InvoicesPage() {
   useEffect(() => {
     let active = true;
 
-    const load = async () => {
+    const load = async (showLoading = true) => {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         setError(null);
         const [data, summaryData, customerData, settings] = await Promise.all([
           getInvoices(status === "all" ? undefined : { status }),
@@ -105,13 +105,21 @@ function InvoicesPage() {
         if (!active) return;
         setError(err instanceof Error ? err.message : "Unable to load invoices");
       } finally {
-        if (active) setLoading(false);
+        if (active && showLoading) setLoading(false);
       }
     };
 
-    void load();
+    void load(true);
+
+    const unsubInvoices = subscribeToCache("invoices", () => void load(false));
+    const unsubCustomers = subscribeToCache("customers", () => void load(false));
+    const unsubSettings = subscribeToCache("settings", () => void load(false));
+
     return () => {
       active = false;
+      unsubInvoices();
+      unsubCustomers();
+      unsubSettings();
     };
   }, [status]);
 

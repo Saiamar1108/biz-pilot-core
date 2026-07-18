@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createProduct, deleteProduct, getProducts, getSettings, type Product, updateProduct, getSuppliers, type Supplier } from "@/lib/api";
+import { subscribeToCache } from "@/lib/apiCache";
 import { formatCurrency } from "@/lib/currency";
 import { Toaster } from "@/components/ui/sonner";
 import { getExpiryStatus, formatExpiryDate } from "@/lib/inventory";
@@ -51,9 +52,9 @@ function InventoryPage() {
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [lowStockThreshold, setLowStockThreshold] = useState(10);
 
-  const loadProducts = async () => {
+  const loadProducts = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const [data, settings, sups] = await Promise.all([getProducts(), getSettings(), getSuppliers()]);
       setItems(data);
@@ -62,7 +63,7 @@ function InventoryPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load inventory");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
@@ -71,13 +72,20 @@ function InventoryPage() {
 
     const load = async () => {
       if (!active) return;
-      await loadProducts();
+      await loadProducts(true);
     };
 
     void load();
 
+    const unsubProducts = subscribeToCache("products", () => void loadProducts(false));
+    const unsubSettings = subscribeToCache("settings", () => void loadProducts(false));
+    const unsubSuppliers = subscribeToCache("suppliers", () => void loadProducts(false));
+
     return () => {
       active = false;
+      unsubProducts();
+      unsubSettings();
+      unsubSuppliers();
     };
   }, []);
 

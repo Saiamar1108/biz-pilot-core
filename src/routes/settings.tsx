@@ -116,27 +116,35 @@ function SettingsPage() {
     }
 
     let active = true;
-    getSettings()
-      .then((data) => {
-        if (!active) return;
-        if (data.profile) setProfile((prev) => ({ ...prev, ...data.profile }));
-        if (data.business) {
-          // Merge invoice prefix from branding if not present
-          const invoicePrefix = data.branding?.invoicePrefix || data.business.invoicePrefix || "INV";
-          setBusiness((prev) => ({ ...prev, ...data.business, invoicePrefix }));
-        }
-        if (data.notifications) setNotifications((prev) => ({ ...prev, ...data.notifications }));
-        if (data.preferences) setPreferences((prev) => ({ ...prev, ...data.preferences }));
-      })
-      .catch((err) => {
-        toast.error("Failed to load settings: " + (err instanceof Error ? err.message : "Error"));
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
+    const load = (showLoading = true) => {
+      if (showLoading) setLoading(true);
+      getSettings()
+        .then((data) => {
+          if (!active) return;
+          if (data.profile) setProfile((prev) => ({ ...prev, ...data.profile }));
+          if (data.business) {
+            // Merge invoice prefix from branding if not present
+            const invoicePrefix = data.branding?.invoicePrefix || data.business.invoicePrefix || "INV";
+            setBusiness((prev) => ({ ...prev, ...data.business, invoicePrefix }));
+          }
+          if (data.notifications) setNotifications((prev) => ({ ...prev, ...data.notifications }));
+          if (data.preferences) setPreferences((prev) => ({ ...prev, ...data.preferences }));
+        })
+        .catch((err) => {
+          toast.error("Failed to load settings: " + (err instanceof Error ? err.message : "Error"));
+        })
+        .finally(() => {
+          if (active && showLoading) setLoading(false);
+        });
+    };
+
+    load(true);
+
+    const unsubSettings = subscribeToCache("settings", () => load(false));
 
     return () => {
       active = false;
+      unsubSettings();
     };
   }, []);
 

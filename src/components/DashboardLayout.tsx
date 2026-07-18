@@ -95,8 +95,9 @@ export function DashboardLayout({
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
+    const load = async (showLoading = true) => {
       try {
+        if (showLoading) setLoadingSummary(true);
         const [notifData, invoiceData, productData, settings] = await Promise.all([
           getNotifications(),
           getInvoices(),
@@ -136,15 +137,39 @@ export function DashboardLayout({
       } catch {
         // keep resilient even if data fails
       } finally {
-        if (active) setLoadingSummary(false);
+        if (active && showLoading) setLoadingSummary(false);
       }
     };
 
-    void load();
-    const refreshHandler = () => void load();
+    void load(true);
+
+    // Refresh notifications in background silently every 30 seconds
+    const interval = setInterval(async () => {
+      try {
+        const notifData = await getNotifications();
+        if (!active) return;
+        setNotifications(notifData.notifications);
+        setUnreadCount(notifData.unreadCount);
+      } catch (err) {
+        console.error("Failed to poll notifications:", err);
+      }
+    }, 30000);
+
+    const unsubInvoices = subscribeToCache("invoices", () => void load(false));
+    const unsubProducts = subscribeToCache("products", () => void load(false));
+    const unsubNotifications = subscribeToCache("notifications", () => void load(false));
+    const unsubSettings = subscribeToCache("settings", () => void load(false));
+
+    const refreshHandler = () => void load(false);
     window.addEventListener(DATA_REFRESH_EVENT, refreshHandler);
+
     return () => {
       active = false;
+      clearInterval(interval);
+      unsubInvoices();
+      unsubProducts();
+      unsubNotifications();
+      unsubSettings();
       window.removeEventListener(DATA_REFRESH_EVENT, refreshHandler);
     };
   }, []);

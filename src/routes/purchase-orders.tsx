@@ -132,9 +132,9 @@ function PurchaseOrdersPage() {
   const [receiveExpiryDates, setReceiveExpiryDates] = useState<Record<string, string>>({});
   const [submittingReceive, setSubmittingReceive] = useState(false);
 
-  const loadData = async () => {
+  const loadData = async (showLoading = true) => {
     try {
-      setLoading(true);
+      if (showLoading) setLoading(true);
       setError(null);
       const [pos, sups, prods, stats, settings] = await Promise.all([
         getPurchaseOrders(),
@@ -151,12 +151,26 @@ function PurchaseOrdersPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load dashboard data.");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
   useEffect(() => {
-    void loadData();
+    void loadData(true);
+
+    const unsubPurchaseOrders = subscribeToCache("purchaseOrders", () => void loadData(false));
+    const unsubSuppliers = subscribeToCache("suppliers", () => void loadData(false));
+    const unsubProducts = subscribeToCache("products", () => void loadData(false));
+    const unsubAnalytics = subscribeToCache("analytics", () => void loadData(false));
+    const unsubSettings = subscribeToCache("settings", () => void loadData(false));
+
+    return () => {
+      unsubPurchaseOrders();
+      unsubSuppliers();
+      unsubProducts();
+      unsubAnalytics();
+      unsubSettings();
+    };
   }, []);
 
   // Filter purchase orders

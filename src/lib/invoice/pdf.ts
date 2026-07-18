@@ -1,4 +1,3 @@
-import { jsPDF } from "jspdf";
 import type { BusinessProfile, Invoice } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import {
@@ -42,6 +41,7 @@ function formatPdfDate(value?: string) {
 }
 
 export async function generateInvoicePDF({ invoice, business, customerName }: InvoicePdfOptions) {
+  const { jsPDF } = await import("jspdf");
   const pdf = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();

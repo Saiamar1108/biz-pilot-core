@@ -61,8 +61,17 @@ function DashboardPage() {
 
     void load(true);
 
+    const unsubInvoices = subscribeToCache("invoices", () => void load(false));
+    const unsubProducts = subscribeToCache("products", () => void load(false));
+    const unsubAnalytics = subscribeToCache("analytics", () => void load(false));
+    const unsubSettings = subscribeToCache("settings", () => void load(false));
+
     return () => {
       active = false;
+      unsubInvoices();
+      unsubProducts();
+      unsubAnalytics();
+      unsubSettings();
     };
   }, []);
 

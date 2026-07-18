@@ -2,6 +2,7 @@
 import axios, { type AxiosError, type InternalAxiosRequestConfig } from "axios";
 import { getAccessToken, refreshAccessToken, setAccessToken } from "./auth-store";
 import { resolveApiBaseUrl } from "./api-base-url";
+import { cachedFetch, invalidateCache } from "./apiCache";
 
 export type ApiResponse<T> = {
   success: boolean;
@@ -470,68 +471,88 @@ export const EMPTY_ANALYTICS: AnalyticsSummary = {
 };
 
 export async function getNotifications() {
-  const data = unwrap(
-    await api.get<ApiResponse<{ notifications: any[]; unreadCount: number }>>("/notifications"),
-  );
-  return {
-    notifications: (data.notifications || []).map(normalizeNotification),
-    unreadCount: data.unreadCount || 0,
-  };
+  return cachedFetch("notifications", async () => {
+    const data = unwrap(
+      await api.get<ApiResponse<{ notifications: any[]; unreadCount: number }>>("/notifications"),
+    );
+    return {
+      notifications: (data.notifications || []).map(normalizeNotification),
+      unreadCount: data.unreadCount || 0,
+    };
+  });
 }
 
 export async function markNotificationRead(id: string) {
   const response = await api.put<ApiResponse<any>>(`/notifications/${id}/read`);
+  invalidateCache("notifications");
   return normalizeNotification(unwrap(response));
 }
 
 export async function clearNotifications() {
   const response = await api.put<ApiResponse<{ cleared: boolean }>>("/notifications/read-all");
+  invalidateCache("notifications");
   return unwrap(response);
 }
 
 export async function getProducts(params?: Record<string, any>) {
-  const data = unwrap(await api.get<ApiResponse<any[]>>("/products", { params }));
-  return (data || []).map(normalizeProduct);
+  return cachedFetch("products", async () => {
+    const data = unwrap(await api.get<ApiResponse<any[]>>("/products", { params }));
+    return (data || []).map(normalizeProduct);
+  }, params);
 }
 
 export async function createProduct(payload: Partial<Product>) {
   const response = await api.post<ApiResponse<any>>("/products", payload);
+  invalidateCache("products");
+  invalidateCache("analytics");
   return normalizeProduct(unwrap(response));
 }
 
 export async function updateProduct(id: string, payload: Partial<Product>) {
   const response = await api.put<ApiResponse<any>>(`/products/${id}`, payload);
+  invalidateCache("products");
+  invalidateCache("analytics");
   return normalizeProduct(unwrap(response));
 }
 
 export async function deleteProduct(id: string) {
   const response = await api.delete<ApiResponse<any>>(`/products/${id}`);
+  invalidateCache("products");
+  invalidateCache("analytics");
   return normalizeProduct(unwrap(response));
 }
 
 export async function getCustomers(params?: Record<string, any>) {
-  const data = unwrap(await api.get<ApiResponse<any[]>>("/customers", { params }));
-  return (data || []).map(normalizeCustomer);
+  return cachedFetch("customers", async () => {
+    const data = unwrap(await api.get<ApiResponse<any[]>>("/customers", { params }));
+    return (data || []).map(normalizeCustomer);
+  }, params);
 }
 
 export async function createCustomer(payload: CustomerPayload) {
   const response = await api.post<ApiResponse<any>>("/customers", payload);
+  invalidateCache("customers");
   return normalizeCustomer(unwrap(response));
 }
 
 export async function updateCustomer(id: string, payload: CustomerPayload) {
   const response = await api.put<ApiResponse<any>>(`/customers/${id}`, payload);
+  invalidateCache("customers");
   return normalizeCustomer(unwrap(response));
 }
 
 export async function getInvoices(params?: Record<string, any>) {
-  const data = unwrap(await api.get<ApiResponse<any[]>>("/invoices", { params }));
-  return (data || []).map(normalizeInvoice);
+  return cachedFetch("invoices", async () => {
+    const data = unwrap(await api.get<ApiResponse<any[]>>("/invoices", { params }));
+    return (data || []).map(normalizeInvoice);
+  }, params);
 }
 
 export async function getInvoiceSummary(params?: Record<string, any>) {
-  const response = await api.get<ApiResponse<FinancialSummary>>("/invoices/summary", { params });
-  return unwrap(response);
+  return cachedFetch("invoices", async () => {
+    const response = await api.get<ApiResponse<FinancialSummary>>("/invoices/summary", { params });
+    return unwrap(response);
+  }, { ...params, _summary: true });
 }
 
 export async function createInvoice(payload: {
@@ -542,6 +563,10 @@ export async function createInvoice(payload: {
   dueDate?: string;
 }) {
   const response = await api.post<ApiResponse<any>>("/invoices", payload);
+  invalidateCache("invoices");
+  invalidateCache("products");
+  invalidateCache("analytics");
+  invalidateCache("customers");
   return normalizeInvoice(unwrap(response));
 }
 
@@ -550,6 +575,9 @@ export async function updateInvoicePayment(
   payload: { status: Invoice["status"]; paidAmount?: number; paymentMethod?: string },
 ) {
   const response = await api.put<ApiResponse<any>>(`/invoices/${id}/payment`, payload);
+  invalidateCache("invoices");
+  invalidateCache("analytics");
+  invalidateCache("customers");
   return normalizeInvoice(unwrap(response));
 }
 
@@ -567,8 +595,8 @@ export async function addInvoicePayment(
 }
 
 export async function getSettings() {
-  const response =
-    await api.get<
+  return cachedFetch("settings", async () => {
+    const response = await api.get<
       ApiResponse<{
         profile: any;
         business: any;
@@ -580,7 +608,8 @@ export async function getSettings() {
         lowStockThreshold?: number;
       }>
     >("/settings");
-  return unwrap(response);
+    return unwrap(response);
+  });
 }
 
 export async function updateProfileSettings(payload: { profile: any }) {
@@ -588,6 +617,7 @@ export async function updateProfileSettings(payload: { profile: any }) {
     "/settings/profile",
     payload,
   );
+  invalidateCache("settings");
   return unwrap(response);
 }
 
@@ -596,6 +626,8 @@ export async function updateBusinessSettings(payload: { business: any }) {
     "/settings/business",
     payload,
   );
+  invalidateCache("settings");
+  invalidateCache("analytics");
   return unwrap(response);
 }
 
@@ -604,6 +636,7 @@ export async function updateBrandingSettings(payload: { branding: any }) {
     "/settings/branding",
     payload,
   );
+  invalidateCache("settings");
   return unwrap(response);
 }
 
@@ -612,6 +645,7 @@ export async function updateNotificationSettings(payload: { notifications: any }
     "/settings/notifications",
     payload,
   );
+  invalidateCache("settings");
   return unwrap(response);
 }
 
@@ -620,6 +654,7 @@ export async function updatePreferenceSettings(payload: { preferences: any }) {
     "/settings/preferences",
     payload,
   );
+  invalidateCache("settings");
   return unwrap(response);
 }
 
@@ -640,20 +675,26 @@ export async function changePassword(payload: { currentPassword: string; newPass
 }
 
 export async function getAnalytics(params?: Record<string, any>) {
-  const response = await api.get<ApiResponse<AnalyticsSummary>>("/analytics", { params });
-  return { ...EMPTY_ANALYTICS, ...unwrap(response) };
+  return cachedFetch("analytics", async () => {
+    const response = await api.get<ApiResponse<AnalyticsSummary>>("/analytics", { params });
+    return { ...EMPTY_ANALYTICS, ...unwrap(response) };
+  }, params);
 }
 
 export async function getInventoryInsights() {
-  const response = await api.get<ApiResponse<any>>("/inventory-intelligence/insights");
-  return unwrap(response);
+  return cachedFetch("analytics", async () => {
+    const response = await api.get<ApiResponse<any>>("/inventory-intelligence/insights");
+    return unwrap(response);
+  }, { _insights: true });
 }
 
 export async function getPurchaseOrder() {
-  const response = await api.get<ApiResponse<PurchaseOrder>>(
-    "/inventory-intelligence/purchase-order",
-  );
-  return unwrap(response);
+  return cachedFetch("purchaseOrders", async () => {
+    const response = await api.get<ApiResponse<PurchaseOrder>>(
+      "/inventory-intelligence/purchase-order",
+    );
+    return unwrap(response);
+  }, { _purchaseOrder: true });
 }
 
 export async function getProductByBarcode(barcode: string) {
@@ -761,22 +802,27 @@ export type LowStockRecommendation = {
 
 // Supplier APIs
 export async function getSuppliers(params?: Record<string, any>) {
-  const response = await api.get<ApiResponse<Supplier[]>>("/suppliers", { params });
-  return unwrap(response);
+  return cachedFetch("suppliers", async () => {
+    const response = await api.get<ApiResponse<Supplier[]>>("/suppliers", { params });
+    return unwrap(response);
+  }, params);
 }
 
 export async function createSupplier(payload: Omit<Supplier, "id">) {
   const response = await api.post<ApiResponse<Supplier>>("/suppliers", payload);
+  invalidateCache("suppliers");
   return unwrap(response);
 }
 
 export async function updateSupplier(id: string, payload: Partial<Supplier>) {
   const response = await api.put<ApiResponse<Supplier>>(`/suppliers/${id}`, payload);
+  invalidateCache("suppliers");
   return unwrap(response);
 }
 
 export async function deleteSupplier(id: string) {
   const response = await api.delete<ApiResponse<{ message: string }>>(`/suppliers/${id}`);
+  invalidateCache("suppliers");
   return response.data;
 }
 
@@ -787,8 +833,10 @@ export async function getSupplierHistory(id: string) {
 
 // Purchase Order APIs
 export async function getPurchaseOrders(params?: Record<string, any>) {
-  const response = await api.get<ApiResponse<PurchaseOrder[]>>("/purchase-orders", { params });
-  return unwrap(response);
+  return cachedFetch("purchaseOrders", async () => {
+    const response = await api.get<ApiResponse<PurchaseOrder[]>>("/purchase-orders", { params });
+    return unwrap(response);
+  }, params);
 }
 
 export async function getPurchaseOrderById(id: string) {
@@ -798,16 +846,22 @@ export async function getPurchaseOrderById(id: string) {
 
 export async function createPurchaseOrders(payload: { items: any[]; notes?: string; expectedDeliveryDate?: string }) {
   const response = await api.post<ApiResponse<PurchaseOrder[]>>("/purchase-orders", payload);
+  invalidateCache("purchaseOrders");
+  invalidateCache("analytics");
   return unwrap(response);
 }
 
 export async function updatePurchaseOrder(id: string, payload: Partial<PurchaseOrder>) {
   const response = await api.put<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}`, payload);
+  invalidateCache("purchaseOrders");
   return unwrap(response);
 }
 
 export async function receiveGoods(id: string, payload: { receivedItems: any[]; receivedDate?: string; invoiceNumber?: string }) {
   const response = await api.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/receive`, payload);
+  invalidateCache("purchaseOrders");
+  invalidateCache("products");
+  invalidateCache("analytics");
   return unwrap(response);
 }
 
@@ -818,6 +872,7 @@ export async function getLowStockAssistant() {
 
 export async function markPurchaseOrderSent(id: string, payload: { channel: "whatsapp" | "email"; sentBy?: string }) {
   const response = await api.post<ApiResponse<PurchaseOrder>>(`/purchase-orders/${id}/mark-sent`, payload);
+  invalidateCache("purchaseOrders");
   return unwrap(response);
 }
 

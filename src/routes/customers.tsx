@@ -105,8 +105,15 @@ function CustomersPage() {
 
     void load(true);
 
+    const unsubCustomers = subscribeToCache("customers", () => void load(false));
+    const unsubInvoices = subscribeToCache("invoices", () => void load(false));
+    const unsubSettings = subscribeToCache("settings", () => void load(false));
+
     return () => {
       active = false;
+      unsubCustomers();
+      unsubInvoices();
+      unsubSettings();
     };
   }, []);
 

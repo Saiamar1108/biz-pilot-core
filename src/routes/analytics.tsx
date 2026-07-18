@@ -226,9 +226,9 @@ function AnalyticsPage() {
   useEffect(() => {
     let active = true;
 
-    const run = async () => {
+    const run = async (showLoading = true) => {
       try {
-        setLoading(true);
+        if (showLoading) setLoading(true);
         setError(null);
         const params =
           range === "custom" && customStart && customEnd
@@ -241,18 +241,30 @@ function AnalyticsPage() {
           setError(err instanceof Error ? err.message : "Unable to load analytics");
         }
       } finally {
-        if (active) setLoading(false);
+        if (active && showLoading) setLoading(false);
       }
     };
 
     const refreshOnFocus = () => {
-      if (document.visibilityState === "visible") void run();
+      if (document.visibilityState === "visible") void run(true);
     };
 
-    void run();
+    void run(true);
+
+    const unsubAnalytics = subscribeToCache("analytics", () => void run(false));
+
+    if (typeof window !== "undefined") {
+      window.addEventListener(DATA_REFRESH_EVENT, () => void run(false));
+      window.addEventListener("focus", refreshOnFocus);
+    }
 
     return () => {
       active = false;
+      unsubAnalytics();
+      if (typeof window !== "undefined") {
+        window.removeEventListener(DATA_REFRESH_EVENT, () => void run(false));
+        window.removeEventListener("focus", refreshOnFocus);
+      }
     };
   }, [range, customStart, customEnd]);
 
