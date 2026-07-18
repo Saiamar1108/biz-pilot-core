@@ -16,6 +16,7 @@ import {
   updateNotificationSettings,
   updatePreferenceSettings,
   changePassword,
+  api,
 } from "@/lib/api";
 import { toast } from "sonner";
 import { subscribeToCache } from "@/lib/apiCache";
@@ -32,6 +33,8 @@ import {
   Moon,
   Sun,
   Laptop,
+  Database,
+  Download,
 } from "lucide-react";
 
 export const Route = createFileRoute("/settings")({
@@ -40,7 +43,7 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
-type TabId = "profile" | "business" | "notifications" | "security" | "preferences";
+type TabId = "profile" | "business" | "notifications" | "security" | "preferences" | "backup";
 
 function SettingsPage() {
   const navigate = useNavigate();
@@ -110,6 +113,91 @@ function SettingsPage() {
   // File input refs
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+
+  const [exporting, setExporting] = useState(false);
+  const [lastExport, setLastExport] = useState<string | null>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("last_export_timestamp");
+    }
+    return null;
+  });
+
+  const handleDownloadBackup = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get("/settings/backup/complete", { responseType: "blob" });
+      const blob = new Blob([res.data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `ShopPilot_Backup_${new Date().toISOString().split('T')[0]}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      const nowStr = new Date().toLocaleString("en-US", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true
+      });
+      setLastExport(nowStr);
+      localStorage.setItem("last_export_timestamp", nowStr);
+      
+      toast.success("Complete backup ZIP downloaded successfully.");
+    } catch (err) {
+      toast.error("Failed to export backup data.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get("/settings/backup/report", { responseType: "blob" });
+      const blob = new Blob([res.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `ShopPilot_BusinessReport_${new Date().toISOString().split('T')[0]}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("Business Report PDF downloaded successfully.");
+    } catch (err) {
+      toast.error("Failed to export business report PDF.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleDownloadCSVs = async () => {
+    setExporting(true);
+    try {
+      const res = await api.get("/settings/backup/csvs", { responseType: "blob" });
+      const blob = new Blob([res.data], { type: "application/zip" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `ShopPilot_CSVs_${new Date().toISOString().split('T')[0]}.zip`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success("CSV files ZIP downloaded successfully.");
+    } catch (err) {
+      toast.error("Failed to export CSV files.");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined" && "Notification" in window) {
@@ -239,6 +327,7 @@ function SettingsPage() {
     { id: "notifications", label: "Notifications", icon: Bell },
     { id: "security", label: "Security", icon: Lock },
     { id: "preferences", label: "Preferences", icon: Sliders },
+    { id: "backup", label: "Backup & Export", icon: Database },
   ] as const;
 
   return (
@@ -970,6 +1059,120 @@ function SettingsPage() {
                       )}
                     </Button>
                   </div>
+                </div>
+              )}
+
+              {activeTab === "backup" && (
+                <div className="rounded-xl border border-border/50 bg-card p-6 shadow-sm space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold leading-none tracking-tight text-card-foreground">
+                      Backup & Export
+                    </h3>
+                    <p className="text-sm text-muted-foreground mt-1.5">
+                      Export your complete business data, download analytical reports, or obtain standalone CSV spreadsheets.
+                    </p>
+                  </div>
+
+                  <hr className="border-border/40" />
+
+                  <div className="grid gap-6 md:grid-cols-3">
+                    {/* Complete Backup Card */}
+                    <div className="flex flex-col justify-between p-5 rounded-xl border border-border/60 bg-secondary/15 hover:bg-secondary/25 transition-all">
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-primary">
+                          <Database className="h-5 w-5" />
+                          <span className="font-semibold text-sm">Complete Backup</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Downloads a comprehensive ZIP archive containing CSVs, JSON data, and a professional PDF report.
+                        </p>
+                      </div>
+                      <Button
+                        className="cursor-pointer font-semibold w-full mt-auto"
+                        disabled={exporting}
+                        onClick={handleDownloadBackup}
+                      >
+                        {exporting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" /> Export Backup
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* Business Report Card */}
+                    <div className="flex flex-col justify-between p-5 rounded-xl border border-border/60 bg-secondary/15 hover:bg-secondary/25 transition-all">
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-primary">
+                          <Download className="h-5 w-5" />
+                          <span className="font-semibold text-sm">Business Report</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Generates a multi-page PDF summary detailing financial metrics, catalog intelligence, and recent invoices.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer font-semibold w-full mt-auto"
+                        disabled={exporting}
+                        onClick={handleDownloadReport}
+                      >
+                        {exporting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" /> Export Report
+                          </>
+                        )}
+                      </Button>
+                    </div>
+
+                    {/* CSVs Only Card */}
+                    <div className="flex flex-col justify-between p-5 rounded-xl border border-border/60 bg-secondary/15 hover:bg-secondary/25 transition-all">
+                      <div className="space-y-2 mb-4">
+                        <div className="flex items-center gap-2 text-primary">
+                          <Download className="h-5 w-5" />
+                          <span className="font-semibold text-sm">All CSV Files</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Downloads a ZIP bundle with separate, structured CSV spreadsheets for every module in your store.
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        className="cursor-pointer font-semibold w-full mt-auto"
+                        disabled={exporting}
+                        onClick={handleDownloadCSVs}
+                      >
+                        {exporting ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" /> Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4" /> Export CSVs
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  <hr className="border-border/40" />
+
+                  {lastExport && (
+                    <div className="text-xs text-muted-foreground flex items-center justify-between">
+                      <span>Last Export</span>
+                      <span className="font-medium text-foreground bg-secondary/35 px-2 py-0.5 rounded border border-border/40">
+                        {lastExport}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

@@ -11,6 +11,7 @@
     "postinstall": "xattr -cr node_modules/.cache/mongodb-memory-server 2>/dev/null || true"
   },
   "dependencies": {
+    "archiver": "^8.0.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
@@ -22,6 +23,7 @@
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^4.2.1",
     "mongoose": "^8.9.5",
     "morgan": "^1.10.0"
   },
