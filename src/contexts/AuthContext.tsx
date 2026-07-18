@@ -117,14 +117,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await logoutAccount();
     setUser(null);
     setShop(null);
-    sessionStorage.removeItem("sp_dashboard_unlocked");
+    localStorage.removeItem("sp_dashboard_unlocked");
+    localStorage.removeItem("sp_last_activity");
     setIsLocked(false);
   }, []);
 
   const [isLocked, setIsLocked] = useState(false);
 
   const lockDashboard = useCallback(() => {
-    sessionStorage.removeItem("sp_dashboard_unlocked");
+    localStorage.setItem("sp_dashboard_unlocked", "false");
     setIsLocked(true);
     void navigate({ to: "/shopilot-lock" as any });
   }, [navigate]);
@@ -133,7 +134,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const res = await api.post("/auth/lock/verify", { pin });
       if (res.data?.success) {
-        sessionStorage.setItem("sp_dashboard_unlocked", "true");
+        localStorage.setItem("sp_dashboard_unlocked", "true");
+        localStorage.setItem("sp_last_activity", Date.now().toString());
         setIsLocked(false);
         const startPage = localStorage.getItem("sp_start_page") || "/dashboard";
         void navigate({ to: startPage as any });
@@ -151,7 +153,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (user?.dashboardLockEnabled) {
-      const unlocked = sessionStorage.getItem("sp_dashboard_unlocked") === "true";
+      const unlocked = localStorage.getItem("sp_dashboard_unlocked") === "true";
       if (!unlocked) {
         setIsLocked(true);
       }
@@ -160,7 +162,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
-  // Auto Lock timer
+  // Synchronize lock state & activity across tabs in real-time
+  useEffect(() => {
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "sp_dashboard_unlocked") {
+        const isUnlocked = e.newValue === "true";
+        if (user?.dashboardLockEnabled) {
+          setIsLocked(!isUnlocked);
+          if (!isUnlocked) {
+            void navigate({ to: "/shopilot-lock" as any });
+          }
+        }
+      }
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, [user, navigate]);
+
+  // Auto Lock timer with multi-tab synchronizing activity support
   useEffect(() => {
     if (!user?.dashboardLockEnabled || isLocked) return;
     
@@ -172,22 +191,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const timeoutMs = minutes * 60 * 1000;
     
     let timer: NodeJS.Timeout;
+    let interval: NodeJS.Timeout;
     
     const resetTimer = () => {
+      localStorage.setItem("sp_last_activity", Date.now().toString());
       clearTimeout(timer);
       timer = setTimeout(() => {
         lockDashboard();
       }, timeoutMs);
     };
     
-    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach(event => window.addEventListener(event, resetTimer));
+    const activityEvents = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
+    const onUserActivity = () => {
+      resetTimer();
+    };
+    
+    activityEvents.forEach(event => window.addEventListener(event, onUserActivity));
+    
+    interval = setInterval(() => {
+      const lastActivityStr = localStorage.getItem("sp_last_activity");
+      if (lastActivityStr) {
+        const lastActivity = parseInt(lastActivityStr, 10);
+        const elapsed = Date.now() - lastActivity;
+        if (elapsed >= timeoutMs) {
+          lockDashboard();
+        }
+      }
+    }, 2000);
+    
+    const onStorageChange = (e: StorageEvent) => {
+      if (e.key === "sp_last_activity") {
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          lockDashboard();
+        }, timeoutMs);
+      }
+    };
+    window.addEventListener("storage", onStorageChange);
     
     resetTimer();
     
     return () => {
       clearTimeout(timer);
-      events.forEach(event => window.removeEventListener(event, resetTimer));
+      clearInterval(interval);
+      activityEvents.forEach(event => window.removeEventListener(event, onUserActivity));
+      window.removeEventListener("storage", onStorageChange);
     };
   }, [user, isLocked, lockDashboard]);
 

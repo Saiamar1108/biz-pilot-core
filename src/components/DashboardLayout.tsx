@@ -49,7 +49,7 @@ import {
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
-import { LogOut, Lock } from "lucide-react";
+import { LogOut, Lock, Loader2 } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
 import { subscribeToCache } from "@/lib/apiCache";
 
@@ -482,7 +482,15 @@ export function DashboardLayout({
           </div>
         </header>
 
-        <main className="flex-1 p-4 md:p-8">{children}</main>
+        <main className="flex-1 p-4 md:p-8">
+          {isLocked ? (
+            <div className="flex h-[50vh] items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : (
+            children
+          )}
+        </main>
       </div>
 
       {/* Floating AI button */}
