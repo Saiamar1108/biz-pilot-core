@@ -43,6 +43,7 @@ import {
   type Invoice,
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
+import { subscribeToCache } from "@/lib/apiCache";
 import { PaymentStatusBadge } from "@/components/billing/PaymentStatusBadge";
 import { DATA_REFRESH_EVENT, emitDataRefresh } from "@/lib/live-refresh";
 import { generateReminderMessage, getInvoiceOutstanding, openWhatsApp } from "@/lib/invoice";

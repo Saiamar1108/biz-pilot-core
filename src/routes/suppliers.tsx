@@ -42,6 +42,7 @@ import {
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
 import { toast } from "sonner";
+import { subscribeToCache } from "@/lib/apiCache";
 
 export const Route = createFileRoute("/suppliers")({
   head: () => ({ meta: [{ title: "Suppliers — ShopPilot AI" }] }),

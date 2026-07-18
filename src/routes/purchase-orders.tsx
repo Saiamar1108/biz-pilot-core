@@ -73,6 +73,7 @@ import {
   type LowStockRecommendation
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
+import { subscribeToCache } from "@/lib/apiCache";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { downloadPurchaseOrderPDF } from "@/lib/purchaseOrderPdf";

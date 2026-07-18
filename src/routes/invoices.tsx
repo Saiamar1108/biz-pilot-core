@@ -43,6 +43,7 @@ import {
   type Invoice,
 } from "@/lib/api";
 import { formatCurrency } from "@/lib/currency";
+import { subscribeToCache } from "@/lib/apiCache";
 import { emitDataRefresh } from "@/lib/live-refresh";
 import {
   calculateInvoiceProfit,

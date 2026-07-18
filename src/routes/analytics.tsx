@@ -49,6 +49,7 @@ import { formatMonthLabel } from "@/lib/analytics";
 import { exportAnalyticsCsv, exportAnalyticsPdf } from "@/lib/analytics-export";
 import { formatCurrency } from "@/lib/currency";
 import { DATA_REFRESH_EVENT } from "@/lib/live-refresh";
+import { subscribeToCache } from "@/lib/apiCache";
 
 export const Route = createFileRoute("/analytics")({
   head: () => ({

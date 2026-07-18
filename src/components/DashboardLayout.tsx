@@ -51,6 +51,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "@tanstack/react-router";
 import { LogOut } from "lucide-react";
 import { formatCurrency } from "@/lib/currency";
+import { subscribeToCache } from "@/lib/apiCache";
 
 const navItems = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
